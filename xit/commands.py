@@ -154,6 +154,47 @@ class ShowStatsCommand(Command):
         self.formatter.console.print(f"Tasks with tags: {stats['tasks_with_tags']}")
 
 
+class AddTaskCommand(Command):
+    """Command for adding new tasks."""
+    
+    def execute(self, description: str, file_path: str, directory: Path = None) -> None:
+        """Execute the add task command.
+        
+        Args:
+            description: The task description text
+            file_path: Path to the file where task should be added
+            directory: Base directory for relative paths
+        """
+        try:
+            # Resolve absolute file path
+            if not Path(file_path).is_absolute():
+                if directory:
+                    file_path = str(directory / file_path)
+                else:
+                    file_path = str(Path.cwd() / file_path)
+            
+            # Add the task to the file
+            self.task_service.add_task_to_file(description, file_path)
+            
+            # Display confirmation message
+            relative_path = self._get_relative_path(file_path)
+            self.formatter.display_success(
+                f"✓ Added task to {relative_path}: \"{description}\""
+            )
+            
+        except XitError as e:
+            self.formatter.display_error(str(e))
+        except Exception as e:
+            self.formatter.display_error(f"Unexpected error: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -166,3 +207,8 @@ class CommandFactory:
     def create_stats_command(formatter: TaskFormatter = None) -> ShowStatsCommand:
         """Create a show stats command."""
         return ShowStatsCommand(formatter)
+    
+    @staticmethod
+    def create_add_command(formatter: TaskFormatter = None) -> AddTaskCommand:
+        """Create an add task command."""
+        return AddTaskCommand(formatter)

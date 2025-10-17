@@ -129,5 +129,34 @@ def stats(ctx, path):
     )
 
 
+@xit.command()
+@click.argument('description', type=str)
+@click.option('--file', '-f', type=click.Path(), 
+              help='File to add the task to (default: todo.xit)')
+@click.pass_context
+def add(ctx, description, file):
+    """Add a new task.
+    
+    Creates a new task with the specified description and appends it to the target file.
+    If no file is specified, the task will be added to 'todo.xit' in the current directory.
+    
+    The description can include priority markers (!), due dates (-> YYYY-MM-DD), and tags (#tag).
+    
+    DESCRIPTION: The task description text
+    
+    Examples:
+        xit add "Buy groceries"
+        xit add "!! Important meeting -> 2025-12-15 #work" -f work.xit
+        xit add "Review code #urgent #dev" --file tasks.md
+    """
+    # Create and execute command
+    command = CommandFactory.create_add_command()
+    command.execute(
+        description=description,
+        file_path=file or "todo.xit",
+        directory=ctx.obj['directory']
+    )
+
+
 if __name__ == '__main__':
     xit()

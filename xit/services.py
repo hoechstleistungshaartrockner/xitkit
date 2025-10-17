@@ -174,6 +174,45 @@ class TaskService:
                 stats['tasks_with_tags'] += 1
         
         return stats
+    
+    def add_task_to_file(self, description: str, file_path: str) -> None:
+        """Add a new task to the specified file.
+        
+        Args:
+            description: The task description text
+            file_path: Path to the file where task should be added
+            
+        Raises:
+            FileNotSupportedError: If file extension is not supported
+        """
+        file_path_obj = Path(file_path)
+        
+        # Validate file extension
+        if file_path_obj.suffix not in ['.md', '.xit']:
+            raise FileNotSupportedError(file_path, {'.md', '.xit'})
+        
+        # Create directory if it doesn't exist
+        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Format the task line (always create as open task)
+        task_line = f"[ ] {description}\n"
+        
+        # Check if file exists and has content
+        file_exists = file_path_obj.exists()
+        needs_newline = False
+        
+        if file_exists and file_path_obj.stat().st_size > 0:
+            # Check if file ends with newline
+            with open(file_path, 'rb') as f:
+                f.seek(-1, 2)  # Go to last byte
+                last_char = f.read(1)
+                needs_newline = last_char != b'\n'
+        
+        # Append the task to the file
+        with open(file_path, 'a', encoding='utf-8') as f:
+            if needs_newline:
+                f.write('\n')
+            f.write(task_line)
 
 
 class FileDiscoveryService:

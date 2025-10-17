@@ -221,5 +221,57 @@ def reschedule(ctx, task_id, new_date):
     )
 
 
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.pass_context
+def rm(ctx, task_id):
+    """Remove a task by its ID with confirmation.
+    
+    Shows the task and asks for confirmation before permanently deleting it.
+    Answering 'n' will mark the task as obsolete instead of deleting it.
+    The task ID can be found using the 'xit show --show-id' command.
+    
+    ID: The task ID number to remove
+    
+    Examples:
+        xit rm 5               # Remove task #5 (with confirmation)
+        xit -f tasks.xit rm 3  # Remove task #3 from specific file (with confirmation)
+    """
+    # Create and execute command
+    command = CommandFactory.create_remove_command()
+    command.execute(
+        task_id=task_id,
+        directory=ctx.obj['directory'],
+        specified_files=ctx.obj['files']
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.option('--target', '-t', required=True, 
+              help='Target file to move the task to')
+@click.pass_context
+def move(ctx, task_id, target):
+    """Move a task to another file.
+    
+    Moves a task from its current file to the specified target file.
+    The task ID can be found using the 'xit show --show-id' command.
+    
+    ID: The task ID number to move
+    
+    Examples:
+        xit move 5 --target other.xit     # Move task #5 to other.xit
+        xit -f tasks.xit move 3 -t done.xit  # Move task #3 to done.xit
+    """
+    # Create and execute command
+    command = CommandFactory.create_move_command()
+    command.execute(
+        task_id=task_id,
+        target_file=target,
+        directory=ctx.obj['directory'],
+        specified_files=ctx.obj['files']
+    )
+
+
 if __name__ == '__main__':
     xit()

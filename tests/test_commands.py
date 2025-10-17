@@ -6,7 +6,8 @@ from pathlib import Path
 
 from xit.commands import (
     Command, ShowTasksCommand, ShowStatsCommand, AddTaskCommand, 
-    MarkTaskCommand, RescheduleTaskCommand, CommandFactory
+    MarkTaskCommand, RescheduleTaskCommand, RemoveTaskCommand, 
+    MoveTaskCommand, CommandFactory
 )
 from xit.services import TaskFilter
 from xit.task import Task
@@ -665,6 +666,331 @@ class TestRescheduleTaskCommand:
         )
 
 
+class TestRemoveTaskCommand:
+    """Test RemoveTaskCommand functionality."""
+    
+    @pytest.fixture
+    def remove_command(self):
+        """Create a RemoveTaskCommand instance with mocked dependencies."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = RemoveTaskCommand(formatter)
+        
+        # Mock the services
+        cmd.task_service = Mock()
+        cmd.file_service = Mock()
+        
+        return cmd
+    
+    def test_remove_command_creation(self):
+        """Test creating a RemoveTaskCommand."""
+        cmd = RemoveTaskCommand()
+        assert isinstance(cmd, RemoveTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_remove_command_with_custom_formatter(self):
+        """Test creating RemoveTaskCommand with custom formatter."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = RemoveTaskCommand(formatter)
+        assert cmd.formatter is formatter
+    
+    @patch('click.confirm')
+    def test_execute_remove_task_success_delete(self, mock_confirm, remove_command):
+        """Test successfully removing a task with confirmation (delete)."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        remove_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock task loading
+        target_task = Mock()
+        target_task.id = 1
+        target_task.description = "Task to remove"
+        target_task.file = "/test/tasks.xit"
+        remove_command.task_service.load_tasks.return_value = [target_task]
+        
+        # Mock confirmation as Yes (delete)
+        mock_confirm.return_value = True
+        
+        # Mock removal
+        removed_task = Mock()
+        removed_task.description = "Task to remove"
+        removed_task.file = "/test/tasks.xit"
+        remove_command.task_service.remove_task_by_id.return_value = removed_task
+        
+        # Execute
+        remove_command.execute(1, directory=Path("/test"))
+        
+        # Verify
+        remove_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, Path("/test"), None
+        )
+        remove_command.task_service.load_tasks.assert_called_once_with([test_file])
+        mock_confirm.assert_called_once()
+        remove_command.task_service.remove_task_by_id.assert_called_once_with(1, [test_file])
+        remove_command.formatter.display_success.assert_called_once()
+    
+    @patch('click.confirm')
+    def test_execute_remove_task_success_obsolete(self, mock_confirm, remove_command):
+        """Test successfully marking a task as obsolete with confirmation (no delete)."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        remove_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock task loading
+        target_task = Mock()
+        target_task.id = 1
+        target_task.description = "Task to mark obsolete"
+        target_task.file = "/test/tasks.xit"
+        remove_command.task_service.load_tasks.return_value = [target_task]
+        
+        # Mock confirmation as No (mark obsolete)
+        mock_confirm.return_value = False
+        
+        # Mock marking as obsolete
+        updated_task = Mock()
+        updated_task.description = "Task to mark obsolete"
+        updated_task.file = "/test/tasks.xit"
+        remove_command.task_service.mark_task_by_id.return_value = updated_task
+        
+        # Execute
+        remove_command.execute(1, directory=Path("/test"))
+        
+        # Verify
+        remove_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, Path("/test"), None
+        )
+        remove_command.task_service.load_tasks.assert_called_once_with([test_file])
+        mock_confirm.assert_called_once()
+        remove_command.task_service.mark_task_by_id.assert_called_once_with(1, "OBSOLETE", [test_file])
+        remove_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_remove_task_no_files(self, remove_command):
+        """Test removing task when no files found."""
+        # Setup
+        remove_command.file_service.resolve_file_paths.return_value = []
+        
+        # Execute
+        remove_command.execute(1, directory=Path("/test"))
+        
+        # Verify
+        remove_command.formatter.display_warning.assert_called_once_with(
+            "No task files found."
+        )
+        remove_command.task_service.remove_task_by_id.assert_not_called()
+    
+    def test_execute_remove_task_not_found(self, remove_command):
+        """Test removing a task that doesn't exist."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        remove_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock task loading - return empty list (no tasks found)
+        remove_command.task_service.load_tasks.return_value = []
+        
+        # Execute
+        remove_command.execute(999, directory=Path("/test"))
+        
+        # Verify
+        remove_command.formatter.display_error.assert_called_once_with(
+            "Task with ID #999 not found."
+        )
+    
+    @patch('click.confirm')
+    def test_execute_remove_task_with_specified_files(self, mock_confirm, remove_command):
+        """Test removing task from specified files."""
+        # Setup
+        specified_files = ["tasks.xit", "projects.md"]
+        test_files = [Path("/test/tasks.xit"), Path("/test/projects.md")]
+        remove_command.file_service.resolve_file_paths.return_value = test_files
+        
+        # Mock task loading
+        target_task = Mock()
+        target_task.id = 1
+        target_task.description = "Test task"
+        target_task.file = "/test/tasks.xit"
+        remove_command.task_service.load_tasks.return_value = [target_task]
+        
+        # Mock confirmation as Yes (delete)
+        mock_confirm.return_value = True
+        
+        removed_task = Mock()
+        removed_task.description = "Test task"
+        removed_task.file = "/test/tasks.xit"
+        remove_command.task_service.remove_task_by_id.return_value = removed_task
+        
+        # Execute
+        remove_command.execute(1, specified_files=specified_files)
+        
+        # Verify
+        remove_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, None, specified_files
+        )
+    
+    def test_execute_remove_task_error_handling(self, remove_command):
+        """Test error handling during task removal."""
+        # Setup
+        remove_command.file_service.resolve_file_paths.side_effect = XitError("Test error")
+        
+        # Execute
+        remove_command.execute(1, directory=Path("/test"))
+        
+        # Verify
+        remove_command.formatter.display_error.assert_called_once_with("Test error")
+    
+    def test_get_relative_path(self, remove_command):
+        """Test the _get_relative_path helper method."""
+        with patch('pathlib.Path.cwd', return_value=Path("/current")):
+            # Test relative path
+            result = remove_command._get_relative_path("/current/subdir/file.xit")
+            assert result == "subdir/file.xit"
+            
+            # Test absolute path that can't be made relative
+            result = remove_command._get_relative_path("/other/path/file.xit")
+            assert result == "/other/path/file.xit"
+
+
+class TestMoveTaskCommand:
+    """Test MoveTaskCommand functionality."""
+    
+    @pytest.fixture
+    def move_command(self):
+        """Create a MoveTaskCommand instance with mocked dependencies."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = MoveTaskCommand(formatter)
+        
+        # Mock the services
+        cmd.task_service = Mock()
+        cmd.file_service = Mock()
+        
+        return cmd
+    
+    def test_move_command_creation(self):
+        """Test creating a MoveTaskCommand."""
+        cmd = MoveTaskCommand()
+        assert isinstance(cmd, MoveTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_move_command_with_custom_formatter(self):
+        """Test creating MoveTaskCommand with custom formatter."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = MoveTaskCommand(formatter)
+        assert cmd.formatter is formatter
+    
+    def test_execute_move_task_success(self, move_command):
+        """Test successfully moving a task."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        move_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Create mock moved task
+        moved_task = Mock()
+        moved_task.description = "Task to move"
+        moved_task.file = "/test/target.xit"
+        move_command.task_service.move_task_by_id.return_value = moved_task
+        
+        # Execute
+        move_command.execute(1, "target.xit", directory=Path("/test"))
+        
+        # Verify
+        move_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, Path("/test"), None
+        )
+        move_command.task_service.move_task_by_id.assert_called_once_with(
+            1, [test_file], "/test/target.xit"
+        )
+        move_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_move_task_absolute_target(self, move_command):
+        """Test moving task with absolute target path."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        move_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        moved_task = Mock()
+        moved_task.description = "Task to move"
+        moved_task.file = "/absolute/target.xit"
+        move_command.task_service.move_task_by_id.return_value = moved_task
+        
+        # Execute with absolute target path
+        move_command.execute(1, "/absolute/target.xit", directory=Path("/test"))
+        
+        # Verify
+        move_command.task_service.move_task_by_id.assert_called_once_with(
+            1, [test_file], "/absolute/target.xit"
+        )
+        move_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_move_task_no_files(self, move_command):
+        """Test moving task when no files found."""
+        # Setup
+        move_command.file_service.resolve_file_paths.return_value = []
+        
+        # Execute
+        move_command.execute(1, "target.xit", directory=Path("/test"))
+        
+        # Verify
+        move_command.formatter.display_warning.assert_called_once_with(
+            "No task files found."
+        )
+        move_command.task_service.move_task_by_id.assert_not_called()
+    
+    def test_execute_move_task_not_found(self, move_command):
+        """Test moving a task that doesn't exist."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        move_command.file_service.resolve_file_paths.return_value = [test_file]
+        move_command.task_service.move_task_by_id.return_value = None
+        
+        # Execute
+        move_command.execute(999, "target.xit", directory=Path("/test"))
+        
+        # Verify
+        move_command.formatter.display_error.assert_called_once_with(
+            "Task with ID #999 not found."
+        )
+    
+    def test_execute_move_task_with_specified_files(self, move_command):
+        """Test moving task from specified files."""
+        # Setup
+        specified_files = ["tasks.xit", "projects.md"]
+        test_files = [Path("/test/tasks.xit"), Path("/test/projects.md")]
+        move_command.file_service.resolve_file_paths.return_value = test_files
+        
+        moved_task = Mock()
+        moved_task.description = "Test task"
+        moved_task.file = "/test/target.xit"
+        move_command.task_service.move_task_by_id.return_value = moved_task
+        
+        # Execute
+        move_command.execute(1, "target.xit", specified_files=specified_files)
+        
+        # Verify
+        move_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, None, specified_files
+        )
+    
+    def test_execute_move_task_error_handling(self, move_command):
+        """Test error handling during task moving."""
+        # Setup
+        move_command.file_service.resolve_file_paths.side_effect = XitError("Test error")
+        
+        # Execute
+        move_command.execute(1, "target.xit", directory=Path("/test"))
+        
+        # Verify
+        move_command.formatter.display_error.assert_called_once_with("Test error")
+    
+    def test_get_relative_path(self, move_command):
+        """Test the _get_relative_path helper method."""
+        with patch('pathlib.Path.cwd', return_value=Path("/current")):
+            # Test relative path
+            result = move_command._get_relative_path("/current/subdir/file.xit")
+            assert result == "subdir/file.xit"
+            
+            # Test absolute path that can't be made relative
+            result = move_command._get_relative_path("/other/path/file.xit")
+            assert result == "/other/path/file.xit"
+
+
 class TestStatisticsDisplay:
     """Test statistics display functionality."""
     
@@ -848,6 +1174,36 @@ class TestCommandFactory:
         cmd = CommandFactory.create_reschedule_command(custom_formatter)
         
         assert isinstance(cmd, RescheduleTaskCommand)
+        assert cmd.formatter is custom_formatter
+    
+    def test_create_remove_command_default(self):
+        """Test creating remove command with default formatter."""
+        cmd = CommandFactory.create_remove_command()
+        
+        assert isinstance(cmd, RemoveTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_remove_command_with_formatter(self):
+        """Test creating remove command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_remove_command(custom_formatter)
+        
+        assert isinstance(cmd, RemoveTaskCommand)
+        assert cmd.formatter is custom_formatter
+    
+    def test_create_move_command_default(self):
+        """Test creating move command with default formatter."""
+        cmd = CommandFactory.create_move_command()
+        
+        assert isinstance(cmd, MoveTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_move_command_with_formatter(self):
+        """Test creating move command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_move_command(custom_formatter)
+        
+        assert isinstance(cmd, MoveTaskCommand)
         assert cmd.formatter is custom_formatter
 
 

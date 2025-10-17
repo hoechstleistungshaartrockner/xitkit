@@ -365,6 +365,142 @@ class TaskService:
             with open(task.file, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
 
+    def remove_task_by_id(self, task_id: int, file_paths: List[str]) -> Optional[Task]:
+        """Remove a task by its ID from the files.
+        
+        Args:
+            task_id: The ID of the task to remove
+            file_paths: List of file paths to search
+            
+        Returns:
+            The removed Task object if found, None otherwise
+        """
+        # Load all tasks and assign IDs
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task with the matching ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            return None
+        
+        # Remove the task from its file
+        self._remove_task_from_file(target_task)
+        
+        return target_task
+    
+    def _remove_task_from_file(self, task: Task) -> None:
+        """Remove a task from its source file.
+        
+        Args:
+            task: The task to remove
+        """
+        # Read the entire file
+        with open(task.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Remove the task line and any continuation lines
+        line_index = task.line_number - 1  # Convert to 0-based
+        
+        if 0 <= line_index < len(lines):
+            # Remove the main task line
+            del lines[line_index]
+            
+            # Remove any continuation lines that follow (lines starting with 4 spaces)
+            while (line_index < len(lines) and 
+                   lines[line_index].startswith('    ') and 
+                   lines[line_index].strip()):
+                del lines[line_index]
+        
+        # Write the file back
+        with open(task.file, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+    
+    def move_task_by_id(self, task_id: int, source_files: List[str], target_file: str) -> Optional[Task]:
+        """Move a task by its ID from source files to a target file.
+        
+        Args:
+            task_id: The ID of the task to move
+            source_files: List of source file paths to search
+            target_file: Path to the target file
+            
+        Returns:
+            The moved Task object if found, None otherwise
+            
+        Raises:
+            FileNotSupportedError: If target file extension is not supported
+        """
+        from pathlib import Path
+        
+        # Validate target file extension
+        target_path = Path(target_file)
+        if target_path.suffix not in ['.md', '.xit']:
+            from .exceptions import FileNotSupportedError
+            raise FileNotSupportedError(target_file, {'.md', '.xit'})
+        
+        # Load all tasks and assign IDs
+        all_tasks = self.load_tasks(source_files)
+        
+        # Find the task with the matching ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            return None
+        
+        # Get the original task description (including due date, priority, etc.)
+        original_description = self._extract_task_description(target_task)
+        
+        # Add the task to the target file
+        self.add_task_to_file(original_description, target_file)
+        
+        # Remove the task from the source file
+        self._remove_task_from_file(target_task)
+        
+        # Update task file path for return
+        target_task.file = str(target_path)
+        
+        return target_task
+    
+    def _extract_task_description(self, task: Task) -> str:
+        """Extract the complete task description including priority, tags, and due date.
+        
+        Args:
+            task: The task to extract description from
+            
+        Returns:
+            Complete task description string
+        """
+        # Read the task line from file to preserve original formatting
+        with open(task.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        line_index = task.line_number - 1
+        if 0 <= line_index < len(lines):
+            task_line = lines[line_index].strip()
+            
+            # Remove the checkbox part [x] or [ ] etc.
+            import re
+            checkbox_match = re.match(r'^\[.\]\s*(.*)', task_line)
+            if checkbox_match:
+                return checkbox_match.group(1)
+            else:
+                return task_line
+        
+        # Fallback to constructing from task properties
+        description = task.description
+        if task.due_date and task.due_date != "None":
+            description += f" -> {task.due_date}"
+        
+        return description
+
 
 class FileDiscoveryService:
     """Service for discovering and validating task files."""

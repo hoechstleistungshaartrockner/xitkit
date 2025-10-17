@@ -316,6 +316,134 @@ class RescheduleTaskCommand(Command):
             return file_path
 
 
+class RemoveTaskCommand(Command):
+    """Command for removing tasks from files."""
+    
+    def execute(self, task_id: int, directory: Path = None, 
+                specified_files: list = None) -> None:
+        """Execute the remove task command.
+        
+        Args:
+            task_id: ID of the task to remove
+            directory: Default directory to search
+            specified_files: Explicitly specified files
+        """
+        try:
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # First, find the task to get its details for confirmation
+            all_tasks = self.task_service.load_tasks(file_paths)
+            target_task = None
+            for task in all_tasks:
+                if task.id == task_id:
+                    target_task = task
+                    break
+            
+            if not target_task:
+                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+                return
+            
+            # Show the task and ask for confirmation
+            relative_path = self._get_relative_path(target_task.file)
+            import click
+            self.formatter.display_warning(
+                f"Task #{task_id} in {relative_path}: \"{target_task.description}\""
+            )
+            
+            if click.confirm("Are you sure you want to permanently delete this task? (n will mark as obsolete instead)"):
+                # User chose to permanently delete
+                removed_task = self.task_service.remove_task_by_id(task_id, file_paths)
+                if removed_task:
+                    self.formatter.display_success(
+                        f"✓ Permanently deleted task #{task_id} from {relative_path}: \"{removed_task.description}\""
+                    )
+                else:
+                    self.formatter.display_error(f"Failed to delete task #{task_id}.")
+            else:
+                # User chose to mark as obsolete instead
+                updated_task = self.task_service.mark_task_by_id(task_id, "OBSOLETE", file_paths)
+                if updated_task:
+                    self.formatter.display_success(
+                        f"✓ Marked task #{task_id} as obsolete in {relative_path}: \"{updated_task.description}\""
+                    )
+                else:
+                    self.formatter.display_error(f"Failed to mark task #{task_id} as obsolete.")
+                
+        except XitError as e:
+            self.formatter.display_error(str(e))
+        except Exception as e:
+            self.formatter.display_error(f"Unexpected error: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
+class MoveTaskCommand(Command):
+    """Command for moving tasks between files."""
+    
+    def execute(self, task_id: int, target_file: str, directory: Path = None, 
+                specified_files: list = None) -> None:
+        """Execute the move task command.
+        
+        Args:
+            task_id: ID of the task to move
+            target_file: Path to the target file
+            directory: Default directory to search
+            specified_files: Explicitly specified files
+        """
+        try:
+            # Resolve file paths for source files
+            source_files = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not source_files:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Resolve target file path
+            if not Path(target_file).is_absolute():
+                if directory:
+                    target_file = str(directory / target_file)
+                else:
+                    target_file = str(Path.cwd() / target_file)
+            
+            # Find and move the task
+            moved_task = self.task_service.move_task_by_id(task_id, source_files, target_file)
+            
+            if moved_task:
+                # Display confirmation message
+                target_relative = self._get_relative_path(target_file)
+                self.formatter.display_success(
+                    f"✓ Moved task #{task_id} to {target_relative}: \"{moved_task.description}\""
+                )
+            else:
+                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+                
+        except XitError as e:
+            self.formatter.display_error(str(e))
+        except Exception as e:
+            self.formatter.display_error(f"Unexpected error: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -343,3 +471,13 @@ class CommandFactory:
     def create_reschedule_command(formatter: TaskFormatter = None) -> RescheduleTaskCommand:
         """Create a reschedule task command."""
         return RescheduleTaskCommand(formatter)
+    
+    @staticmethod
+    def create_remove_command(formatter: TaskFormatter = None) -> RemoveTaskCommand:
+        """Create a remove task command."""
+        return RemoveTaskCommand(formatter)
+    
+    @staticmethod
+    def create_move_command(formatter: TaskFormatter = None) -> MoveTaskCommand:
+        """Create a move task command."""
+        return MoveTaskCommand(formatter)

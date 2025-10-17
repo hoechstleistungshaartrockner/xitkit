@@ -834,3 +834,218 @@ class TestTaskIdAssignment:
         for t1, t2 in zip(tasks1, tasks2):
             assert t1.id == t2.id
             assert t1.description == t2.description
+
+
+class TestTaskRemovalServices:
+    """Test task removal services."""
+    
+    @pytest.fixture
+    def task_service(self):
+        """Create a TaskService instance."""
+        return TaskService()
+    
+    def test_remove_task_by_id_success(self, temp_dir, task_service):
+        """Test successfully removing a task by ID."""
+        # Create test file with tasks
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Task 1\n[ ] Task 2\n[ ] Task 3\n")
+        
+        # Remove task 2
+        result = task_service.remove_task_by_id(2, [test_file])
+        
+        assert result is not None
+        assert "Task 2" in result.description
+        
+        # Verify file was updated - task 2 should be gone
+        content = test_file.read_text()
+        lines = content.strip().split('\n')
+        assert len(lines) == 2
+        assert "Task 1" in lines[0]
+        assert "Task 3" in lines[1]
+        assert "Task 2" not in content
+    
+    def test_remove_task_by_id_with_continuation_lines(self, temp_dir, task_service):
+        """Test removing a task with continuation lines."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("""[ ] Task 1
+[ ] Task 2 with details
+    Additional details line 1
+    Additional details line 2
+[ ] Task 3
+""")
+        
+        # Remove task 2 (which has continuation lines)
+        result = task_service.remove_task_by_id(2, [test_file])
+        
+        assert result is not None
+        
+        # Verify task and continuation lines are removed
+        content = test_file.read_text()
+        lines = content.strip().split('\n')
+        assert len(lines) == 2  # Only Task 1 and Task 3 should remain
+        assert "Task 1" in lines[0]
+        assert "Task 3" in lines[1]
+        assert "Task 2" not in content
+        assert "Additional details" not in content
+    
+    def test_remove_task_by_id_not_found(self, temp_dir, task_service):
+        """Test removing a task that doesn't exist."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Only task\n")
+        
+        result = task_service.remove_task_by_id(999, [test_file])
+        assert result is None
+    
+    def test_remove_task_across_multiple_files(self, temp_dir, task_service):
+        """Test removing a task from multiple files."""
+        # Create multiple files
+        file1 = temp_dir / "tasks1.xit"
+        file1.write_text("[ ] Task 1\n")
+        
+        file2 = temp_dir / "tasks2.xit"  
+        file2.write_text("[ ] Task 2\n[ ] Task 3\n")
+        
+        # Remove task 3 (should be in file2)
+        result = task_service.remove_task_by_id(3, [file1, file2])
+        
+        assert result is not None
+        assert "Task 3" in result.description
+        
+        # Verify correct file was updated
+        assert "[ ] Task 1" in file1.read_text()  # file1 unchanged
+        content2 = file2.read_text()
+        assert "Task 2" in content2
+        assert "Task 3" not in content2
+    
+    def test_remove_task_preserves_file_structure(self, temp_dir, task_service):
+        """Test that removing tasks preserves file structure."""
+        test_file = temp_dir / "tasks.xit"
+        original_content = """# Project Tasks
+
+[ ] Task 1 #work
+[ ] Task 2 -> 2025-10-15
+
+## Completed
+[x] Done task
+"""
+        test_file.write_text(original_content)
+        
+        # Remove task 1
+        task_service.remove_task_by_id(1, [test_file])
+        
+        content = test_file.read_text()
+        # Should preserve headers and other structure
+        assert "# Project Tasks" in content
+        assert "## Completed" in content
+        assert "[x] Done task" in content
+        assert "Task 1" not in content
+        assert "Task 2" in content
+
+
+class TestTaskMovingServices:
+    """Test task moving services."""
+    
+    @pytest.fixture
+    def task_service(self):
+        """Create a TaskService instance."""
+        return TaskService()
+    
+    def test_move_task_by_id_success(self, temp_dir, task_service):
+        """Test successfully moving a task."""
+        # Create source and target files
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] Task 1\n[ ] Task to move -> 2025-12-31\n[ ] Task 3\n")
+        
+        target_file = temp_dir / "target.xit"
+        target_file.write_text("[ ] Existing target task\n")
+        
+        # Move task 2
+        result = task_service.move_task_by_id(2, [source_file], str(target_file))
+        
+        assert result is not None
+        assert "Task to move" in result.description
+        assert str(target_file) == result.file
+        
+        # Verify task was removed from source
+        source_content = source_file.read_text()
+        assert "Task 1" in source_content
+        assert "Task 3" in source_content
+        assert "Task to move" not in source_content
+        
+        # Verify task was added to target (preserving due date)
+        target_content = target_file.read_text()
+        assert "Existing target task" in target_content
+        assert "Task to move -> 2025-12-31" in target_content
+    
+    def test_move_task_to_new_file(self, temp_dir, task_service):
+        """Test moving a task to a new file that doesn't exist."""
+        # Create source file
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] Task to move #important\n")
+        
+        target_file = temp_dir / "new_target.xit"
+        
+        # Move task 1 to new file
+        result = task_service.move_task_by_id(1, [source_file], str(target_file))
+        
+        assert result is not None
+        
+        # Verify task was removed from source
+        source_content = source_file.read_text()
+        assert "Task to move" not in source_content
+        
+        # Verify new target file was created with the task
+        assert target_file.exists()
+        target_content = target_file.read_text()
+        assert "Task to move #important" in target_content
+    
+    def test_move_task_invalid_target_extension(self, temp_dir, task_service):
+        """Test moving task to file with invalid extension."""
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] Task to move\n")
+        
+        target_file = temp_dir / "target.txt"  # Invalid extension
+        
+        with pytest.raises(Exception):  # Should raise FileNotSupportedError
+            task_service.move_task_by_id(1, [source_file], str(target_file))
+    
+    def test_move_task_not_found(self, temp_dir, task_service):
+        """Test moving a task that doesn't exist."""
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] Only task\n")
+        
+        target_file = temp_dir / "target.xit"
+        
+        result = task_service.move_task_by_id(999, [source_file], str(target_file))
+        assert result is None
+    
+    def test_move_task_with_complex_description(self, temp_dir, task_service):
+        """Test moving a task with priority, tags, and due date."""
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] ! High priority task #work #urgent -> 2025-12-31\n")
+        
+        target_file = temp_dir / "target.xit"
+        
+        # Move the complex task
+        result = task_service.move_task_by_id(1, [source_file], str(target_file))
+        
+        assert result is not None
+        
+        # Verify complete task format is preserved in target
+        target_content = target_file.read_text()
+        assert "! High priority task #work #urgent -> 2025-12-31" in target_content
+    
+    def test_extract_task_description(self, temp_dir, task_service):
+        """Test the _extract_task_description helper method."""
+        source_file = temp_dir / "test.xit"
+        source_file.write_text("[ ] Task with details #tag -> 2025-12-31\n")
+        
+        # Load the task
+        tasks = task_service.load_tasks([source_file])
+        task = tasks[0]
+        
+        # Extract description
+        description = task_service._extract_task_description(task)
+        
+        # Should preserve everything except the checkbox
+        assert description == "Task with details #tag -> 2025-12-31"

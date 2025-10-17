@@ -19,26 +19,22 @@ from xit.formatter import TaskFormatter
 
 
 @click.group(invoke_without_command=True)
-@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
-              help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
-              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def xit(ctx, directory, files):
+def xit(ctx):
     """Xit - A command line task management tool for .md and .xit files.
     
     This tool parses task files and provides various commands for viewing and managing tasks.
     
     Examples:
-        xit show                    # Show all tasks
-        xit show --status open      # Show only open tasks  
-        xit show --status done      # Show only completed tasks
-        xit -f tasks.xit show       # Show tasks from specific file
+        xit show                           # Show all tasks from current directory
+        xit show --status open             # Show only open tasks  
+        xit show --status done             # Show only completed tasks
+        xit show --files tasks.xit         # Show tasks from specific file
+        xit add "Buy groceries"            # Add task to default todo.xit
+        xit mark 1 2 3 --done             # Mark multiple tasks as done
     """
-    # Store options in context for subcommands
+    # Initialize context for subcommands
     ctx.ensure_object(dict)
-    ctx.obj['directory'] = Path(directory) if directory else Path.cwd()
-    ctx.obj['files'] = list(files) if files else []
     
     # If no subcommand is provided, show help
     if ctx.invoked_subcommand is None:
@@ -65,8 +61,12 @@ def xit(ctx, directory, files):
               help='Show task IDs with zero padding and reduced opacity')
 @click.option('--count', '-c', is_flag=True,
               help='Show only the count of matching tasks')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, count):
+def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, count, directory, files):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -80,12 +80,13 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, c
         xit show tasks.xit                 # Show tasks from specific file
         xit show /path/to/project          # Show tasks from specific directory
         xit show --status open             # Show only open tasks
-        xit show tasks/ --status done --priority 2 # Show completed high-priority tasks from tasks/ directory
+        xit show --directory tasks/ --status done --priority 2 # Show completed high-priority tasks from tasks/ directory
         xit show --tag work --tag urgent   # Show tasks with both 'work' and 'urgent' tags
         xit show --due-by 2025             # Show tasks due on or before 2025
         xit show --due-on today            # Show tasks due exactly today
         xit show --count                   # Show count of all tasks
         xit show --show-line               # Include line numbers
+        xit show --files work.xit personal.xit --status open  # Show open tasks from multiple files
     """
     # Create filter object from CLI arguments
     filters = TaskFilter(
@@ -100,8 +101,8 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, c
     command = CommandFactory.create_show_command()
     command.execute(
         path=path,
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files'],
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else [],
         filters=filters,
         show_line=show_line,
         show_id=show_id,
@@ -111,21 +112,31 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, c
 
 @xit.command()
 @click.argument('path', type=click.Path(), required=False)
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def stats(ctx, path):
+def stats(ctx, path, directory, files):
     """Show statistics about tasks.
     
     Displays a summary of task counts by status, priority levels, and other metrics.
     
     PATH: Optional file or directory path to analyze. If not provided, uses current directory
           or files specified with --files option.
+    
+    Examples:
+        xit stats                          # Show stats for all tasks in current directory
+        xit stats tasks.xit                # Show stats for specific file
+        xit stats --directory /path/to/project  # Show stats for tasks in specific directory
+        xit stats --files work.xit personal.xit  # Show stats for multiple specific files
     """
     # Create and execute command
     command = CommandFactory.create_stats_command()
     command.execute(
         path=path,
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files']
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
     )
 
 
@@ -165,8 +176,12 @@ def add(ctx, description, file):
 @click.option('--ongoing', 'status', flag_value='ongoing', help='Mark tasks as ongoing')
 @click.option('--obsolete', 'status', flag_value='obsolete', help='Mark tasks as obsolete')
 @click.option('--inquestion', 'status', flag_value='inquestion', help='Mark tasks as in question')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def mark(ctx, task_ids, status):
+def mark(ctx, task_ids, status, directory, files):
     """Mark one or more tasks with a specific status.
     
     Changes the status of tasks identified by their IDs. The task IDs can be found
@@ -178,7 +193,8 @@ def mark(ctx, task_ids, status):
         xit mark 5 --done                    # Mark task #5 as done
         xit mark 2 3 4 5 6 --done            # Mark multiple tasks as done
         xit mark {3..21} --ongoing            # Mark task range as ongoing (bash expansion)
-        xit -f tasks.xit mark 3 --ongoing     # Mark task #3 as ongoing in specific file
+        xit mark 3 --ongoing --files tasks.xit  # Mark task #3 as ongoing in specific file
+        xit mark 5 --done --directory /path/to/project  # Mark task in specific directory
     """
     if not task_ids:
         click.echo("Error: Must specify at least one task ID", err=True)
@@ -193,16 +209,20 @@ def mark(ctx, task_ids, status):
     command.execute(
         task_ids=list(task_ids),
         status=status.upper(),
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files']
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
     )
 
 
 @xit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.argument('new_date', type=str, metavar='DATE')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def reschedule(ctx, task_ids, new_date):
+def reschedule(ctx, task_ids, new_date, directory, files):
     """Reschedule one or more tasks to a new due date.
     
     Changes the due date of tasks identified by their IDs. The task IDs can be found
@@ -231,15 +251,19 @@ def reschedule(ctx, task_ids, new_date):
     command.execute(
         task_ids=list(task_ids),
         new_date=new_date,
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files']
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
     )
 
 
 @xit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def rm(ctx, task_ids):
+def rm(ctx, task_ids, directory, files):
     """Remove one or more tasks by their IDs with confirmation.
     
     Shows each task and asks for confirmation before permanently deleting it.
@@ -253,7 +277,8 @@ def rm(ctx, task_ids):
         xit rm 5                     # Remove task #5 (with confirmation)
         xit rm 2 3 4 5              # Remove multiple tasks (with confirmation for each)
         xit rm {3..21}              # Remove task range (bash expansion, with confirmation for each)
-        xit -f tasks.xit rm 3       # Remove task #3 from specific file (with confirmation)
+        xit rm 3 --files tasks.xit  # Remove task #3 from specific file (with confirmation)
+        xit rm 5 --directory /path/to/project  # Remove task from specific directory
     """
     if not task_ids:
         click.echo("Error: Must specify at least one task ID", err=True)
@@ -263,8 +288,8 @@ def rm(ctx, task_ids):
     command = CommandFactory.create_remove_command()
     command.execute(
         task_ids=list(task_ids),
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files']
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
     )
 
 
@@ -272,8 +297,12 @@ def rm(ctx, task_ids):
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.option('--target', '-t', required=True, 
               help='Target file to move the tasks to')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def move(ctx, task_ids, target):
+def move(ctx, task_ids, target, directory, files):
     """Move one or more tasks to another file.
     
     Moves tasks from their current files to the specified target file.
@@ -286,7 +315,8 @@ def move(ctx, task_ids, target):
         xit move 5 --target other.xit          # Move task #5 to other.xit
         xit move 2 3 4 --target done.xit      # Move multiple tasks to done.xit
         xit move {3..21} --target archive.xit # Move task range to archive.xit (bash expansion)
-        xit -f tasks.xit move 3 -t done.xit   # Move task #3 to done.xit
+        xit move 3 -t done.xit --files tasks.xit  # Move task #3 to done.xit from specific file
+        xit move 5 --target archive.xit --directory /path/to/project  # Move task from specific directory
     """
     if not task_ids:
         click.echo("Error: Must specify at least one task ID", err=True)
@@ -297,8 +327,8 @@ def move(ctx, task_ids, target):
     command.execute(
         task_ids=list(task_ids),
         target_file=target,
-        directory=ctx.obj['directory'],
-        specified_files=ctx.obj['files']
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
     )
 
 

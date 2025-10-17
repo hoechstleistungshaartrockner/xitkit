@@ -1,4 +1,4 @@
-# XitFlow
+# Xit
 
 A powerful command-line task management tool that parses and manages tasks from `.xit` and `.md` files using a simple, human-readable syntax.
 
@@ -13,6 +13,10 @@ A powerful command-line task management tool that parses and manages tasks from 
 - **Rich Output**: Beautiful terminal output with colors and formatting
 - **Flexible Filtering**: Filter tasks by status, priority, tags, and more
 - **Statistics**: Get insights about your task distribution
+- **🚀 Batch Processing**: Mark, reschedule, remove, or move multiple tasks at once
+- **Shell Integration**: Support for shell expansion (`{3..21}`) and sequences
+- **Status Flags**: Intuitive `--done`, `--ongoing`, `--obsolete` flags instead of cryptic symbols
+- **Smart Error Handling**: Individual task feedback with batch operation summaries
 
 ## Installation
 
@@ -44,6 +48,8 @@ A powerful command-line task management tool that parses and manages tasks from 
 
 ### Command Line Interface
 
+#### Viewing Tasks
+
 ```bash
 # Show all tasks in current directory
 python -m xit show
@@ -54,12 +60,56 @@ python -m xit -f tasks.xit show
 # Show only open tasks
 python -m xit show --status open
 
+# Show tasks with IDs for reference
+python -m xit show --show-id
+
 # Show task statistics
 python -m xit stats
 
 # Show help
 python -m xit --help
 ```
+
+#### Managing Tasks
+
+```bash
+# Add a new task
+xit add "Buy groceries"
+xit add "!! Important meeting -> 2025-12-15 #work" -f work.xit
+
+# Mark tasks with new status flags (supports batch processing)
+xit mark 5 --done                      # Mark single task as done
+xit mark 2 3 4 5 6 --done             # Mark multiple tasks as done
+xit mark {3..21} --ongoing             # Mark task range as ongoing (bash expansion)
+xit mark 1 --open                      # Reopen a task
+xit mark 7 8 --obsolete               # Mark tasks as obsolete
+xit mark 9 --inquestion               # Mark task as in question
+
+# Reschedule tasks (supports batch processing)
+xit reschedule 5 2025-12-31            # Set specific date for single task
+xit reschedule 2 3 4 today             # Set multiple tasks to today
+xit reschedule {3..21} tomorrow        # Set task range to tomorrow (bash expansion)
+xit reschedule 1 2 "+1w"               # Add one week to multiple tasks
+
+# Remove tasks (supports batch processing with confirmation)
+xit rm 5                               # Remove single task (with confirmation)
+xit rm 2 3 4 5                        # Remove multiple tasks (confirmation for each)
+xit rm {3..21}                         # Remove task range (bash expansion)
+
+# Move tasks between files (supports batch processing)
+xit move 5 --target other.xit          # Move single task to another file
+xit move 2 3 4 --target done.xit      # Move multiple tasks to done.xit
+xit move {3..21} --target archive.xit  # Move task range to archive.xit
+```
+
+#### Key Features
+
+- **Batch Processing**: All task modification commands support multiple task IDs
+- **Shell Expansion**: Use `{3..21}` syntax for ranges or `$(seq 1 5)` for sequences
+- **Order Preservation**: Tasks are processed in the order you specify
+- **Individual Confirmations**: Remove operations ask for confirmation on each task
+- **Progress Summaries**: Batch operations show success/failure counts
+- **Error Handling**: Missing tasks are reported without stopping batch operations
 
 ### Task Syntax
 
@@ -121,19 +171,115 @@ Personal Tasks
 [ ] Call dentist
 ```
 
+## Available Commands
+
+### Core Commands
+
+| Command | Description | Batch Support |
+|---------|-------------|---------------|
+| `show` | Display tasks with filtering options | N/A |
+| `stats` | Show task statistics and summaries | N/A |
+| `add` | Create new tasks with metadata | ✅ Single |
+| `mark` | Change task status with intuitive flags | ✅ **Batch** |
+| `reschedule` | Update task due dates | ✅ **Batch** |
+| `rm` | Remove tasks (with confirmation) | ✅ **Batch** |
+| `move` | Move tasks between files | ✅ **Batch** |
+
+### Status Flag Reference
+
+All status changes use intuitive flags instead of cryptic symbols:
+
+```bash
+--open         # [ ] Reopen completed/ongoing tasks
+--done         # [x] Mark tasks as completed  
+--ongoing      # [@] Mark tasks as in progress
+--obsolete     # [~] Mark tasks as no longer relevant
+--inquestion   # [?] Mark tasks as needing clarification
+```
+
+### Batch Processing Examples
+
+```bash
+# Process multiple individual tasks
+xit mark 1 3 5 7 9 --done
+xit reschedule 2 4 6 8 "next friday"
+xit move 10 12 14 --target archive.xit
+
+# Use shell expansion for ranges
+xit mark {1..10} --ongoing        # Tasks 1 through 10
+xit rm {15..25}                   # Remove tasks 15 through 25
+xit reschedule {5..8} tomorrow    # Reschedule tasks 5, 6, 7, 8
+
+# Mixed approaches
+xit mark 1 5 {10..15} 20 --done  # Tasks 1, 5, 10-15, and 20
+xit move 3 7 {12..18} --target completed.xit
+```
+
+## Workflow Examples
+
+### Daily Task Management
+
+```bash
+# Morning: Review what needs to be done
+xit show --status open
+
+# Work on urgent items
+xit mark {1..5} --ongoing
+
+# Complete some tasks throughout the day  
+xit mark 1 3 --done
+
+# Reschedule non-urgent items
+xit reschedule 7 8 9 tomorrow
+
+# End of day: Archive completed work
+xit move {1..10} --target archive/$(date +%Y-%m-%d).xit
+```
+
+### Project Cleanup
+
+```bash
+# Find tasks with IDs for batch operations
+xit show --show-id --tag project-alpha
+
+# Mark entire project as obsolete
+xit mark {15..28} --obsolete
+
+# Or move to project archive
+xit move {15..28} --target projects/alpha-archive.xit
+
+# Remove truly unnecessary tasks (with confirmation)
+xit rm {30..35}
+```
+
+### Weekly Review
+
+```bash
+# See what's overdue or due soon
+xit show --due-by today
+xit show --due-by "+1w"
+
+# Batch reschedule overdue items
+xit reschedule {1..12} "next monday"
+
+# Clean up obsolete tasks
+xit show --status obsolete
+xit rm {20..35}  # Confirm each removal
+```
+
 ## File Structure
 
 ```
 xit/
 ├── __init__.py          # Package initialization
-├── __main__.py          # CLI entry point
-├── commands.py          # Command implementations
+├── __main__.py          # CLI entry point with batch processing
+├── commands.py          # Command implementations with batch support
 ├── config.py            # Configuration management
 ├── dateutils.py         # Date parsing utilities
 ├── exceptions.py        # Custom exceptions
 ├── fileparser.py        # File parsing logic
 ├── formatter.py         # Output formatting
-├── services.py          # Core business logic
+├── services.py          # Core business logic with task operations
 ├── task.py              # Task data model
 └── tui.py               # Terminal UI components
 ```
@@ -206,16 +352,27 @@ Health & Fitness
 ### Example Output
 
 ```bash
-$ python -m xit show --status open
+$ xit show --show-id --status open
 
 📋 Open Tasks (4)
 
-🔴 HIGH  Fix critical bug #work #priority=high
-📝 NORMAL Buy milk #grocery #urgent  
-📝 NORMAL Get bread (due: 2025-10-20) #grocery
-📝 NORMAL Complete project proposal #work #deadline=2025-11-01
-         needs to include budget analysis and timeline estimates
-📝 NORMAL Schedule dentist appointment #health
+001 🔴 HIGH  Fix critical bug #work #priority=high
+002 📝 NORMAL Buy milk #grocery #urgent  
+003 📝 NORMAL Get bread (due: 2025-10-20) #grocery
+004 📝 NORMAL Complete project proposal #work #deadline=2025-11-01
+              needs to include budget analysis and timeline estimates
+005 📝 NORMAL Schedule dentist appointment #health
+
+$ xit mark 1 2 3 --done
+✓ Marked task #1 as done in tasks.xit: "Fix critical bug #work #priority=high"
+✓ Marked task #2 as done in tasks.xit: "Buy milk #grocery #urgent"
+✓ Marked task #3 as done in tasks.xit: "Get bread (due: 2025-10-20) #grocery"
+Processed 3 of 3 tasks.
+
+$ xit reschedule 4 5 "next monday"
+✓ Rescheduled task #4 to 2025-10-21 in tasks.xit: "Complete project proposal #work"
+✓ Rescheduled task #5 to 2025-10-21 in tasks.xit: "Schedule dentist appointment #health"
+Processed 2 of 2 tasks.
 ```
 
 ## Development
@@ -223,7 +380,7 @@ $ python -m xit show --status open
 ### Running Tests
 
 ```bash
-# Run all tests
+# Run all tests (337 tests including batch processing)
 python -m pytest
 
 # Run with coverage
@@ -231,7 +388,19 @@ python -m pytest --cov=xit
 
 # Run specific test file
 python -m pytest tests/test_fileparser.py
+
+# Test batch processing functionality specifically
+python -m pytest tests/test_commands.py::TestBatchProcessing -v
 ```
+
+### Test Coverage
+
+- ✅ **337 total tests** with comprehensive batch processing coverage
+- ✅ Unit tests for all command classes with batch support
+- ✅ Integration tests for real file operations
+- ✅ Error handling and edge case scenarios
+- ✅ Content-based task matching for ID stability during batch operations
+- ✅ Order preservation and shell expansion testing
 
 ### Code Style
 
@@ -280,3 +449,4 @@ For a complete syntax reference, see [`syntax_guide.txt`](syntax_guide.txt) whic
 - Inspired by various todo.txt and task management formats
 - Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
 - Uses [Click](https://click.palletsprojects.com/) for the command-line interface
+

@@ -1,0 +1,15 @@
+[x] add a new task
+[x] change the status of a task
+[x] move tasks between files
+[x] change the due date of a task
+[ ] change the description of a task ('xit edit <task_id> <new_description>')
+[ ] change the priority of a task ('xit prio <task_id> <priority>')
+[ ] add or remove tags from/to a task ('xit tag <task_id> <tag>' and 'xit untag <task_id> <tag>' commands)
+[x] remove tasks permanently
+[x] list tasks + filter according to attributes
+[ ] log all xit commands you used ('xit log' to view) log file is stored in ~/.xit/log.txt
+[ ] undo the last X xit commands executed ('xit undo <number>')
+[x] xit stats command to show statistics about tasks
+[x] support for multiple task files (e.g., work.xit, personal.xit)
+[ ] support for recurring tasks ('xit recur <task_id> <interval> <end_date>')
+[x] support for batch operations on multiple tasks at once (e.g., 'xit mark 1 2 3 --done' to mark tasks 1, 2, and 3 as done)

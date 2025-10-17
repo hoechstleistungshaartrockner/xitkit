@@ -198,13 +198,13 @@ class AddTaskCommand(Command):
 class MarkTaskCommand(Command):
     """Command for marking tasks with a specific status."""
     
-    def execute(self, task_id: int, status: str, directory: Path = None, 
+    def execute(self, task_ids: list, status: str, directory: Path = None, 
                 specified_files: list = None) -> None:
-        """Execute the mark task command.
+        """Execute the mark task command for one or more tasks.
         
         Args:
-            task_id: ID of the task to mark
-            status: New status for the task
+            task_ids: List of task IDs to mark
+            status: New status for the tasks
             directory: Default directory to search
             specified_files: Explicitly specified files
         """
@@ -218,18 +218,29 @@ class MarkTaskCommand(Command):
                 self.formatter.display_warning("No task files found.")
                 return
             
-            # Find and update the task
-            updated_task = self.task_service.mark_task_by_id(task_id, status, file_paths)
+            # Process each task ID
+            updated_count = 0
+            for task_id in task_ids:
+                try:
+                    # Find and update the task
+                    updated_task = self.task_service.mark_task_by_id(task_id, status, file_paths)
+                    
+                    if updated_task:
+                        # Display confirmation message
+                        relative_path = self._get_relative_path(updated_task.file)
+                        status_display = status.lower()
+                        self.formatter.display_success(
+                            f"✓ Marked task #{task_id} as {status_display} in {relative_path}: \"{updated_task.description}\""
+                        )
+                        updated_count += 1
+                    else:
+                        self.formatter.display_error(f"Task #{task_id} not found.")
+                except Exception as e:
+                    self.formatter.display_error(f"Error marking task #{task_id}: {e}")
             
-            if updated_task:
-                # Display confirmation message
-                relative_path = self._get_relative_path(updated_task.file)
-                status_display = status.lower()
-                self.formatter.display_success(
-                    f"✓ Marked task #{task_id} as {status_display} in {relative_path}: \"{updated_task.description}\""
-                )
-            else:
-                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+            # Summary message for multiple tasks
+            if len(task_ids) > 1:
+                self.formatter.display_success(f"Processed {updated_count} of {len(task_ids)} tasks.")
                 
         except XitError as e:
             self.formatter.display_error(str(e))
@@ -247,12 +258,12 @@ class MarkTaskCommand(Command):
 class RescheduleTaskCommand(Command):
     """Command for rescheduling tasks to new due dates."""
     
-    def execute(self, task_id: int, new_date: str, directory: Path = None, 
+    def execute(self, task_ids: list, new_date: str, directory: Path = None, 
                 specified_files: list = None) -> None:
-        """Execute the reschedule task command.
+        """Execute the reschedule task command for one or more tasks.
         
         Args:
-            task_id: ID of the task to reschedule
+            task_ids: List of task IDs to reschedule
             new_date: New due date (can be natural language)
             directory: Default directory to search
             specified_files: Explicitly specified files
@@ -267,7 +278,7 @@ class RescheduleTaskCommand(Command):
                 self.formatter.display_warning("No task files found.")
                 return
             
-            # Parse the date expression
+            # Parse the date expression once for all tasks
             from .dateutils import get_date_parser
             date_parser = get_date_parser()
             
@@ -291,17 +302,28 @@ class RescheduleTaskCommand(Command):
                 self.formatter.display_error(f"Invalid date format: {new_date}")
                 return
             
-            # Find and update the task
-            updated_task = self.task_service.reschedule_task_by_id(task_id, parsed_date, file_paths)
+            # Process each task ID
+            updated_count = 0
+            for task_id in task_ids:
+                try:
+                    # Find and update the task
+                    updated_task = self.task_service.reschedule_task_by_id(task_id, parsed_date, file_paths)
+                    
+                    if updated_task:
+                        # Display confirmation message
+                        relative_path = self._get_relative_path(updated_task.file)
+                        self.formatter.display_success(
+                            f"✓ Rescheduled task #{task_id} to {parsed_date} in {relative_path}: \"{updated_task.description}\""
+                        )
+                        updated_count += 1
+                    else:
+                        self.formatter.display_error(f"Task #{task_id} not found.")
+                except Exception as e:
+                    self.formatter.display_error(f"Error rescheduling task #{task_id}: {e}")
             
-            if updated_task:
-                # Display confirmation message
-                relative_path = self._get_relative_path(updated_task.file)
-                self.formatter.display_success(
-                    f"✓ Rescheduled task #{task_id} to {parsed_date} in {relative_path}: \"{updated_task.description}\""
-                )
-            else:
-                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+            # Summary message for multiple tasks
+            if len(task_ids) > 1:
+                self.formatter.display_success(f"Processed {updated_count} of {len(task_ids)} tasks.")
                 
         except XitError as e:
             self.formatter.display_error(str(e))
@@ -319,12 +341,12 @@ class RescheduleTaskCommand(Command):
 class RemoveTaskCommand(Command):
     """Command for removing tasks from files."""
     
-    def execute(self, task_id: int, directory: Path = None, 
+    def execute(self, task_ids: list, directory: Path = None, 
                 specified_files: list = None) -> None:
-        """Execute the remove task command.
+        """Execute the remove task command for one or more tasks.
         
         Args:
-            task_id: ID of the task to remove
+            task_ids: List of task IDs to remove
             directory: Default directory to search
             specified_files: Explicitly specified files
         """
@@ -338,43 +360,92 @@ class RemoveTaskCommand(Command):
                 self.formatter.display_warning("No task files found.")
                 return
             
-            # First, find the task to get its details for confirmation
+            # First, collect all target tasks and get confirmations before any modifications
             all_tasks = self.task_service.load_tasks(file_paths)
-            target_task = None
-            for task in all_tasks:
-                if task.id == task_id:
-                    target_task = task
-                    break
+            target_tasks = []
+            not_found_ids = []
+            user_choices = {}  # Store user's choice for each task
             
-            if not target_task:
-                self.formatter.display_error(f"Task with ID #{task_id} not found.")
-                return
-            
-            # Show the task and ask for confirmation
-            relative_path = self._get_relative_path(target_task.file)
             import click
-            self.formatter.display_warning(
-                f"Task #{task_id} in {relative_path}: \"{target_task.description}\""
-            )
             
-            if click.confirm("Are you sure you want to permanently delete this task? (n will mark as obsolete instead)"):
-                # User chose to permanently delete
-                removed_task = self.task_service.remove_task_by_id(task_id, file_paths)
-                if removed_task:
-                    self.formatter.display_success(
-                        f"✓ Permanently deleted task #{task_id} from {relative_path}: \"{removed_task.description}\""
+            # Build a mapping of ID to task for quick lookup
+            task_by_id = {task.id: task for task in all_tasks}
+            
+            # Collect tasks and get user confirmation for each in specified order
+            for task_id in task_ids:
+                if task_id in task_by_id:
+                    task_found = task_by_id[task_id]
+                    target_tasks.append(task_found)
+                    # Show the task and ask for confirmation
+                    relative_path = self._get_relative_path(task_found.file)
+                    self.formatter.display_warning(
+                        f"Task #{task_id} in {relative_path}: \"{task_found.description}\""
                     )
+                    
+                    user_choice = click.confirm("Are you sure you want to permanently delete this task? (n will mark as obsolete instead)")
+                    user_choices[task_id] = user_choice
                 else:
-                    self.formatter.display_error(f"Failed to delete task #{task_id}.")
-            else:
-                # User chose to mark as obsolete instead
-                updated_task = self.task_service.mark_task_by_id(task_id, "OBSOLETE", file_paths)
-                if updated_task:
-                    self.formatter.display_success(
-                        f"✓ Marked task #{task_id} as obsolete in {relative_path}: \"{updated_task.description}\""
-                    )
-                else:
-                    self.formatter.display_error(f"Failed to mark task #{task_id} as obsolete.")
+                    not_found_ids.append(task_id)
+            
+            # Report not found tasks
+            for task_id in not_found_ids:
+                self.formatter.display_error(f"Task #{task_id} not found.")
+            
+            # Process tasks in the order specified by the user  
+            deleted_count = 0
+            obsoleted_count = 0
+            
+            for task in target_tasks:
+                try:
+                    task_id = task.id
+                    relative_path = self._get_relative_path(task.file)
+                    
+                    # Find current task by content since ID may have changed
+                    current_tasks = self.task_service.load_tasks(file_paths)
+                    current_task = None
+                    
+                    for curr_task in current_tasks:
+                        if (curr_task.description == task.description and 
+                            curr_task.file == task.file and 
+                            curr_task.status == task.status and
+                            curr_task.priority == task.priority and
+                            curr_task.due_date == task.due_date):
+                            current_task = curr_task
+                            break
+                    
+                    if current_task:
+                        if user_choices[task_id]:
+                            # User chose to permanently delete
+                            removed_task = self.task_service.remove_task_by_id(current_task.id, file_paths)
+                            if removed_task:
+                                self.formatter.display_success(
+                                    f"✓ Permanently deleted task #{task_id} from {relative_path}: \"{removed_task.description}\""
+                                )
+                                deleted_count += 1
+                            else:
+                                self.formatter.display_error(f"Failed to delete task #{task_id}.")
+                        else:
+                            # User chose to mark as obsolete instead
+                            updated_task = self.task_service.mark_task_by_id(current_task.id, "OBSOLETE", file_paths)
+                            if updated_task:
+                                self.formatter.display_success(
+                                    f"✓ Marked task #{task_id} as obsolete in {relative_path}: \"{updated_task.description}\""
+                                )
+                                obsoleted_count += 1
+                            else:
+                                self.formatter.display_error(f"Failed to mark task #{task_id} as obsolete.")
+                    else:
+                        self.formatter.display_error(f"Task #{task_id} no longer found (may have been processed already).")
+                except Exception as e:
+                    self.formatter.display_error(f"Error processing task #{task.id}: {e}")
+            
+            # Summary message for multiple tasks
+            if len(task_ids) > 1:
+                total_processed = deleted_count + obsoleted_count
+                self.formatter.display_success(
+                    f"Processed {total_processed} of {len(task_ids)} tasks. "
+                    f"Deleted: {deleted_count}, Marked obsolete: {obsoleted_count}"
+                )
                 
         except XitError as e:
             self.formatter.display_error(str(e))
@@ -392,12 +463,12 @@ class RemoveTaskCommand(Command):
 class MoveTaskCommand(Command):
     """Command for moving tasks between files."""
     
-    def execute(self, task_id: int, target_file: str, directory: Path = None, 
+    def execute(self, task_ids: list, target_file: str, directory: Path = None, 
                 specified_files: list = None) -> None:
-        """Execute the move task command.
+        """Execute the move task command for one or more tasks.
         
         Args:
-            task_id: ID of the task to move
+            task_ids: List of task IDs to move
             target_file: Path to the target file
             directory: Default directory to search
             specified_files: Explicitly specified files
@@ -419,17 +490,64 @@ class MoveTaskCommand(Command):
                 else:
                     target_file = str(Path.cwd() / target_file)
             
-            # Find and move the task
-            moved_task = self.task_service.move_task_by_id(task_id, source_files, target_file)
+            # First, collect all target tasks before any modifications
+            all_tasks = self.task_service.load_tasks(source_files)
+            target_tasks = []
+            not_found_ids = []
             
-            if moved_task:
-                # Display confirmation message
-                target_relative = self._get_relative_path(target_file)
-                self.formatter.display_success(
-                    f"✓ Moved task #{task_id} to {target_relative}: \"{moved_task.description}\""
-                )
-            else:
-                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+            # Build a mapping of ID to task for quick lookup
+            task_by_id = {task.id: task for task in all_tasks}
+            
+            # Collect target tasks in the order specified by user
+            for task_id in task_ids:
+                if task_id in task_by_id:
+                    target_tasks.append(task_by_id[task_id])
+                else:
+                    not_found_ids.append(task_id)
+            
+            # Report not found tasks
+            for task_id in not_found_ids:
+                self.formatter.display_error(f"Task #{task_id} not found.")
+            
+            # Process tasks in the order specified by the user
+            moved_count = 0
+            
+            for task in target_tasks:
+                try:
+                    # Use the task's content and position to move it, not just ID
+                    # Since IDs can change after each move, we need to find the task by content
+                    current_tasks = self.task_service.load_tasks(source_files)
+                    current_task = None
+                    
+                    # Find the task by matching content and file (since ID may have changed)
+                    for curr_task in current_tasks:
+                        if (curr_task.description == task.description and 
+                            curr_task.file == task.file and 
+                            curr_task.status == task.status and
+                            curr_task.priority == task.priority and
+                            curr_task.due_date == task.due_date):
+                            current_task = curr_task
+                            break
+                    
+                    if current_task:
+                        moved_task = self.task_service.move_task_by_id(current_task.id, source_files, target_file)
+                        if moved_task:
+                            # Display confirmation message using original ID for user clarity
+                            target_relative = self._get_relative_path(target_file)
+                            self.formatter.display_success(
+                                f"✓ Moved task #{task.id} to {target_relative}: \"{moved_task.description}\""
+                            )
+                            moved_count += 1
+                        else:
+                            self.formatter.display_error(f"Failed to move task #{task.id}.")
+                    else:
+                        self.formatter.display_error(f"Task #{task.id} no longer found (may have been moved already).")
+                except Exception as e:
+                    self.formatter.display_error(f"Error moving task #{task.id}: {e}")
+            
+            # Summary message for multiple tasks
+            if len(task_ids) > 1:
+                self.formatter.display_success(f"Moved {moved_count} of {len(task_ids)} tasks.")
                 
         except XitError as e:
             self.formatter.display_error(str(e))

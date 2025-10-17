@@ -159,28 +159,39 @@ def add(ctx, description, file):
 
 
 @xit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('status', type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
-                                          case_sensitive=False))
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
+@click.option('--open', 'status', flag_value='open', help='Mark tasks as open')
+@click.option('--done', 'status', flag_value='done', help='Mark tasks as done')  
+@click.option('--ongoing', 'status', flag_value='ongoing', help='Mark tasks as ongoing')
+@click.option('--obsolete', 'status', flag_value='obsolete', help='Mark tasks as obsolete')
+@click.option('--inquestion', 'status', flag_value='inquestion', help='Mark tasks as in question')
 @click.pass_context
-def mark(ctx, task_id, status):
-    """Mark a task with a specific status.
+def mark(ctx, task_ids, status):
+    """Mark one or more tasks with a specific status.
     
-    Changes the status of a task identified by its ID. The task ID can be found
-    using the 'xit show --show-id' command.
+    Changes the status of tasks identified by their IDs. The task IDs can be found
+    using the 'xit show --show-id' command. Use shell expansion for ranges like {3..21}.
     
-    ID: The task ID number
-    STATUS: New status for the task (open, done, ongoing, obsolete, inquestion)
+    ID...: One or more task ID numbers to mark
     
     Examples:
-        xit mark 5 done         # Mark task #5 as done
-        xit mark 12 ongoing     # Mark task #12 as ongoing
-        xit mark 3 open         # Mark task #3 as open
+        xit mark 5 --done                    # Mark task #5 as done
+        xit mark 2 3 4 5 6 --done            # Mark multiple tasks as done
+        xit mark {3..21} --ongoing            # Mark task range as ongoing (bash expansion)
+        xit -f tasks.xit mark 3 --ongoing     # Mark task #3 as ongoing in specific file
     """
+    if not task_ids:
+        click.echo("Error: Must specify at least one task ID", err=True)
+        ctx.exit(1)
+    
+    if not status:
+        click.echo("Error: Must specify a status flag (--done, --open, --ongoing, --obsolete, --inquestion)", err=True)
+        ctx.exit(1)
+    
     # Create and execute command
     command = CommandFactory.create_mark_command()
     command.execute(
-        task_id=task_id,
+        task_ids=list(task_ids),
         status=status.upper(),
         directory=ctx.obj['directory'],
         specified_files=ctx.obj['files']
@@ -188,33 +199,37 @@ def mark(ctx, task_id, status):
 
 
 @xit.command()
-@click.argument('task_id', type=int, metavar='ID')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.argument('new_date', type=str, metavar='DATE')
 @click.pass_context
-def reschedule(ctx, task_id, new_date):
-    """Reschedule a task to a new due date.
+def reschedule(ctx, task_ids, new_date):
+    """Reschedule one or more tasks to a new due date.
     
-    Changes the due date of a task identified by its ID. The task ID can be found
-    using the 'xit show --show-id' command.
+    Changes the due date of tasks identified by their IDs. The task IDs can be found
+    using the 'xit show --show-id' command. Use shell expansion for ranges like {3..21}.
     
     Supports natural language dates and relative date expressions.
     
-    ID: The task ID number
+    ID...: One or more task ID numbers to reschedule
     DATE: New due date (supports various formats)
     
     Examples:
-        xit reschedule 5 2025-12-31     # Set specific date
-        xit reschedule 3 today          # Set to today
-        xit reschedule 7 tomorrow       # Set to tomorrow
-        xit reschedule 2 "+1w"          # Add one week
-        xit reschedule 4 1w             # Add one week (alternative)
-        xit reschedule 8 2d-            # Subtract two days
-        xit reschedule 9 "+3m"          # Add three months
+        xit reschedule 5 2025-12-31         # Set specific date for task #5
+        xit reschedule 2 3 4 today          # Set multiple tasks to today
+        xit reschedule {3..21} tomorrow     # Set task range to tomorrow (bash expansion)
+        xit reschedule 2 "+1w"              # Add one week to task #2
+        xit reschedule 4 5 6 1w             # Add one week to multiple tasks
+        xit reschedule 8 2d-                # Subtract two days from task #8
+        xit reschedule 9 "+3m"              # Add three months to task #9
     """
+    if not task_ids:
+        click.echo("Error: Must specify at least one task ID", err=True)
+        ctx.exit(1)
+    
     # Create and execute command
     command = CommandFactory.create_reschedule_command()
     command.execute(
-        task_id=task_id,
+        task_ids=list(task_ids),
         new_date=new_date,
         directory=ctx.obj['directory'],
         specified_files=ctx.obj['files']
@@ -222,51 +237,65 @@ def reschedule(ctx, task_id, new_date):
 
 
 @xit.command()
-@click.argument('task_id', type=int, metavar='ID')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.pass_context
-def rm(ctx, task_id):
-    """Remove a task by its ID with confirmation.
+def rm(ctx, task_ids):
+    """Remove one or more tasks by their IDs with confirmation.
     
-    Shows the task and asks for confirmation before permanently deleting it.
+    Shows each task and asks for confirmation before permanently deleting it.
     Answering 'n' will mark the task as obsolete instead of deleting it.
-    The task ID can be found using the 'xit show --show-id' command.
+    Use shell expansion for ranges like {3..21}.
+    The task IDs can be found using the 'xit show --show-id' command.
     
-    ID: The task ID number to remove
+    ID...: One or more task ID numbers to remove
     
     Examples:
-        xit rm 5               # Remove task #5 (with confirmation)
-        xit -f tasks.xit rm 3  # Remove task #3 from specific file (with confirmation)
+        xit rm 5                     # Remove task #5 (with confirmation)
+        xit rm 2 3 4 5              # Remove multiple tasks (with confirmation for each)
+        xit rm {3..21}              # Remove task range (bash expansion, with confirmation for each)
+        xit -f tasks.xit rm 3       # Remove task #3 from specific file (with confirmation)
     """
+    if not task_ids:
+        click.echo("Error: Must specify at least one task ID", err=True)
+        ctx.exit(1)
+    
     # Create and execute command
     command = CommandFactory.create_remove_command()
     command.execute(
-        task_id=task_id,
+        task_ids=list(task_ids),
         directory=ctx.obj['directory'],
         specified_files=ctx.obj['files']
     )
 
 
 @xit.command()
-@click.argument('task_id', type=int, metavar='ID')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.option('--target', '-t', required=True, 
-              help='Target file to move the task to')
+              help='Target file to move the tasks to')
 @click.pass_context
-def move(ctx, task_id, target):
-    """Move a task to another file.
+def move(ctx, task_ids, target):
+    """Move one or more tasks to another file.
     
-    Moves a task from its current file to the specified target file.
-    The task ID can be found using the 'xit show --show-id' command.
+    Moves tasks from their current files to the specified target file.
+    Use shell expansion for ranges like {3..21}.
+    The task IDs can be found using the 'xit show --show-id' command.
     
-    ID: The task ID number to move
+    ID...: One or more task ID numbers to move
     
     Examples:
-        xit move 5 --target other.xit     # Move task #5 to other.xit
-        xit -f tasks.xit move 3 -t done.xit  # Move task #3 to done.xit
+        xit move 5 --target other.xit          # Move task #5 to other.xit
+        xit move 2 3 4 --target done.xit      # Move multiple tasks to done.xit
+        xit move {3..21} --target archive.xit # Move task range to archive.xit (bash expansion)
+        xit -f tasks.xit move 3 -t done.xit   # Move task #3 to done.xit
     """
+    if not task_ids:
+        click.echo("Error: Must specify at least one task ID", err=True)
+        ctx.exit(1)
+    
     # Create and execute command
     command = CommandFactory.create_move_command()
     command.execute(
-        task_id=task_id,
+        task_ids=list(task_ids),
         target_file=target,
         directory=ctx.obj['directory'],
         specified_files=ctx.obj['files']

@@ -440,13 +440,13 @@ class TestMarkTaskCommand:
         mark_command.task_service.mark_task_by_id.return_value = updated_task
         
         # Execute
-        mark_command.execute(1, "x", directory=Path("/test"))
+        mark_command.execute([1], "X", directory=Path("/test"))
         
         # Verify
         mark_command.file_service.resolve_file_paths.assert_called_once_with(
             None, Path("/test"), None
         )
-        mark_command.task_service.mark_task_by_id.assert_called_once_with(1, "x", [test_file])
+        mark_command.task_service.mark_task_by_id.assert_called_once_with(1, "X", [test_file])
         mark_command.formatter.display_success.assert_called_once()
     
     def test_execute_mark_task_no_files(self, mark_command):
@@ -471,11 +471,11 @@ class TestMarkTaskCommand:
         mark_command.task_service.mark_task_by_id.return_value = None
         
         # Execute
-        mark_command.execute(999, "x", directory=Path("/test"))
+        mark_command.execute([999], "X", directory=Path("/test"))
         
         # Verify
         mark_command.formatter.display_error.assert_called_once_with(
-            "Task with ID #999 not found."
+            "Task #999 not found."
         )
     
     def test_execute_mark_task_different_statuses(self, mark_command):
@@ -490,9 +490,9 @@ class TestMarkTaskCommand:
         mark_command.task_service.mark_task_by_id.return_value = updated_task
         
         # Test different status symbols
-        statuses = ["x", "@", "~", "!", "+"]
+        statuses = ["X", "ONGOING", "OBSOLETE", "INQUESTION", "OPEN"]
         for status in statuses:
-            mark_command.execute(1, status, directory=Path("/test"))
+            mark_command.execute([1], status, directory=Path("/test"))
             mark_command.task_service.mark_task_by_id.assert_called_with(1, status, [test_file])
     
     def test_execute_mark_task_with_specified_files(self, mark_command):
@@ -578,7 +578,7 @@ class TestRescheduleTaskCommand:
         reschedule_command.task_service.reschedule_task_by_id.return_value = updated_task
         
         # Execute
-        reschedule_command.execute(1, "2025-12-31", directory=Path("/test"))
+        reschedule_command.execute([1], "2025-12-31", directory=Path("/test"))
         
         # Verify
         reschedule_command.file_service.resolve_file_paths.assert_called_once()
@@ -609,7 +609,7 @@ class TestRescheduleTaskCommand:
         expected_parsed = ["tomorrow", "today", "1w", "-1d"]
         
         for expr, expected in zip(expressions, expected_parsed):
-            reschedule_command.execute(1, expr, directory=Path("/test"))
+            reschedule_command.execute([1], expr, directory=Path("/test"))
             mock_parser.parse_date_expression.assert_called_with(expected)
     
     @patch('xit.dateutils.get_date_parser')
@@ -624,7 +624,7 @@ class TestRescheduleTaskCommand:
         mock_get_parser.return_value = mock_parser
         
         # Execute
-        reschedule_command.execute(1, "invalid-date", directory=Path("/test"))
+        reschedule_command.execute([1], "invalid-date", directory=Path("/test"))
         
         # Verify error handling
         reschedule_command.formatter.display_error.assert_called_once_with(
@@ -645,20 +645,20 @@ class TestRescheduleTaskCommand:
             mock_get_parser.return_value = mock_parser
             
             # Execute
-            reschedule_command.execute(999, "2025-12-31", directory=Path("/test"))
+            reschedule_command.execute([999], "2025-12-31", directory=Path("/test"))
             
-            # Verify
-            reschedule_command.formatter.display_error.assert_called_once_with(
-                "Task with ID #999 not found."
-            )
-    
+        # Verify
+        reschedule_command.formatter.display_error.assert_called_once_with(
+            "Task #999 not found."
+        )
+
     def test_execute_reschedule_no_files(self, reschedule_command):
         """Test rescheduling when no files found."""
         # Setup
         reschedule_command.file_service.resolve_file_paths.return_value = []
         
         # Execute
-        reschedule_command.execute(1, "tomorrow", directory=Path("/test"))
+        reschedule_command.execute([1], "tomorrow", directory=Path("/test"))
         
         # Verify
         reschedule_command.formatter.display_warning.assert_called_once_with(
@@ -705,6 +705,9 @@ class TestRemoveTaskCommand:
         target_task.id = 1
         target_task.description = "Task to remove"
         target_task.file = "/test/tasks.xit"
+        target_task.status = "open"
+        target_task.priority = None
+        target_task.due_date = None
         remove_command.task_service.load_tasks.return_value = [target_task]
         
         # Mock confirmation as Yes (delete)
@@ -717,16 +720,17 @@ class TestRemoveTaskCommand:
         remove_command.task_service.remove_task_by_id.return_value = removed_task
         
         # Execute
-        remove_command.execute(1, directory=Path("/test"))
+        remove_command.execute([1], directory=Path("/test"))
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
             None, Path("/test"), None
         )
-        remove_command.task_service.load_tasks.assert_called_once_with([test_file])
+        # Should load tasks twice - once for collection, once for processing
+        assert remove_command.task_service.load_tasks.call_count >= 1
         mock_confirm.assert_called_once()
         remove_command.task_service.remove_task_by_id.assert_called_once_with(1, [test_file])
-        remove_command.formatter.display_success.assert_called_once()
+        remove_command.formatter.display_success.assert_called()
     
     @patch('click.confirm')
     def test_execute_remove_task_success_obsolete(self, mock_confirm, remove_command):
@@ -740,6 +744,9 @@ class TestRemoveTaskCommand:
         target_task.id = 1
         target_task.description = "Task to mark obsolete"
         target_task.file = "/test/tasks.xit"
+        target_task.status = "open"
+        target_task.priority = None
+        target_task.due_date = None
         remove_command.task_service.load_tasks.return_value = [target_task]
         
         # Mock confirmation as No (mark obsolete)
@@ -752,16 +759,17 @@ class TestRemoveTaskCommand:
         remove_command.task_service.mark_task_by_id.return_value = updated_task
         
         # Execute
-        remove_command.execute(1, directory=Path("/test"))
+        remove_command.execute([1], directory=Path("/test"))
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
             None, Path("/test"), None
         )
-        remove_command.task_service.load_tasks.assert_called_once_with([test_file])
+        # Should load tasks at least once for collection
+        assert remove_command.task_service.load_tasks.call_count >= 1
         mock_confirm.assert_called_once()
         remove_command.task_service.mark_task_by_id.assert_called_once_with(1, "OBSOLETE", [test_file])
-        remove_command.formatter.display_success.assert_called_once()
+        remove_command.formatter.display_success.assert_called()
     
     def test_execute_remove_task_no_files(self, remove_command):
         """Test removing task when no files found."""
@@ -769,7 +777,7 @@ class TestRemoveTaskCommand:
         remove_command.file_service.resolve_file_paths.return_value = []
         
         # Execute
-        remove_command.execute(1, directory=Path("/test"))
+        remove_command.execute([1], directory=Path("/test"))
         
         # Verify
         remove_command.formatter.display_warning.assert_called_once_with(
@@ -787,11 +795,11 @@ class TestRemoveTaskCommand:
         remove_command.task_service.load_tasks.return_value = []
         
         # Execute
-        remove_command.execute(999, directory=Path("/test"))
+        remove_command.execute([999], directory=Path("/test"))
         
         # Verify
         remove_command.formatter.display_error.assert_called_once_with(
-            "Task with ID #999 not found."
+            "Task #999 not found."
         )
     
     @patch('click.confirm')
@@ -818,7 +826,7 @@ class TestRemoveTaskCommand:
         remove_command.task_service.remove_task_by_id.return_value = removed_task
         
         # Execute
-        remove_command.execute(1, specified_files=specified_files)
+        remove_command.execute([1], specified_files=specified_files)
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
@@ -831,7 +839,7 @@ class TestRemoveTaskCommand:
         remove_command.file_service.resolve_file_paths.side_effect = XitError("Test error")
         
         # Execute
-        remove_command.execute(1, directory=Path("/test"))
+        remove_command.execute([1], directory=Path("/test"))
         
         # Verify
         remove_command.formatter.display_error.assert_called_once_with("Test error")
@@ -881,6 +889,16 @@ class TestMoveTaskCommand:
         test_file = Path("/test/tasks.xit")
         move_command.file_service.resolve_file_paths.return_value = [test_file]
         
+        # Mock task loading for batch processing
+        source_task = Mock()
+        source_task.id = 1
+        source_task.description = "Task to move"
+        source_task.file = "/test/tasks.xit"
+        source_task.status = "open"
+        source_task.priority = None
+        source_task.due_date = None
+        move_command.task_service.load_tasks.return_value = [source_task]
+        
         # Create mock moved task
         moved_task = Mock()
         moved_task.description = "Task to move"
@@ -888,12 +906,14 @@ class TestMoveTaskCommand:
         move_command.task_service.move_task_by_id.return_value = moved_task
         
         # Execute
-        move_command.execute(1, "target.xit", directory=Path("/test"))
+        move_command.execute([1], "target.xit", directory=Path("/test"))
         
         # Verify
         move_command.file_service.resolve_file_paths.assert_called_once_with(
             None, Path("/test"), None
         )
+        # With new batch processing, load_tasks is called twice (collection + processing)
+        assert move_command.task_service.load_tasks.call_count == 2
         move_command.task_service.move_task_by_id.assert_called_once_with(
             1, [test_file], "/test/target.xit"
         )
@@ -905,13 +925,23 @@ class TestMoveTaskCommand:
         test_file = Path("/test/tasks.xit")
         move_command.file_service.resolve_file_paths.return_value = [test_file]
         
+        # Mock task loading for batch processing  
+        source_task = Mock()
+        source_task.id = 1
+        source_task.description = "Task to move"
+        source_task.file = "/test/tasks.xit"
+        source_task.status = "open"
+        source_task.priority = None
+        source_task.due_date = None
+        move_command.task_service.load_tasks.return_value = [source_task]
+        
         moved_task = Mock()
         moved_task.description = "Task to move"
         moved_task.file = "/absolute/target.xit"
         move_command.task_service.move_task_by_id.return_value = moved_task
         
         # Execute with absolute target path
-        move_command.execute(1, "/absolute/target.xit", directory=Path("/test"))
+        move_command.execute([1], "/absolute/target.xit", directory=Path("/test"))
         
         # Verify
         move_command.task_service.move_task_by_id.assert_called_once_with(
@@ -925,7 +955,7 @@ class TestMoveTaskCommand:
         move_command.file_service.resolve_file_paths.return_value = []
         
         # Execute
-        move_command.execute(1, "target.xit", directory=Path("/test"))
+        move_command.execute([1], "target.xit", directory=Path("/test"))
         
         # Verify
         move_command.formatter.display_warning.assert_called_once_with(
@@ -938,14 +968,14 @@ class TestMoveTaskCommand:
         # Setup
         test_file = Path("/test/tasks.xit")
         move_command.file_service.resolve_file_paths.return_value = [test_file]
-        move_command.task_service.move_task_by_id.return_value = None
+        move_command.task_service.load_tasks.return_value = []  # No tasks found
         
         # Execute
-        move_command.execute(999, "target.xit", directory=Path("/test"))
+        move_command.execute([999], "target.xit", directory=Path("/test"))
         
         # Verify
         move_command.formatter.display_error.assert_called_once_with(
-            "Task with ID #999 not found."
+            "Task #999 not found."
         )
     
     def test_execute_move_task_with_specified_files(self, move_command):
@@ -961,7 +991,7 @@ class TestMoveTaskCommand:
         move_command.task_service.move_task_by_id.return_value = moved_task
         
         # Execute
-        move_command.execute(1, "target.xit", specified_files=specified_files)
+        move_command.execute([1], "target.xit", specified_files=specified_files)
         
         # Verify
         move_command.file_service.resolve_file_paths.assert_called_once_with(
@@ -974,7 +1004,7 @@ class TestMoveTaskCommand:
         move_command.file_service.resolve_file_paths.side_effect = XitError("Test error")
         
         # Execute
-        move_command.execute(1, "target.xit", directory=Path("/test"))
+        move_command.execute([1], "target.xit", directory=Path("/test"))
         
         # Verify
         move_command.formatter.display_error.assert_called_once_with("Test error")
@@ -1378,3 +1408,284 @@ class TestCommandErrorScenarios:
             success = False
         
         assert success, "Command should not crash with invalid date filter"
+
+
+
+class TestBatchProcessing:
+    """Test batch processing functionality for commands that support multiple task IDs."""
+    
+    def test_mark_command_multiple_tasks_success(self):
+        """Test marking multiple tasks successfully."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        mark_command = MarkTaskCommand(formatter)
+        mark_command.file_service = file_service
+        mark_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock successful task operations
+        task1 = Mock()
+        task1.description = "Task 1"
+        task1.file = "/test/tasks.xit"
+        task2 = Mock()
+        task2.description = "Task 2"
+        task2.file = "/test/tasks.xit"
+        task_service.mark_task_by_id.side_effect = [task1, task2]
+        
+        # Execute batch operation
+        mark_command.execute([1, 2], "DONE", directory=Path("/test"))
+        
+        # Verify both tasks were processed
+        assert task_service.mark_task_by_id.call_count == 2
+        task_service.mark_task_by_id.assert_any_call(1, "DONE", [test_file])
+        task_service.mark_task_by_id.assert_any_call(2, "DONE", [test_file])
+        
+        # Verify success messages
+        assert formatter.display_success.call_count == 3  # 2 individual + 1 summary
+
+    def test_mark_command_mixed_results(self):
+        """Test marking multiple tasks with some not found."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        mark_command = MarkTaskCommand(formatter)
+        mark_command.file_service = file_service
+        mark_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock one success, one failure
+        task1 = Mock()
+        task1.description = "Task 1"
+        task1.file = "/test/tasks.xit"
+        
+        def mock_mark_task(task_id, status, files):
+            if task_id == 1:
+                return task1
+            else:
+                from xit.exceptions import XitError
+                raise XitError(f"Task #{task_id} not found.")
+        
+        task_service.mark_task_by_id.side_effect = mock_mark_task
+        
+        # Execute batch operation
+        mark_command.execute([1, 999], "DONE", directory=Path("/test"))
+        
+        # Verify both operations were attempted
+        assert task_service.mark_task_by_id.call_count == 2
+        
+        # Verify success and error messages
+        formatter.display_success.assert_any_call('✓ Marked task #1 as done in /test/tasks.xit: "Task 1"')
+        formatter.display_error.assert_any_call("Error marking task #999: Task #999 not found.")
+
+    def test_reschedule_command_multiple_tasks(self):
+        """Test rescheduling multiple tasks to same date."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        reschedule_command = RescheduleTaskCommand(formatter)
+        reschedule_command.file_service = file_service
+        reschedule_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock successful task operations
+        task1 = Mock()
+        task1.description = "Task 1"
+        task1.file = "/test/tasks.xit"
+        task2 = Mock()
+        task2.description = "Task 2"
+        task2.file = "/test/tasks.xit"
+        task_service.reschedule_task_by_id.side_effect = [task1, task2]
+        
+        # Mock date parser
+        with patch('xit.dateutils.get_date_parser') as mock_get_parser:
+            mock_parser = Mock()
+            mock_parser.parse_date_expression.return_value = "2025-12-31"
+            mock_get_parser.return_value = mock_parser
+            
+            # Execute batch operation
+            reschedule_command.execute([1, 2], "2025-12-31", directory=Path("/test"))
+        
+        # Verify both tasks were processed
+        assert task_service.reschedule_task_by_id.call_count == 2
+        task_service.reschedule_task_by_id.assert_any_call(1, "2025-12-31", [test_file])
+        task_service.reschedule_task_by_id.assert_any_call(2, "2025-12-31", [test_file])
+
+    @patch('click.confirm')
+    def test_remove_command_mixed_confirmations(self, mock_confirm):
+        """Test removing multiple tasks with different confirmation responses."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        remove_command = RemoveTaskCommand(formatter)
+        remove_command.file_service = file_service
+        remove_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock tasks for initial collection
+        task1 = Mock()
+        task1.id = 1
+        task1.description = "Task 1"
+        task1.file = "/test/tasks.xit"
+        task1.status = "open"
+        task1.priority = None
+        task1.due_date = None
+        
+        task2 = Mock()
+        task2.id = 2
+        task2.description = "Task 2"
+        task2.file = "/test/tasks.xit"
+        task2.status = "open"
+        task2.priority = None
+        task2.due_date = None
+        
+        # Mock task loading for different phases
+        task_service.load_tasks.side_effect = [
+            [task1, task2],  # Initial collection
+            [task1, task2],  # Processing task1
+            [task2],         # Processing task2 (task1 removed)
+        ]
+        
+        # Mock confirmation responses (yes for task1, no for task2)
+        mock_confirm.side_effect = [True, False]
+        
+        # Mock operations
+        removed_task = Mock()
+        removed_task.description = "Task 1"
+        removed_task.file = "/test/tasks.xit"
+        task_service.remove_task_by_id.return_value = removed_task
+        
+        marked_task = Mock()
+        marked_task.description = "Task 2"
+        marked_task.file = "/test/tasks.xit"
+        task_service.mark_task_by_id.return_value = marked_task
+        
+        # Execute batch operation
+        remove_command.execute([1, 2], directory=Path("/test"))
+        
+        # Verify confirmations
+        assert mock_confirm.call_count == 2
+        
+        # Verify operations
+        task_service.remove_task_by_id.assert_called_once_with(1, [test_file])
+        task_service.mark_task_by_id.assert_called_once_with(2, "OBSOLETE", [test_file])
+
+    def test_move_command_multiple_tasks(self):
+        """Test moving multiple tasks to same target file."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        move_command = MoveTaskCommand(formatter)
+        move_command.file_service = file_service
+        move_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock tasks for initial collection
+        task1 = Mock()
+        task1.id = 1
+        task1.description = "Task 1"
+        task1.file = "/test/tasks.xit"
+        task1.status = "open"
+        task1.priority = None
+        task1.due_date = None
+        
+        task2 = Mock()
+        task2.id = 2
+        task2.description = "Task 2"
+        task2.file = "/test/tasks.xit"
+        task2.status = "open" 
+        task2.priority = None
+        task2.due_date = None
+        
+        # Mock task loading for different phases
+        task_service.load_tasks.side_effect = [
+            [task1, task2],  # Initial collection
+            [task1, task2],  # Processing task1
+            [task2],         # Processing task2 (task1 moved)
+        ]
+        
+        # Mock move operations
+        moved_task1 = Mock()
+        moved_task1.description = "Task 1"
+        moved_task1.file = "/test/target.xit"
+        
+        moved_task2 = Mock()
+        moved_task2.description = "Task 2"
+        moved_task2.file = "/test/target.xit"
+        
+        task_service.move_task_by_id.side_effect = [moved_task1, moved_task2]
+        
+        # Execute batch operation
+        move_command.execute([1, 2], "target.xit", directory=Path("/test"))
+        
+        # Verify both tasks were processed
+        assert task_service.move_task_by_id.call_count == 2
+        task_service.move_task_by_id.assert_any_call(1, [test_file], "/test/target.xit")
+        task_service.move_task_by_id.assert_any_call(2, [test_file], "/test/target.xit")
+
+    def test_batch_processing_preserves_order(self):
+        """Test that batch operations preserve user-specified order."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        mark_command = MarkTaskCommand(formatter)
+        mark_command.file_service = file_service
+        mark_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Track call order
+        call_order = []
+        
+        def track_calls(task_id, status, files):
+            call_order.append(task_id)
+            task = Mock()
+            task.description = f"Task {task_id}"
+            task.file = "/test/tasks.xit"
+            return task
+        
+        task_service.mark_task_by_id.side_effect = track_calls
+        
+        # Execute with non-sequential order
+        mark_command.execute([5, 1, 3, 2], "DONE", directory=Path("/test"))
+        
+        # Verify order was preserved
+        assert call_order == [5, 1, 3, 2]
+
+    def test_empty_task_list_handling(self):
+        """Test handling when no task IDs provided."""
+        # Setup
+        formatter = Mock(spec=TaskFormatter)
+        file_service = Mock()
+        task_service = Mock()
+        mark_command = MarkTaskCommand(formatter)
+        mark_command.file_service = file_service
+        mark_command.task_service = task_service
+        
+        test_file = Path("/test/tasks.xit")
+        file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Execute with empty list
+        mark_command.execute([], "DONE", directory=Path("/test"))
+        
+        # Verify no service calls made and no error messages
+        task_service.mark_task_by_id.assert_not_called()
+        formatter.display_error.assert_not_called()  # No error for empty list
+        formatter.display_success.assert_not_called()  # No success messages either

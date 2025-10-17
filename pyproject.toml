@@ -1,5 +1,5 @@
 [project]
-name = "xitflow"
+name = "xit"
 version = "0.1.0"
 description = ""
 authors = [
@@ -7,7 +7,7 @@ authors = [
 ]
 license = {text = "MIT"}
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<4.0.0"
 dependencies = [
     "rich>=13.0.0",
     "click>=8.0.0",
@@ -24,8 +24,16 @@ dev = [
     "mypy>=1.0.0",
 ]
 
-
+# add __main__ as script entry point
+[project.scripts]
+xit = "xit.__main__:xit"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]

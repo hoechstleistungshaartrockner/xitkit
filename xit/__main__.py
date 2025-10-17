@@ -13,9 +13,9 @@ import os
 # Add the current directory to the path to import our modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from todo.commands import CommandFactory
-from todo.services import TaskFilter
-from todo.formatter import TaskFormatter
+from xit.commands import CommandFactory
+from xit.services import TaskFilter
+from xit.formatter import TaskFormatter
 
 
 @click.group(invoke_without_command=True)

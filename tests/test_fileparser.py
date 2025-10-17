@@ -4,8 +4,8 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from xitflow.fileparser import FileParser, ParseContext
-from xitflow.task import Task
+from xit.fileparser import FileParser, ParseContext
+from xit.task import Task
 from tests.conftest import create_test_file, assert_task_equal
 
 

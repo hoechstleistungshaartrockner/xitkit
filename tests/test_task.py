@@ -3,7 +3,7 @@
 import pytest
 from pathlib import Path
 
-from xitflow.task import Task
+from xit.task import Task
 
 
 class TestTaskBasics:

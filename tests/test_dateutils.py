@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, timedelta
 
-from xitflow.dateutils import DateParser, get_date_parser, parse_date_expression
+from xit.dateutils import DateParser, get_date_parser, parse_date_expression
 
 
 class TestDateParserBasics:

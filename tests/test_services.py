@@ -4,9 +4,9 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from xitflow.services import TaskService, FileDiscoveryService, TaskFilter
-from xitflow.task import Task
-from xitflow.exceptions import XitError
+from xit.services import TaskService, FileDiscoveryService, TaskFilter
+from xit.task import Task
+from xit.exceptions import XitError
 from tests.conftest import create_test_file
 
 
@@ -329,7 +329,7 @@ class TestFileDiscoveryService:
         (temp_dir / "task2.md").write_text("[ ] Task 2")
         (temp_dir / "readme.txt").write_text("Not a task file")
         
-        with patch('xitflow.services.TaskService.find_task_files') as mock_find:
+        with patch('xit.services.TaskService.find_task_files') as mock_find:
             mock_find.return_value = [str(temp_dir / "task1.xit"), str(temp_dir / "task2.md")]
             
             result = file_service.resolve_file_paths(
@@ -355,7 +355,7 @@ class TestFileDiscoveryService:
     
     def test_resolve_file_paths_with_directory_default(self, temp_dir, file_service):
         """Test resolving file paths with default directory."""
-        with patch('xitflow.services.TaskService.find_task_files') as mock_find:
+        with patch('xit.services.TaskService.find_task_files') as mock_find:
             mock_find.return_value = ["found1.xit", "found2.md"]
             
             result = file_service.resolve_file_paths(
@@ -396,7 +396,7 @@ class TestFileDiscoveryService:
     
     def test_resolve_path_argument_directory(self, temp_dir, file_service):
         """Test resolving a directory path argument."""
-        with patch('xitflow.services.TaskService.find_task_files') as mock_find:
+        with patch('xit.services.TaskService.find_task_files') as mock_find:
             mock_find.return_value = ["file1.xit", "file2.md"]
             
             result = file_service._resolve_path_argument(str(temp_dir))

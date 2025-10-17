@@ -4,13 +4,13 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from xitflow.commands import (
+from xit.commands import (
     Command, ShowTasksCommand, ShowStatsCommand, CommandFactory
 )
-from xitflow.services import TaskFilter
-from xitflow.task import Task
-from xitflow.formatter import TaskFormatter
-from xitflow.exceptions import XitError
+from xit.services import TaskFilter
+from xit.task import Task
+from xit.formatter import TaskFormatter
+from xit.exceptions import XitError
 from tests.conftest import create_test_file
 
 class TestCommandBase:

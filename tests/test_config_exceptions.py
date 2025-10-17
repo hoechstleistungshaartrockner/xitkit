@@ -3,11 +3,11 @@
 import pytest
 from pathlib import Path
 
-from xitflow.config import (
+from xit.config import (
     ParsingConfig, DisplayConfig, DateConfig, AppConfig, 
     get_config, load_config_from_file, save_config_to_file
 )
-from xitflow.exceptions import (
+from xit.exceptions import (
     XitError, ParseError, ValidationError, FileNotSupportedError,
     TaskFilterError, DateParseError
 )

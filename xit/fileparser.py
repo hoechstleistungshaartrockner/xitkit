@@ -432,7 +432,7 @@ def parse_file(file_path: str) -> List[Task]:
         List of Task objects found in the file
         
     Example:
-        >>> from todo.fileparser import parse_file
+        >>> from xit.fileparser import parse_file
         >>> tasks = parse_file("tasks.xit")
         >>> print(f"Found {len(tasks)} tasks")
     """
@@ -450,7 +450,7 @@ def parse_files(file_paths: List[str]) -> List[Task]:
         Combined list of Task objects from all files
         
     Example:
-        >>> from todo.fileparser import parse_files
+        >>> from xit.fileparser import parse_files
         >>> tasks = parse_files(["todo.xit", "notes.md"])
         >>> print(f"Found {len(tasks)} total tasks")
     """

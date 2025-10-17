@@ -8,12 +8,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from xitflow.fileparser import FileParser
-from xitflow.services import TaskService, FileDiscoveryService, TaskFilter
-from xitflow.formatter import TaskFormatter
-from xitflow.commands import ShowTasksCommand, ShowStatsCommand
-from xitflow.task import Task
-from xitflow.dateutils import DateParser
+from xit.fileparser import FileParser
+from xit.services import TaskService, FileDiscoveryService, TaskFilter
+from xit.formatter import TaskFormatter
+from xit.commands import ShowTasksCommand, ShowStatsCommand
+from xit.task import Task
+from xit.dateutils import DateParser
 from tests.conftest import create_test_file
 
 
@@ -329,7 +329,7 @@ class TestDateFilteringIntegration:
         test_file = create_test_file(temp_dir, "natural_dates.xit", content)
         
         # Use specific current date for consistent testing
-        with patch('xitflow.dateutils.datetime') as mock_datetime:
+        with patch('xit.dateutils.datetime') as mock_datetime:
             mock_datetime.now.return_value = current_date
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
             

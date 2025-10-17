@@ -46,19 +46,19 @@ A powerful command-line task management tool that parses and manages tasks from 
 
 ```bash
 # Show all tasks in current directory
-python -m xitflow show
+python -m xit show
 
 # Show tasks from specific files
-python -m xitflow -f tasks.xit show
+python -m xit -f tasks.xit show
 
 # Show only open tasks
-python -m xitflow show --status open
+python -m xit show --status open
 
 # Show task statistics
-python -m xitflow stats
+python -m xit stats
 
 # Show help
-python -m xitflow --help
+python -m xit --help
 ```
 
 ### Task Syntax
@@ -124,7 +124,7 @@ Personal Tasks
 ## File Structure
 
 ```
-xitflow/
+xit/
 ├── __init__.py          # Package initialization
 ├── __main__.py          # CLI entry point
 ├── commands.py          # Command implementations
@@ -155,7 +155,7 @@ Represents a single task with all its properties:
 #### FileParser
 Parses `.xit` and `.md` files to extract tasks:
 ```python
-from xitflow.fileparser import FileParser
+from xit.fileparser import FileParser
 
 parser = FileParser()
 tasks = parser.parse_file('tasks.xit')
@@ -164,7 +164,7 @@ tasks = parser.parse_file('tasks.xit')
 #### TaskService
 High-level service for task operations:
 ```python
-from xitflow.services import TaskService
+from xit.services import TaskService
 
 service = TaskService()
 tasks = service.get_tasks_from_directory('.')
@@ -206,7 +206,7 @@ Health & Fitness
 ### Example Output
 
 ```bash
-$ python -m xitflow show --status open
+$ python -m xit show --status open
 
 📋 Open Tasks (4)
 
@@ -227,7 +227,7 @@ $ python -m xitflow show --status open
 python -m pytest
 
 # Run with coverage
-python -m pytest --cov=xitflow
+python -m pytest --cov=xit
 
 # Run specific test file
 python -m pytest tests/test_fileparser.py
@@ -237,16 +237,16 @@ python -m pytest tests/test_fileparser.py
 
 ```bash
 # Format code
-black xitflow/ tests/
+black xit/ tests/
 
 # Sort imports
-isort xitflow/ tests/
+isort xit/ tests/
 
 # Lint code  
-flake8 xitflow/ tests/
+flake8 xit/ tests/
 
 # Type checking
-mypy xitflow/
+mypy xit/
 ```
 
 ## Contributing

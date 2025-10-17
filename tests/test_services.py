@@ -527,3 +527,310 @@ class TestServiceIntegration:
         stats = task_service.get_task_statistics(tasks)
         assert stats['total_tasks'] == 6
         assert len(stats['files_with_tasks']) == 2
+
+
+class TestTaskModificationServices:
+    """Test task modification services (add, mark, reschedule)."""
+    
+    @pytest.fixture
+    def task_service(self):
+        """Create a TaskService instance."""
+        return TaskService()
+    
+    def test_add_task_to_file_success(self, temp_dir, task_service):
+        """Test successfully adding a task to a file."""
+        # Create test file
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("""[ ] Existing task
+[x] Completed task
+""")
+        
+        # Add new task
+        task_service.add_task_to_file("New task description", str(test_file))
+        
+        # Verify task was added
+        content = test_file.read_text()
+        assert "[ ] New task description" in content
+        assert "Existing task" in content  # Original content preserved
+    
+    def test_add_task_to_file_with_due_date(self, temp_dir, task_service):
+        """Test adding a task with due date."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Existing task\n")
+        
+        task_service.add_task_to_file("Task with date -> 2025-12-31", str(test_file))
+        content = test_file.read_text()
+        assert "[ ] Task with date -> 2025-12-31" in content
+    
+    def test_add_task_to_nonexistent_file(self, temp_dir, task_service):
+        """Test adding task to a file that doesn't exist."""
+        test_file = temp_dir / "new_tasks.xit"
+        
+        task_service.add_task_to_file("First task", str(test_file))
+        assert test_file.exists()
+        content = test_file.read_text()
+        assert "[ ] First task" in content
+    
+    def test_mark_task_by_id_success(self, temp_dir, task_service):
+        """Test successfully marking a task by ID."""
+        # Create test file with tasks
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("""[ ] Task 1
+[ ] Task 2 #priority1
+[x] Task 3
+""")
+        
+        # Mark task 2 as completed
+        result = task_service.mark_task_by_id(2, "DONE", [test_file])
+        
+        assert result is not None
+        assert result.description == "Task 2 #priority1"
+        assert result.status == "DONE"
+        
+        # Verify file was updated
+        content = test_file.read_text()
+        lines = content.strip().split('\n')
+        assert lines[1] == "[x] Task 2 #priority1"  # Task was marked
+    
+    def test_mark_task_by_id_different_statuses(self, temp_dir, task_service):
+        """Test marking tasks with different status symbols."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Test task\n")
+        
+        # Test different status names
+        status_tests = [
+            ("DONE", "x"),
+            ("ONGOING", "@"), 
+            ("OBSOLETE", "~"),
+            ("INQUESTION", "?")
+        ]
+        
+        for status_name, expected_symbol in status_tests:
+            # Reset file
+            test_file.write_text("[ ] Test task\n")
+            
+            result = task_service.mark_task_by_id(1, status_name, [test_file])
+            assert result is not None
+            assert result.status == status_name
+            
+            # Verify file content
+            content = test_file.read_text()
+            assert f"[{expected_symbol}] Test task" in content
+    
+    def test_mark_task_by_id_not_found(self, temp_dir, task_service):
+        """Test marking a task that doesn't exist."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Only task\n")
+        
+        result = task_service.mark_task_by_id(999, "DONE", [test_file])
+        assert result is None
+    
+    def test_mark_task_across_multiple_files(self, temp_dir, task_service):
+        """Test marking a task that exists across multiple files."""
+        # Create multiple files
+        file1 = temp_dir / "tasks1.xit"
+        file1.write_text("[ ] Task 1\n")
+        
+        file2 = temp_dir / "tasks2.xit"  
+        file2.write_text("[ ] Task 2\n[ ] Task 3\n")
+        
+        # Mark task 3 (should be in file2)
+        result = task_service.mark_task_by_id(3, "DONE", [file1, file2])
+        
+        assert result is not None
+        assert result.description == "Task 3"
+        
+        # Verify correct file was updated
+        assert "[ ] Task 1" in file1.read_text()  # file1 unchanged
+        content2 = file2.read_text()
+        assert "[x] Task 3" in content2
+    
+    def test_reschedule_task_by_id_success(self, temp_dir, task_service):
+        """Test successfully rescheduling a task."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("""[ ] Task 1
+[ ] Task 2 -> 2025-10-15
+[ ] Task 3
+""")
+        
+        # Reschedule task 2 to new date
+        result = task_service.reschedule_task_by_id(2, "2025-12-31", [test_file])
+        
+        assert result is not None
+        assert "Task 2" in result.description  # Description may include due date
+        assert result.due_date == "2025-12-31"
+        
+        # Verify file was updated
+        content = test_file.read_text()
+        assert "[ ] Task 2 -> 2025-12-31" in content
+    
+    def test_reschedule_task_without_existing_date(self, temp_dir, task_service):
+        """Test rescheduling a task that doesn't have a due date."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Task without date\n")
+        
+        result = task_service.reschedule_task_by_id(1, "2025-12-31", [test_file])
+        
+        assert result is not None
+        assert result.due_date == "2025-12-31"
+        
+        # Verify file was updated
+        content = test_file.read_text()
+        assert "[ ] Task without date -> 2025-12-31" in content
+    
+    def test_reschedule_task_remove_date(self, temp_dir, task_service):
+        """Test removing due date from a task."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Task with date -> 2025-10-15\n")
+        
+        result = task_service.reschedule_task_by_id(1, None, [test_file])
+        
+        assert result is not None
+        assert result.due_date is None
+        
+        # Verify file was updated (date removed)
+        content = test_file.read_text()
+        assert "[ ] Task with date" in content
+        assert "2025-10-15" not in content
+    
+    def test_reschedule_task_not_found(self, temp_dir, task_service):
+        """Test rescheduling a task that doesn't exist."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Only task\n")
+        
+        result = task_service.reschedule_task_by_id(999, "2025-12-31", [test_file])
+        assert result is None
+    
+    def test_reschedule_task_across_files(self, temp_dir, task_service):
+        """Test rescheduling a task across multiple files."""
+        file1 = temp_dir / "tasks1.xit"
+        file1.write_text("[ ] Task 1\n")
+        
+        file2 = temp_dir / "tasks2.xit"
+        file2.write_text("[ ] Task 2\n[ ] Task 3 -> 2025-10-15\n")
+        
+        # Reschedule task 3
+        result = task_service.reschedule_task_by_id(3, "2025-12-25", [file1, file2])
+        
+        assert result is not None
+        assert "Task 3" in result.description  # Description may include due date
+        assert result.due_date == "2025-12-25"
+        
+        # Verify correct file was updated
+        assert file1.read_text() == "[ ] Task 1\n"  # file1 unchanged
+        content2 = file2.read_text()
+        assert "[ ] Task 3 -> 2025-12-25" in content2
+    
+    def test_file_update_operations_preserve_format(self, temp_dir, task_service):
+        """Test that file operations preserve original formatting."""
+        test_file = temp_dir / "tasks.xit"
+        original_content = """# Project Tasks
+
+[ ] Task 1 #work
+  - Some details
+[ ] Task 2 -> 2025-10-15
+
+## Completed
+[x] Done task
+"""
+        test_file.write_text(original_content)
+        
+        # Mark task 1
+        task_service.mark_task_by_id(1, "DONE", [test_file])
+        
+        content = test_file.read_text()
+        # Should preserve headers and structure
+        assert "# Project Tasks" in content
+        assert "## Completed" in content
+        assert "  - Some details" in content
+        assert "[x] Task 1 #work" in content
+    
+    @patch('pathlib.Path.write_text')
+    def test_file_write_error_handling(self, mock_write, temp_dir, task_service):
+        """Test error handling when file write operations fail."""
+        test_file = temp_dir / "tasks.xit"
+        test_file.write_text("[ ] Test task\n")
+        
+        # Make write_text raise an exception
+        mock_write.side_effect = PermissionError("Permission denied")
+        
+        # Should handle the exception gracefully
+        result = task_service.mark_task_by_id(1, "DONE", [test_file])
+        assert result is None
+
+
+class TestTaskIdAssignment:
+    """Test task ID assignment functionality."""
+    
+    @pytest.fixture
+    def task_service(self):
+        """Create a TaskService instance."""
+        return TaskService()
+    
+    def test_load_tasks_assigns_sequential_ids(self, temp_dir, task_service):
+        """Test that tasks get sequential IDs assigned."""
+        # Create multiple files with tasks
+        file1 = temp_dir / "a_first.xit"
+        file1.write_text("""[ ] Task A1
+[ ] Task A2
+""")
+        
+        file2 = temp_dir / "b_second.xit"
+        file2.write_text("""[ ] Task B1
+[x] Task B2
+""")
+        
+        # Load tasks (should assign IDs alphabetically by file path)
+        tasks = task_service.load_tasks([file1, file2])
+        
+        # Verify ID assignment
+        assert len(tasks) == 4
+        
+        # Should be ordered by file path then by position in file
+        assert tasks[0].id == 1
+        assert tasks[0].description == "Task A1"
+        assert tasks[1].id == 2  
+        assert tasks[1].description == "Task A2"
+        assert tasks[2].id == 3
+        assert tasks[2].description == "Task B1"
+        assert tasks[3].id == 4
+        assert tasks[3].description == "Task B2"
+    
+    def test_load_tasks_with_mixed_file_types(self, temp_dir, task_service):
+        """Test ID assignment with mixed .xit and .md files."""
+        md_file = temp_dir / "notes.md"
+        md_file.write_text("# Notes\n[ ] MD Task 1\n[x] MD Task 2\n")
+        
+        xit_file = temp_dir / "tasks.xit"
+        xit_file.write_text("[ ] XIT Task 1\n[ ] XIT Task 2\n")
+        
+        tasks = task_service.load_tasks([md_file, xit_file])
+        
+        # Should be 4 tasks total with sequential IDs
+        assert len(tasks) == 4
+        
+        # Verify alphabetical ordering (notes.md comes before tasks.xit)
+        md_tasks = [t for t in tasks if Path(t.file) == md_file]
+        xit_tasks = [t for t in tasks if Path(t.file) == xit_file]
+        
+        assert md_tasks[0].id == 1
+        assert md_tasks[1].id == 2
+        assert xit_tasks[0].id == 3
+        assert xit_tasks[1].id == 4
+    
+    def test_id_consistency_across_reloads(self, temp_dir, task_service):
+        """Test that IDs remain consistent across multiple loads."""
+        test_file = temp_dir / "consistent.xit"
+        test_file.write_text("""[ ] Task 1
+[ ] Task 2
+[ ] Task 3
+""")
+        
+        # Load tasks multiple times
+        tasks1 = task_service.load_tasks([test_file])
+        tasks2 = task_service.load_tasks([test_file])
+        
+        # IDs should be the same
+        for t1, t2 in zip(tasks1, tasks2):
+            assert t1.id == t2.id
+            assert t1.description == t2.description

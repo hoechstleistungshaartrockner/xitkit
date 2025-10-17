@@ -187,5 +187,39 @@ def mark(ctx, task_id, status):
     )
 
 
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('new_date', type=str, metavar='DATE')
+@click.pass_context
+def reschedule(ctx, task_id, new_date):
+    """Reschedule a task to a new due date.
+    
+    Changes the due date of a task identified by its ID. The task ID can be found
+    using the 'xit show --show-id' command.
+    
+    Supports natural language dates and relative date expressions.
+    
+    ID: The task ID number
+    DATE: New due date (supports various formats)
+    
+    Examples:
+        xit reschedule 5 2025-12-31     # Set specific date
+        xit reschedule 3 today          # Set to today
+        xit reschedule 7 tomorrow       # Set to tomorrow
+        xit reschedule 2 "+1w"          # Add one week
+        xit reschedule 4 1w             # Add one week (alternative)
+        xit reschedule 8 2d-            # Subtract two days
+        xit reschedule 9 "+3m"          # Add three months
+    """
+    # Create and execute command
+    command = CommandFactory.create_reschedule_command()
+    command.execute(
+        task_id=task_id,
+        new_date=new_date,
+        directory=ctx.obj['directory'],
+        specified_files=ctx.obj['files']
+    )
+
+
 if __name__ == '__main__':
     xit()

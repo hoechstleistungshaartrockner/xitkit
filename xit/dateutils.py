@@ -37,7 +37,7 @@ class DateParser:
         }
         
         # Regex patterns for relative dates
-        self.relative_pattern = re.compile(r'^(\d+)([dwmy])$', re.IGNORECASE)
+        self.relative_pattern = re.compile(r'^([+-]?\d+)([dwmy])$', re.IGNORECASE)
         
         # Standard date patterns (from syntax guide)
         self.date_patterns = [

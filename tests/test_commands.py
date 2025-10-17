@@ -5,7 +5,8 @@ from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
 from xit.commands import (
-    Command, ShowTasksCommand, ShowStatsCommand, CommandFactory
+    Command, ShowTasksCommand, ShowStatsCommand, AddTaskCommand, 
+    MarkTaskCommand, RescheduleTaskCommand, CommandFactory
 )
 from xit.services import TaskFilter
 from xit.task import Task
@@ -303,6 +304,367 @@ class TestShowStatsCommand:
         )
 
 
+class TestAddTaskCommand:
+    """Test AddTaskCommand functionality."""
+    
+    @pytest.fixture
+    def add_command(self):
+        """Create an AddTaskCommand instance with mocked dependencies."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = AddTaskCommand(formatter)
+        
+        # Mock the services
+        cmd.task_service = Mock()
+        cmd.file_service = Mock()
+        
+        return cmd
+    
+    def test_add_command_creation(self):
+        """Test creating an AddTaskCommand."""
+        cmd = AddTaskCommand()
+        assert isinstance(cmd, AddTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_add_command_with_custom_formatter(self):
+        """Test creating AddTaskCommand with custom formatter."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = AddTaskCommand(formatter)
+        assert cmd.formatter is formatter
+    
+    def test_execute_add_task_success(self, add_command):
+        """Test successfully adding a task."""
+        # Setup
+        add_command.task_service.add_task_to_file = Mock(return_value=True)
+        
+        # Execute
+        add_command.execute("New task description", "tasks.xit", directory=Path("/test"))
+        
+        # Verify
+        add_command.task_service.add_task_to_file.assert_called_once_with(
+            "New task description", "/test/tasks.xit"
+        )
+        add_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_add_task_absolute_path(self, add_command):
+        """Test adding task with absolute file path."""
+        # Setup  
+        add_command.task_service.add_task_to_file = Mock(return_value=True)
+        
+        # Execute with absolute path
+        add_command.execute("New task", "/absolute/path/tasks.xit")
+        
+        # Verify
+        add_command.task_service.add_task_to_file.assert_called_once_with(
+            "New task", "/absolute/path/tasks.xit"
+        )
+        add_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_add_task_with_due_date(self, add_command):
+        """Test adding a task with due date."""
+        # Setup
+        add_command.task_service.add_task_to_file = Mock(return_value=True)
+        
+        # Execute
+        add_command.execute("Task with date -> 2025-12-31", "tasks.xit", directory=Path("/test"))
+        
+        # Verify task was added with proper description
+        add_command.task_service.add_task_to_file.assert_called_once_with(
+            "Task with date -> 2025-12-31", "/test/tasks.xit"
+        )
+        add_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_add_task_relative_path_no_directory(self, add_command):
+        """Test adding task with relative path and no directory specified."""
+        # Setup
+        add_command.task_service.add_task_to_file = Mock(return_value=True)
+        
+        with patch('pathlib.Path.cwd', return_value=Path("/current/working/dir")):
+            # Execute with relative path and no directory
+            add_command.execute("New task", "tasks.xit")
+            
+            # Verify absolute path was resolved using cwd
+            add_command.task_service.add_task_to_file.assert_called_once_with(
+                "New task", "/current/working/dir/tasks.xit"
+            )
+    
+    def test_execute_add_task_error_handling(self, add_command):
+        """Test error handling during task addition."""
+        # Setup
+        add_command.task_service.add_task_to_file.side_effect = XitError("Test error")
+        
+        # Execute
+        add_command.execute("New task", "tasks.xit", directory=Path("/test"))
+        
+        # Verify
+        add_command.formatter.display_error.assert_called_once_with("Test error")
+
+
+class TestMarkTaskCommand:
+    """Test MarkTaskCommand functionality."""
+    
+    @pytest.fixture
+    def mark_command(self):
+        """Create a MarkTaskCommand instance with mocked dependencies."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = MarkTaskCommand(formatter)
+        
+        # Mock the services
+        cmd.task_service = Mock()
+        cmd.file_service = Mock()
+        
+        return cmd
+    
+    def test_mark_command_creation(self):
+        """Test creating a MarkTaskCommand."""
+        cmd = MarkTaskCommand()
+        assert isinstance(cmd, MarkTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_mark_command_with_custom_formatter(self):
+        """Test creating MarkTaskCommand with custom formatter."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = MarkTaskCommand(formatter)
+        assert cmd.formatter is formatter
+    
+    def test_execute_mark_task_success(self, mark_command):
+        """Test successfully marking a task."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        mark_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Create mock updated task
+        updated_task = Mock()
+        updated_task.description = "Test task"
+        updated_task.file = "/test/tasks.xit"
+        mark_command.task_service.mark_task_by_id.return_value = updated_task
+        
+        # Execute
+        mark_command.execute(1, "x", directory=Path("/test"))
+        
+        # Verify
+        mark_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, Path("/test"), None
+        )
+        mark_command.task_service.mark_task_by_id.assert_called_once_with(1, "x", [test_file])
+        mark_command.formatter.display_success.assert_called_once()
+    
+    def test_execute_mark_task_no_files(self, mark_command):
+        """Test marking task when no files found."""
+        # Setup
+        mark_command.file_service.resolve_file_paths.return_value = []
+        
+        # Execute
+        mark_command.execute(1, "x", directory=Path("/test"))
+        
+        # Verify
+        mark_command.formatter.display_warning.assert_called_once_with(
+            "No task files found."
+        )
+        mark_command.task_service.mark_task_by_id.assert_not_called()
+    
+    def test_execute_mark_task_not_found(self, mark_command):
+        """Test marking a task that doesn't exist."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        mark_command.file_service.resolve_file_paths.return_value = [test_file]
+        mark_command.task_service.mark_task_by_id.return_value = None
+        
+        # Execute
+        mark_command.execute(999, "x", directory=Path("/test"))
+        
+        # Verify
+        mark_command.formatter.display_error.assert_called_once_with(
+            "Task with ID #999 not found."
+        )
+    
+    def test_execute_mark_task_different_statuses(self, mark_command):
+        """Test marking tasks with different status symbols."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        mark_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        updated_task = Mock()
+        updated_task.description = "Test task"
+        updated_task.file = "/test/tasks.xit"
+        mark_command.task_service.mark_task_by_id.return_value = updated_task
+        
+        # Test different status symbols
+        statuses = ["x", "@", "~", "!", "+"]
+        for status in statuses:
+            mark_command.execute(1, status, directory=Path("/test"))
+            mark_command.task_service.mark_task_by_id.assert_called_with(1, status, [test_file])
+    
+    def test_execute_mark_task_with_specified_files(self, mark_command):
+        """Test marking task in specified files."""
+        # Setup
+        specified_files = ["tasks.xit", "projects.md"]
+        test_files = [Path("/test/tasks.xit"), Path("/test/projects.md")]
+        mark_command.file_service.resolve_file_paths.return_value = test_files
+        
+        updated_task = Mock()
+        updated_task.description = "Test task"
+        updated_task.file = "/test/tasks.xit"
+        mark_command.task_service.mark_task_by_id.return_value = updated_task
+        
+        # Execute
+        mark_command.execute(1, "x", specified_files=specified_files)
+        
+        # Verify
+        mark_command.file_service.resolve_file_paths.assert_called_once_with(
+            None, None, specified_files
+        )
+    
+    def test_execute_mark_task_error_handling(self, mark_command):
+        """Test error handling during task marking."""
+        # Setup
+        mark_command.file_service.resolve_file_paths.side_effect = XitError("Test error")
+        
+        # Execute
+        mark_command.execute(1, "x", directory=Path("/test"))
+        
+        # Verify
+        mark_command.formatter.display_error.assert_called_once_with("Test error")
+    
+    def test_get_relative_path(self, mark_command):
+        """Test the _get_relative_path helper method."""
+        with patch('pathlib.Path.cwd', return_value=Path("/current")):
+            # Test relative path
+            result = mark_command._get_relative_path("/current/subdir/file.xit")
+            assert result == "subdir/file.xit"
+            
+            # Test absolute path that can't be made relative
+            result = mark_command._get_relative_path("/other/path/file.xit")
+            assert result == "/other/path/file.xit"
+
+
+class TestRescheduleTaskCommand:
+    """Test RescheduleTaskCommand functionality."""
+    
+    @pytest.fixture
+    def reschedule_command(self):
+        """Create a RescheduleTaskCommand instance with mocked dependencies."""
+        formatter = Mock(spec=TaskFormatter)
+        cmd = RescheduleTaskCommand(formatter)
+        
+        # Mock the services
+        cmd.task_service = Mock()
+        cmd.file_service = Mock()
+        
+        return cmd
+    
+    def test_reschedule_command_creation(self):
+        """Test creating a RescheduleTaskCommand."""
+        cmd = RescheduleTaskCommand()
+        assert isinstance(cmd, RescheduleTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    @patch('xit.dateutils.get_date_parser')
+    def test_execute_reschedule_task_success(self, mock_get_parser, reschedule_command):
+        """Test successfully rescheduling a task."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        reschedule_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        # Mock date parser
+        mock_parser = Mock()
+        mock_parser.parse_date_expression.return_value = "2025-12-31"
+        mock_get_parser.return_value = mock_parser
+        
+        # Mock updated task
+        updated_task = Mock()
+        updated_task.description = "Test task"
+        updated_task.file = "/test/tasks.xit"
+        reschedule_command.task_service.reschedule_task_by_id.return_value = updated_task
+        
+        # Execute
+        reschedule_command.execute(1, "2025-12-31", directory=Path("/test"))
+        
+        # Verify
+        reschedule_command.file_service.resolve_file_paths.assert_called_once()
+        mock_parser.parse_date_expression.assert_called_once_with("2025-12-31")
+        reschedule_command.task_service.reschedule_task_by_id.assert_called_once_with(
+            1, "2025-12-31", [test_file]
+        )
+        reschedule_command.formatter.display_success.assert_called_once()
+    
+    @patch('xit.dateutils.get_date_parser')
+    def test_execute_reschedule_natural_language_dates(self, mock_get_parser, reschedule_command):
+        """Test rescheduling with natural language dates."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        reschedule_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        mock_parser = Mock()
+        mock_parser.parse_date_expression.return_value = "2025-10-18"
+        mock_get_parser.return_value = mock_parser
+        
+        updated_task = Mock()
+        updated_task.description = "Test task"
+        updated_task.file = "/test/tasks.xit"
+        reschedule_command.task_service.reschedule_task_by_id.return_value = updated_task
+        
+        # Test different natural language expressions
+        expressions = ["tomorrow", "today", "+1w", "1d-"]
+        expected_parsed = ["tomorrow", "today", "1w", "-1d"]
+        
+        for expr, expected in zip(expressions, expected_parsed):
+            reschedule_command.execute(1, expr, directory=Path("/test"))
+            mock_parser.parse_date_expression.assert_called_with(expected)
+    
+    @patch('xit.dateutils.get_date_parser')
+    def test_execute_reschedule_invalid_date(self, mock_get_parser, reschedule_command):
+        """Test rescheduling with invalid date format."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        reschedule_command.file_service.resolve_file_paths.return_value = [test_file]
+        
+        mock_parser = Mock()
+        mock_parser.parse_date_expression.side_effect = Exception("Invalid date")
+        mock_get_parser.return_value = mock_parser
+        
+        # Execute
+        reschedule_command.execute(1, "invalid-date", directory=Path("/test"))
+        
+        # Verify error handling
+        reschedule_command.formatter.display_error.assert_called_once_with(
+            "Invalid date format: invalid-date"
+        )
+        reschedule_command.task_service.reschedule_task_by_id.assert_not_called()
+    
+    def test_execute_reschedule_task_not_found(self, reschedule_command):
+        """Test rescheduling a task that doesn't exist."""
+        # Setup
+        test_file = Path("/test/tasks.xit")
+        reschedule_command.file_service.resolve_file_paths.return_value = [test_file]
+        reschedule_command.task_service.reschedule_task_by_id.return_value = None
+        
+        with patch('xit.dateutils.get_date_parser') as mock_get_parser:
+            mock_parser = Mock()
+            mock_parser.parse_date_expression.return_value = "2025-12-31"
+            mock_get_parser.return_value = mock_parser
+            
+            # Execute
+            reschedule_command.execute(999, "2025-12-31", directory=Path("/test"))
+            
+            # Verify
+            reschedule_command.formatter.display_error.assert_called_once_with(
+                "Task with ID #999 not found."
+            )
+    
+    def test_execute_reschedule_no_files(self, reschedule_command):
+        """Test rescheduling when no files found."""
+        # Setup
+        reschedule_command.file_service.resolve_file_paths.return_value = []
+        
+        # Execute
+        reschedule_command.execute(1, "tomorrow", directory=Path("/test"))
+        
+        # Verify
+        reschedule_command.formatter.display_warning.assert_called_once_with(
+            "No task files found."
+        )
+
+
 class TestStatisticsDisplay:
     """Test statistics display functionality."""
     
@@ -441,6 +803,51 @@ class TestCommandFactory:
         cmd = CommandFactory.create_stats_command(custom_formatter)
         
         assert isinstance(cmd, ShowStatsCommand)
+        assert cmd.formatter is custom_formatter
+    
+    def test_create_add_command_default(self):
+        """Test creating add command with default formatter."""
+        cmd = CommandFactory.create_add_command()
+        
+        assert isinstance(cmd, AddTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_add_command_with_formatter(self):
+        """Test creating add command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_add_command(custom_formatter)
+        
+        assert isinstance(cmd, AddTaskCommand)
+        assert cmd.formatter is custom_formatter
+    
+    def test_create_mark_command_default(self):
+        """Test creating mark command with default formatter."""
+        cmd = CommandFactory.create_mark_command()
+        
+        assert isinstance(cmd, MarkTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_mark_command_with_formatter(self):
+        """Test creating mark command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_mark_command(custom_formatter)
+        
+        assert isinstance(cmd, MarkTaskCommand)
+        assert cmd.formatter is custom_formatter
+    
+    def test_create_reschedule_command_default(self):
+        """Test creating reschedule command with default formatter."""
+        cmd = CommandFactory.create_reschedule_command()
+        
+        assert isinstance(cmd, RescheduleTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_reschedule_command_with_formatter(self):
+        """Test creating reschedule command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_reschedule_command(custom_formatter)
+        
+        assert isinstance(cmd, RescheduleTaskCommand)
         assert cmd.formatter is custom_formatter
 
 

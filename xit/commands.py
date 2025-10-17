@@ -244,6 +244,78 @@ class MarkTaskCommand(Command):
             return file_path
 
 
+class RescheduleTaskCommand(Command):
+    """Command for rescheduling tasks to new due dates."""
+    
+    def execute(self, task_id: int, new_date: str, directory: Path = None, 
+                specified_files: list = None) -> None:
+        """Execute the reschedule task command.
+        
+        Args:
+            task_id: ID of the task to reschedule
+            new_date: New due date (can be natural language)
+            directory: Default directory to search
+            specified_files: Explicitly specified files
+        """
+        try:
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Parse the date expression
+            from .dateutils import get_date_parser
+            date_parser = get_date_parser()
+            
+            try:
+                # Handle different relative date formats:
+                # "+1w" -> "1w", "1d-" -> "-1d"
+                if new_date.startswith('+'):
+                    date_expression = new_date[1:]  # Remove "+" prefix
+                elif new_date.endswith('-'):
+                    date_expression = '-' + new_date[:-1]  # Move "-" to front
+                else:
+                    date_expression = new_date
+                
+                parsed_date = date_parser.parse_date_expression(date_expression)
+                
+                if parsed_date is None:
+                    self.formatter.display_error(f"Invalid date format: {new_date}")
+                    return
+                    
+            except Exception as e:
+                self.formatter.display_error(f"Invalid date format: {new_date}")
+                return
+            
+            # Find and update the task
+            updated_task = self.task_service.reschedule_task_by_id(task_id, parsed_date, file_paths)
+            
+            if updated_task:
+                # Display confirmation message
+                relative_path = self._get_relative_path(updated_task.file)
+                self.formatter.display_success(
+                    f"✓ Rescheduled task #{task_id} to {parsed_date} in {relative_path}: \"{updated_task.description}\""
+                )
+            else:
+                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+                
+        except XitError as e:
+            self.formatter.display_error(str(e))
+        except Exception as e:
+            self.formatter.display_error(f"Unexpected error: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -266,3 +338,8 @@ class CommandFactory:
     def create_mark_command(formatter: TaskFormatter = None) -> MarkTaskCommand:
         """Create a mark task command."""
         return MarkTaskCommand(formatter)
+    
+    @staticmethod
+    def create_reschedule_command(formatter: TaskFormatter = None) -> RescheduleTaskCommand:
+        """Create a reschedule task command."""
+        return RescheduleTaskCommand(formatter)

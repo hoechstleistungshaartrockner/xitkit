@@ -290,6 +290,80 @@ class TaskService:
                 # Write the file back
                 with open(task.file, 'w', encoding='utf-8') as f:
                     f.writelines(lines)
+    
+    def reschedule_task_by_id(self, task_id: int, new_date: str, file_paths: List[str]) -> Optional[Task]:
+        """Find and update a task's due date by its ID.
+        
+        Args:
+            task_id: The ID of the task to update
+            new_date: The new due date string
+            file_paths: List of file paths to search
+            
+        Returns:
+            The updated Task object if found, None otherwise
+        """
+        from .task import Task
+        
+        # Load all tasks and assign IDs
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task with the matching ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            return None
+        
+        # Update the task in the file
+        self._update_due_date_in_file(target_task, new_date)
+        
+        # Update the task object and return it
+        target_task.due_date = new_date
+        return target_task
+    
+    def _update_due_date_in_file(self, task: Task, new_date: str) -> None:
+        """Update a task's due date in its source file.
+        
+        Args:
+            task: The task to update
+            new_date: The new due date to set
+        """
+        # Read the entire file
+        with open(task.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Update the specific line (convert to 0-based index)
+        line_index = task.line_number - 1
+        if 0 <= line_index < len(lines):
+            original_line = lines[line_index].rstrip('\n\r')
+            
+            # Parse the line to update or add due date
+            import re
+            
+            # Pattern to match existing due dates
+            due_date_pattern = r'->\s*\d{4}(?:[-/](?:W\d{2}|Q[1-4]|\d{1,2}(?:[-/]\d{1,2})?))?'
+            
+            # Pattern to match "-> None" or similar invalid dates  
+            invalid_date_pattern = r'->\s*None'
+            
+            # Remove any invalid dates first
+            cleaned_line = re.sub(invalid_date_pattern, '', original_line).strip()
+            
+            if re.search(due_date_pattern, cleaned_line):
+                # Replace only the first valid due date occurrence
+                updated_line = re.sub(due_date_pattern, f'-> {new_date}', cleaned_line, count=1) + '\n'
+            else:
+                # Add new due date at the end of the line
+                updated_line = f"{cleaned_line} -> {new_date}\n"
+            
+            lines[line_index] = updated_line
+            
+            # Write the file back
+            with open(task.file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
 
 
 class FileDiscoveryService:

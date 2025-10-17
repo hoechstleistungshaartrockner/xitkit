@@ -133,7 +133,7 @@ class TestShowTasksCommand:
         
         show_command.task_service.filter_tasks.assert_called_once_with(tasks, filters)
         show_command.formatter.display_tasks.assert_called_once_with(
-            filtered_tasks, show_line=False
+            filtered_tasks, show_line=False, show_id=False
         )
         show_command.formatter.display_summary.assert_called_once_with(1, 2)
     
@@ -176,7 +176,7 @@ class TestShowTasksCommand:
         show_command.execute(show_line=True)
         
         show_command.formatter.display_tasks.assert_called_once_with(
-            tasks, show_line=True
+            tasks, show_line=True, show_id=False
         )
     
     def test_execute_handles_xit_error(self, show_command):

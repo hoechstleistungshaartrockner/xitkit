@@ -33,7 +33,7 @@ class ShowTasksCommand(Command):
     
     def execute(self, path: str = None, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
-                show_line: bool = False, count_only: bool = False) -> None:
+                show_line: bool = False, show_id: bool = False, count_only: bool = False) -> None:
         """Execute the show tasks command.
         
         Args:
@@ -42,6 +42,7 @@ class ShowTasksCommand(Command):
             specified_files: Explicitly specified files
             filters: Task filters to apply
             show_line: Whether to show line numbers
+            show_id: Whether to show task IDs
             count_only: Whether to show only count
         """
         try:
@@ -71,7 +72,7 @@ class ShowTasksCommand(Command):
             elif not filtered_tasks:
                 self.formatter.display_warning("No tasks match the specified criteria.")
             else:
-                self.formatter.display_tasks(filtered_tasks, show_line=show_line)
+                self.formatter.display_tasks(filtered_tasks, show_line=show_line, show_id=show_id)
                 self.formatter.display_summary(len(filtered_tasks), len(all_tasks))
                 
         except XitError as e:

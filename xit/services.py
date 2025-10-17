@@ -58,17 +58,30 @@ class TaskService:
     def load_tasks(self, file_paths: List[str]) -> List[Task]:
         """Load tasks from the specified files.
         
+        Files are processed in alphabetical order, and tasks are assigned
+        sequential IDs starting from 1.
+        
         Args:
             file_paths: List of file paths to parse
             
         Returns:
-            List of parsed tasks
+            List of parsed tasks with assigned IDs
             
         Raises:
             FileNotFoundError: If a file doesn't exist
             ValueError: If a file has an unsupported format
         """
-        return self.parser.parse_files(file_paths)
+        # Sort file paths alphabetically to ensure consistent ID assignment
+        sorted_file_paths = sorted(file_paths)
+        
+        # Parse all tasks from all files
+        all_tasks = self.parser.parse_files(sorted_file_paths)
+        
+        # Assign sequential IDs starting from 1
+        for i, task in enumerate(all_tasks, start=1):
+            task.id = i
+        
+        return all_tasks
     
     def filter_tasks(self, tasks: List[Task], filters: TaskFilter) -> List[Task]:
         """Apply filters to a list of tasks.

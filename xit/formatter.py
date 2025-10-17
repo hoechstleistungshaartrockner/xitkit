@@ -136,18 +136,28 @@ class TaskFormatter:
         # Return as-is if we can't normalize it
         return date_str
     
-    def format_task(self, task: Task, show_line: bool = False) -> Text:
+    def format_task(self, task: Task, show_line: bool = False, show_id: bool = False) -> Text:
         """Format a single task using Rich for colored terminal output.
         
         Args:
             task: Task object to format
             show_line: Whether to include line number in output
+            show_id: Whether to include task ID in output
             
         Returns:
             Rich Text object with colored formatting
         """
         # Create the main text object
         text = Text()
+        
+        # Add task ID if requested, with zero padding and reduced opacity
+        if show_id:
+            # Calculate the number of digits needed for zero padding based on task ID
+            # Use at least 3 digits for padding
+            total_digits = max(3, len(str(task.id)))
+            padded_id = f"#{task.id:0{total_digits}d}"
+            text.append(padded_id, style="dim white")
+            text.append(" ")
         
         # Add status symbol with color
         status_color = self.status_colors.get(task.status, 'white')
@@ -174,7 +184,7 @@ class TaskFormatter:
         
         # Add line number if requested
         if show_line:
-            text.append(f" [dim]L{task.line_number}[/dim]")
+            text.append(f" L{task.line_number}", style="dim")
         
         return text
     
@@ -292,12 +302,13 @@ class TaskFormatter:
         
         return Text(relative_path, style="bold underline")
     
-    def display_tasks(self, tasks: List[Task], show_line: bool = False) -> None:
+    def display_tasks(self, tasks: List[Task], show_line: bool = False, show_id: bool = False) -> None:
         """Display a list of tasks grouped by file with Rich formatting.
         
         Args:
             tasks: List of tasks to display
             show_line: Whether to show line numbers
+            show_id: Whether to show task IDs
         """
         if not tasks:
             self.console.print("[yellow]No tasks to display.[/yellow]")
@@ -316,7 +327,7 @@ class TaskFormatter:
             
             # Display tasks for this file
             for task in file_tasks:
-                task_text = self.format_task(task, show_line=show_line)
+                task_text = self.format_task(task, show_line=show_line, show_id=show_id)
                 self.console.print(task_text)
             
             self.console.print()  # Empty line between files
@@ -365,7 +376,7 @@ class TaskFormatter:
 
 
 # Convenience function for backward compatibility
-def format_task_rich(task: Task, show_line: bool = False) -> Text:
+def format_task_rich(task: Task, show_line: bool = False, show_id: bool = False) -> Text:
     """Format a task using Rich for colored terminal output.
     
     This is a convenience function that creates a formatter and formats a single task.
@@ -373,9 +384,10 @@ def format_task_rich(task: Task, show_line: bool = False) -> Text:
     Args:
         task: Task object to format
         show_line: Whether to include line number in output
+        show_id: Whether to include task ID in output
         
     Returns:
         Rich Text object with colored formatting
     """
     formatter = TaskFormatter()
-    return formatter.format_task(task, show_line)
+    return formatter.format_task(task, show_line, show_id)

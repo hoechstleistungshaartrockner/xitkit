@@ -61,10 +61,12 @@ def xit(ctx, directory, files):
               help='Filter tasks due on or before the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
 @click.option('--show-line', '-l', is_flag=True,
               help='Show line numbers for each task')
+@click.option('--show-id', is_flag=True,
+              help='Show task IDs with zero padding and reduced opacity')
 @click.option('--count', '-c', is_flag=True,
               help='Show only the count of matching tasks')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, count):
+def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, count):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -102,6 +104,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, count):
         specified_files=ctx.obj['files'],
         filters=filters,
         show_line=show_line,
+        show_id=show_id,
         count_only=count
     )
 

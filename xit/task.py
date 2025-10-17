@@ -20,6 +20,7 @@ class Task:
         priority: Priority level (0 = no priority, 1+ = number of exclamation marks)
         tags: List of tags associated with the task
         due_date: Due date string if present, None otherwise
+        id: Unique sequential ID assigned when reading files
     """
     file: str
     line_number: int
@@ -28,6 +29,7 @@ class Task:
     priority: int  # e.g., 0 (low) to open-ended (high)
     tags: list[str]  # e.g., ["#work", "#personal"]
     due_date: str | None  # e.g., "2023-12-31" or None
+    id: int = 0  # Sequential ID assigned when reading files
 
     # Status symbols for visual representation - using square bracket format
     _STATUS_SYMBOLS = {

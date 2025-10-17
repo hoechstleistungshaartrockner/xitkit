@@ -213,6 +213,83 @@ class TaskService:
             if needs_newline:
                 f.write('\n')
             f.write(task_line)
+    
+    def mark_task_by_id(self, task_id: int, new_status: str, file_paths: List[str]) -> Optional[Task]:
+        """Find and update a task's status by its ID.
+        
+        Args:
+            task_id: The ID of the task to update
+            new_status: The new status to set
+            file_paths: List of file paths to search
+            
+        Returns:
+            The updated Task object if found, None otherwise
+            
+        Raises:
+            ValueError: If the new status is invalid
+        """
+        from .task import Task
+        
+        # Validate status
+        if new_status not in Task._VALID_STATUSES:
+            raise ValueError(f"Invalid status: {new_status}. Must be one of {Task._VALID_STATUSES}")
+        
+        # Load all tasks and assign IDs
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task with the matching ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            return None
+        
+        # Update the task in the file
+        self._update_task_in_file(target_task, new_status)
+        
+        # Update the task object and return it
+        target_task.status = new_status
+        return target_task
+    
+    def _update_task_in_file(self, task: Task, new_status: str) -> None:
+        """Update a task's status in its source file.
+        
+        Args:
+            task: The task to update
+            new_status: The new status to set
+        """
+        # Map status to the character used in files
+        status_char_map = {
+            'OPEN': ' ',
+            'DONE': 'x',
+            'ONGOING': '@',
+            'OBSOLETE': '~',
+            'INQUESTION': '?'
+        }
+        
+        new_char = status_char_map[new_status]
+        
+        # Read the entire file
+        with open(task.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Update the specific line (convert to 0-based index)
+        line_index = task.line_number - 1
+        if 0 <= line_index < len(lines):
+            original_line = lines[line_index].rstrip('\n\r')
+            
+            # Simple approach: if line starts with [ and has ] as third character, update
+            if len(original_line) >= 3 and original_line.startswith('[') and original_line[2] == ']':
+                # Replace the status character (at index 1)
+                updated_line = f"[{new_char}]{original_line[3:]}\n"
+                lines[line_index] = updated_line
+                
+                # Write the file back
+                with open(task.file, 'w', encoding='utf-8') as f:
+                    f.writelines(lines)
 
 
 class FileDiscoveryService:

@@ -195,6 +195,55 @@ class AddTaskCommand(Command):
             return file_path
 
 
+class MarkTaskCommand(Command):
+    """Command for marking tasks with a specific status."""
+    
+    def execute(self, task_id: int, status: str, directory: Path = None, 
+                specified_files: list = None) -> None:
+        """Execute the mark task command.
+        
+        Args:
+            task_id: ID of the task to mark
+            status: New status for the task
+            directory: Default directory to search
+            specified_files: Explicitly specified files
+        """
+        try:
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Find and update the task
+            updated_task = self.task_service.mark_task_by_id(task_id, status, file_paths)
+            
+            if updated_task:
+                # Display confirmation message
+                relative_path = self._get_relative_path(updated_task.file)
+                status_display = status.lower()
+                self.formatter.display_success(
+                    f"✓ Marked task #{task_id} as {status_display} in {relative_path}: \"{updated_task.description}\""
+                )
+            else:
+                self.formatter.display_error(f"Task with ID #{task_id} not found.")
+                
+        except XitError as e:
+            self.formatter.display_error(str(e))
+        except Exception as e:
+            self.formatter.display_error(f"Unexpected error: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -212,3 +261,8 @@ class CommandFactory:
     def create_add_command(formatter: TaskFormatter = None) -> AddTaskCommand:
         """Create an add task command."""
         return AddTaskCommand(formatter)
+    
+    @staticmethod
+    def create_mark_command(formatter: TaskFormatter = None) -> MarkTaskCommand:
+        """Create a mark task command."""
+        return MarkTaskCommand(formatter)

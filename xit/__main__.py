@@ -61,7 +61,7 @@ def xit(ctx, directory, files):
               help='Filter tasks due on or before the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
 @click.option('--show-line', '-l', is_flag=True,
               help='Show line numbers for each task')
-@click.option('--show-id', is_flag=True,
+@click.option('--show-id', '-id', is_flag=True,
               help='Show task IDs with zero padding and reduced opacity')
 @click.option('--count', '-c', is_flag=True,
               help='Show only the count of matching tasks')
@@ -155,6 +155,35 @@ def add(ctx, description, file):
         description=description,
         file_path=file or "todo.xit",
         directory=ctx.obj['directory']
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('status', type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
+                                          case_sensitive=False))
+@click.pass_context
+def mark(ctx, task_id, status):
+    """Mark a task with a specific status.
+    
+    Changes the status of a task identified by its ID. The task ID can be found
+    using the 'xit show --show-id' command.
+    
+    ID: The task ID number
+    STATUS: New status for the task (open, done, ongoing, obsolete, inquestion)
+    
+    Examples:
+        xit mark 5 done         # Mark task #5 as done
+        xit mark 12 ongoing     # Mark task #12 as ongoing
+        xit mark 3 open         # Mark task #3 as open
+    """
+    # Create and execute command
+    command = CommandFactory.create_mark_command()
+    command.execute(
+        task_id=task_id,
+        status=status.upper(),
+        directory=ctx.obj['directory'],
+        specified_files=ctx.obj['files']
     )
 
 

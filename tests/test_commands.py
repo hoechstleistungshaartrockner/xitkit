@@ -7,7 +7,7 @@ from pathlib import Path
 from xit.commands import (
     Command, ShowTasksCommand, ShowStatsCommand, AddTaskCommand, 
     MarkTaskCommand, RescheduleTaskCommand, RemoveTaskCommand, 
-    MoveTaskCommand, CommandFactory
+    MoveTaskCommand, RecurTaskCommand, CommandFactory
 )
 from xit.services import TaskFilter
 from xit.task import Task
@@ -1235,6 +1235,21 @@ class TestCommandFactory:
         
         assert isinstance(cmd, MoveTaskCommand)
         assert cmd.formatter is custom_formatter
+    
+    def test_create_recur_command_default(self):
+        """Test creating recur command with default formatter."""
+        cmd = CommandFactory.create_recur_command()
+        
+        assert isinstance(cmd, RecurTaskCommand)
+        assert isinstance(cmd.formatter, TaskFormatter)
+    
+    def test_create_recur_command_with_formatter(self):
+        """Test creating recur command with custom formatter."""
+        custom_formatter = Mock(spec=TaskFormatter)
+        cmd = CommandFactory.create_recur_command(custom_formatter)
+        
+        assert isinstance(cmd, RecurTaskCommand)
+        assert cmd.formatter is custom_formatter
 
 
 class TestCommandIntegration:
@@ -1689,3 +1704,188 @@ class TestBatchProcessing:
         task_service.mark_task_by_id.assert_not_called()
         formatter.display_error.assert_not_called()  # No error for empty list
         formatter.display_success.assert_not_called()  # No success messages either
+
+
+class TestRecurTaskCommand:
+    """Test the RecurTaskCommand functionality."""
+    
+    def test_recur_command_creation(self):
+        """Test creating a RecurTaskCommand."""
+        from xit.commands import RecurTaskCommand
+        
+        command = RecurTaskCommand()
+        
+        assert isinstance(command.formatter, TaskFormatter)
+        assert hasattr(command, 'task_service')
+        assert hasattr(command, 'file_service')
+    
+    def test_recur_command_with_custom_formatter(self):
+        """Test RecurTaskCommand with custom formatter."""
+        from xit.commands import RecurTaskCommand
+        
+        custom_formatter = TaskFormatter()
+        command = RecurTaskCommand(custom_formatter)
+        
+        assert command.formatter is custom_formatter
+    
+    @patch('xit.commands.RecurTaskCommand._get_relative_path')
+    def test_execute_recur_task_success(self, mock_relative_path):
+        """Test successful task recurrence creation."""
+        from xit.commands import RecurTaskCommand
+        
+        # Setup mocks
+        mock_relative_path.return_value = "test.xit"
+        mock_formatter = Mock()
+        recur_command = RecurTaskCommand(mock_formatter)
+        
+        # Mock created tasks
+        mock_task1 = Mock()
+        mock_task1.due_date = "2025-10-27"
+        mock_task2 = Mock()
+        mock_task2.due_date = "2025-11-03"
+        created_tasks = [mock_task1, mock_task2]
+        
+        recur_command.task_service = Mock()
+        recur_command.task_service.recur_task_by_id.return_value = created_tasks
+        
+        # Execute command
+        recur_command.execute(
+            task_id=1,
+            interval="1w",
+            count=3,
+            target_file="test.xit",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service call
+        recur_command.task_service.recur_task_by_id.assert_called_once_with(
+            task_id=1,
+            interval="1w",
+            end_date=None,
+            count=3,
+            target_file="test.xit",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify success message
+        mock_formatter.display_success.assert_called_once_with(
+            "Created 2 recurring instance(s) of task #001"
+        )
+    
+    def test_execute_recur_task_no_instances_created(self):
+        """Test when no recurring instances are created."""
+        from xit.commands import RecurTaskCommand
+        
+        mock_formatter = Mock()
+        recur_command = RecurTaskCommand(mock_formatter)
+        recur_command.task_service = Mock()
+        recur_command.task_service.recur_task_by_id.return_value = []
+        
+        # Execute command
+        recur_command.execute(
+            task_id=1,
+            interval="1w",
+            count=1,
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify warning message
+        mock_formatter.display_warning.assert_called_once_with(
+            "No recurring instances created for task #001"
+        )
+    
+    def test_execute_recur_task_with_end_date(self):
+        """Test recur command with end date instead of count."""
+        from xit.commands import RecurTaskCommand
+        
+        mock_formatter = Mock()
+        recur_command = RecurTaskCommand(mock_formatter)
+        
+        mock_task = Mock()
+        mock_task.due_date = "2025-11-01"
+        recur_command.task_service = Mock()
+        recur_command.task_service.recur_task_by_id.return_value = [mock_task]
+        
+        # Execute command
+        recur_command.execute(
+            task_id=5,
+            interval="1m",
+            end_date="2025-12-31",
+            directory=Path("/test"),
+            specified_files=["test.xit"]
+        )
+        
+        # Verify service call
+        recur_command.task_service.recur_task_by_id.assert_called_once_with(
+            task_id=5,
+            interval="1m",
+            end_date="2025-12-31",
+            count=None,
+            target_file=None,
+            directory=Path("/test"),
+            specified_files=["test.xit"]
+        )
+    
+    def test_execute_recur_task_xit_error(self):
+        """Test handling XitError during recurrence creation."""
+        from xit.commands import RecurTaskCommand
+        from xit.exceptions import XitError
+        
+        mock_formatter = Mock()
+        recur_command = RecurTaskCommand(mock_formatter)
+        recur_command.task_service = Mock()
+        recur_command.task_service.recur_task_by_id.side_effect = XitError("Task not found")
+        
+        # Execute command
+        recur_command.execute(
+            task_id=999,
+            interval="1w",
+            count=2,
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message
+        mock_formatter.display_error.assert_called_once_with("Task not found")
+    
+    def test_execute_recur_task_unexpected_error(self):
+        """Test handling unexpected errors during recurrence creation."""
+        from xit.commands import RecurTaskCommand
+        
+        mock_formatter = Mock()
+        recur_command = RecurTaskCommand(mock_formatter)
+        recur_command.task_service = Mock()
+        recur_command.task_service.recur_task_by_id.side_effect = Exception("Database error")
+        
+        # Execute command
+        recur_command.execute(
+            task_id=1,
+            interval="1w",
+            count=2,
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message with prefix
+        mock_formatter.display_error.assert_called_once_with(
+            "Error creating recurring tasks: Database error"
+        )
+    
+    def test_get_relative_path(self):
+        """Test _get_relative_path helper method."""
+        from xit.commands import RecurTaskCommand
+        
+        command = RecurTaskCommand()
+        
+        # Test relative path within current directory
+        with patch('pathlib.Path.cwd', return_value=Path("/home/user/project")):
+            result = command._get_relative_path("/home/user/project/tasks.xit")
+            assert result == "tasks.xit"
+        
+        # Test absolute path outside current directory
+        with patch('pathlib.Path.cwd', return_value=Path("/home/user/project")):
+            result = command._get_relative_path("/etc/config.txt")
+            assert result == "/etc/config.txt"

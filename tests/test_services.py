@@ -1049,3 +1049,216 @@ class TestTaskMovingServices:
         
         # Should preserve everything except the checkbox
         assert description == "Task with details #tag -> 2025-12-31"
+
+
+class TestTaskRecurringServices:
+    """Test recurring task functionality in TaskService."""
+    
+    def test_recur_task_by_id_success(self, temp_dir):
+        """Test creating recurring instances of a task."""
+        task_service = TaskService()
+        
+        # Create test file with a task
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] Weekly meeting -> 2025-10-20\n")
+        
+        # Execute recur with count
+        created_tasks = task_service.recur_task_by_id(
+            task_id=1,
+            interval="1w",
+            count=3,
+            directory=temp_dir,
+            specified_files=[]
+        )
+        
+        # Verify correct number of tasks created
+        assert len(created_tasks) == 2  # 3 total - 1 original = 2 new
+        
+        # Verify task properties
+        for i, task in enumerate(created_tasks):
+            assert task.description == "Weekly meeting"
+            assert task.status == "OPEN"
+            assert task.file == str(test_file)
+        
+        # Verify dates are correct (weekly intervals starting from 2025-10-20)
+        assert created_tasks[0].due_date == "2025-10-27"
+        assert created_tasks[1].due_date == "2025-11-03"
+        
+        # Verify tasks were actually written to file
+        file_content = test_file.read_text()
+        lines = file_content.strip().split('\n')
+        assert len(lines) == 3  # Original + 2 new tasks
+        assert "-> 2025-10-27" in file_content
+        assert "-> 2025-11-03" in file_content
+    
+    def test_recur_task_by_id_with_end_date(self, temp_dir):
+        """Test creating recurring instances with end date limit."""
+        task_service = TaskService()
+        
+        # Create test file with a task
+        test_file = temp_dir / "test.xit"  
+        test_file.write_text("[ ] Monthly report -> 2025-01-01\n")
+        
+        # Execute recur with end date
+        created_tasks = task_service.recur_task_by_id(
+            task_id=1,
+            interval="1m",
+            end_date="2025-03-31",
+            directory=temp_dir,
+            specified_files=[]
+        )
+        
+        # Should create tasks until end date
+        assert len(created_tasks) >= 2
+        
+        # Verify all dates are within the range
+        for task in created_tasks:
+            assert "2025-" in task.due_date
+    
+    def test_recur_task_by_id_task_not_found(self, temp_dir):
+        """Test recur with non-existent task ID."""
+        task_service = TaskService()
+        
+        # Create empty test file
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] Some task\n")
+        
+        # Try to recur non-existent task
+        with pytest.raises(ValueError, match="Task with ID 999 not found"):
+            task_service.recur_task_by_id(
+                task_id=999,
+                interval="1w",
+                count=2,
+                directory=temp_dir,
+                specified_files=[]
+            )
+    
+    def test_recur_task_by_id_with_target_file(self, temp_dir):
+        """Test creating recurring instances in a different target file."""
+        task_service = TaskService()
+        
+        # Create source file with task
+        source_file = temp_dir / "source.xit"
+        source_file.write_text("[ ] Team standup -> 2025-10-21\n")
+        
+        # Create target file
+        target_file = temp_dir / "recurring.xit"
+        target_file.write_text("")  # Empty initially
+        
+        # Execute recur with target file
+        created_tasks = task_service.recur_task_by_id(
+            task_id=1,
+            interval="1d",
+            count=3,
+            target_file=str(target_file),
+            directory=temp_dir,
+            specified_files=[]
+        )
+        
+        # Verify tasks created
+        assert len(created_tasks) == 2  # 3 total - 1 original = 2 new
+        
+        # Verify target file contains the new tasks
+        target_content = target_file.read_text()
+        assert "Team standup -> 2025-10-22" in target_content
+        assert "Team standup -> 2025-10-23" in target_content
+        
+        # Source file should remain unchanged
+        source_content = source_file.read_text()
+        assert source_content == "[ ] Team standup -> 2025-10-21\n"
+    
+    def test_recur_task_by_id_with_priority_and_tags(self, temp_dir):
+        """Test recurring task preserves priority and tags."""
+        task_service = TaskService()
+        
+        # Create test file with priority and tags
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] !! High priority task #work #urgent -> 2025-10-15\n")
+        
+        # Execute recur
+        created_tasks = task_service.recur_task_by_id(
+            task_id=1,
+            interval="1w",
+            count=2,
+            directory=temp_dir,
+            specified_files=[]
+        )
+        
+        # Verify tasks have correct properties
+        assert len(created_tasks) == 1  # 2 total - 1 original = 1 new
+        
+        task = created_tasks[0]
+        assert task.priority == 2  # Two exclamation marks
+        assert task.tags == ["#work", "#urgent"]  # Tags include # prefix
+        assert task.due_date == "2025-10-22"
+        
+        # Verify file content includes priority and tags
+        file_content = test_file.read_text()
+        assert "!! High priority task #work #urgent -> 2025-10-22" in file_content
+    
+    def test_recur_task_by_id_no_due_date(self, temp_dir):
+        """Test recurring task without due date uses tomorrow as start."""
+        task_service = TaskService()
+        
+        # Create test file with task without due date
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] Task without due date\n")
+        
+        # Mock datetime to control "tomorrow"
+        from datetime import datetime, timedelta
+        mock_now = datetime(2025, 10, 17)  # Fixed date for testing
+        
+        with patch('datetime.datetime') as mock_datetime:
+            mock_datetime.now.return_value = mock_now
+            
+            # Execute recur
+            created_tasks = task_service.recur_task_by_id(
+                task_id=1,
+                interval="1d",
+                count=2,
+                directory=temp_dir,
+                specified_files=[]
+            )
+        
+        # Should use tomorrow (2025-10-18) as start date
+        # When there's no original due date, we generate count=2 tasks starting from tomorrow
+        assert len(created_tasks) == 2  
+        assert created_tasks[0].due_date == "2025-10-18"  # Tomorrow
+        assert created_tasks[1].due_date == "2025-10-19"  # Tomorrow + 1 day interval
+    
+    def test_recur_task_by_id_invalid_interval(self, temp_dir):
+        """Test recur with invalid interval format."""
+        task_service = TaskService()
+        
+        # Create test file
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] Test task -> 2025-10-20\n")
+        
+        # Try with invalid interval
+        with pytest.raises(ValueError, match="Error generating recurring dates"):
+            task_service.recur_task_by_id(
+                task_id=1,
+                interval="invalid",
+                count=2,
+                directory=temp_dir,
+                specified_files=[]
+            )
+    
+    def test_recur_task_by_id_invalid_target_file(self, temp_dir):
+        """Test recur with invalid target file extension."""
+        task_service = TaskService()
+        
+        # Create test file
+        test_file = temp_dir / "test.xit"
+        test_file.write_text("[ ] Test task -> 2025-10-20\n")
+        
+        # Try with invalid target file extension
+        with pytest.raises(ValueError, match="Target file .* must have .md or .xit extension"):
+            task_service.recur_task_by_id(
+                task_id=1,
+                interval="1w",
+                count=2,
+                target_file="invalid.txt",
+                directory=temp_dir,
+                specified_files=[]
+            )

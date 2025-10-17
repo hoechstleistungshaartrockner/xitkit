@@ -165,7 +165,7 @@ def add(ctx, description, file):
     command.execute(
         description=description,
         file_path=file or "todo.xit",
-        directory=ctx.obj['directory']
+        directory=Path.cwd()
     )
 
 
@@ -327,6 +327,64 @@ def move(ctx, task_ids, target, directory, files):
     command.execute(
         task_ids=list(task_ids),
         target_file=target,
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.option('--interval', '-i', required=True, type=str,
+              help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y")')
+@click.option('--end-date', '-e', type=str,
+              help='End date for recurrence in YYYY-MM-DD format')
+@click.option('--count', '-n', type=int,
+              help='Maximum number of recurring instances to create')
+@click.option('--target-file', '-t', type=str,
+              help='Target file for recurring tasks (default: same as original task)')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
+@click.pass_context
+def recur(ctx, task_id, interval, end_date, count, target_file, directory, files):
+    """Create recurring instances of a task.
+    
+    Creates multiple recurring instances of an existing task based on the specified interval.
+    The original task remains unchanged, and new tasks are created with updated due dates.
+    
+    ID: Task ID number to make recurring (use 'xit show --show-id' to find IDs)
+    
+    Examples:
+        xit recur 5 --interval 1w                    # Create weekly recurrence of task #5
+        xit recur 3 -i 2w -n 5                      # Create 5 bi-weekly instances of task #3
+        xit recur 7 -i 1m -e 2026-12-31             # Monthly recurrence until end of 2026
+        xit recur 2 -i 1d -n 30 -t work.xit        # 30 daily instances in work.xit file
+        xit recur 4 -i 3m --files personal.xit     # Quarterly recurrence from specific file
+    
+    Interval formats:
+        1d, 7d    - Days (1 day, 7 days)
+        1w, 2w    - Weeks (1 week, 2 weeks)  
+        1m, 3m    - Months (1 month, 3 months)
+        1y        - Years (1 year)
+    """
+    # Validate mutual exclusivity
+    if end_date and count:
+        click.echo("Error: Cannot specify both --end-date and --count. Choose one.", err=True)
+        ctx.exit(1)
+    
+    if not end_date and not count:
+        click.echo("Error: Must specify either --end-date or --count for recurrence limit.", err=True)
+        ctx.exit(1)
+    
+    # Create and execute command
+    command = CommandFactory.create_recur_command()
+    command.execute(
+        task_id=task_id,
+        interval=interval,
+        end_date=end_date,
+        count=count,
+        target_file=target_file,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else []
     )

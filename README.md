@@ -14,6 +14,7 @@ A powerful command-line task management tool that parses and manages tasks from 
 - **Flexible Filtering**: Filter tasks by status, priority, tags, and more
 - **Statistics**: Get insights about your task distribution
 - **🚀 Batch Processing**: Mark, reschedule, remove, or move multiple tasks at once
+- **🔄 Recurring Tasks**: Create recurring instances with flexible intervals (daily, weekly, monthly, yearly)
 - **Shell Integration**: Support for shell expansion (`{3..21}`) and sequences
 - **Status Flags**: Intuitive `--done`, `--ongoing`, `--obsolete` flags instead of cryptic symbols
 - **Smart Error Handling**: Individual task feedback with batch operation summaries
@@ -100,6 +101,12 @@ xit rm {3..21}                         # Remove task range (bash expansion)
 xit move 5 --target other.xit          # Move single task to another file
 xit move 2 3 4 --target done.xit      # Move multiple tasks to done.xit
 xit move {3..21} --target archive.xit  # Move task range to archive.xit
+
+# Create recurring instances of tasks
+xit recur 5 --interval 1w --count 4    # Create 4 weekly instances of task #5
+xit recur 3 -i 2w -n 5                # Create 5 bi-weekly instances of task #3
+xit recur 7 -i 1m -e 2026-12-31       # Monthly recurrence until end of 2026
+xit recur 2 -i 1d -n 30 -t work.xit  # 30 daily instances in work.xit file
 ```
 
 #### Key Features
@@ -184,6 +191,7 @@ Personal Tasks
 | `reschedule` | Update task due dates | ✅ **Batch** |
 | `rm` | Remove tasks (with confirmation) | ✅ **Batch** |
 | `move` | Move tasks between files | ✅ **Batch** |
+| `recur` | Create recurring instances of tasks | ✅ Single |
 
 ### Status Flag Reference
 
@@ -265,6 +273,69 @@ xit reschedule {1..12} "next monday"
 # Clean up obsolete tasks
 xit show --status obsolete
 xit rm {20..35}  # Confirm each removal
+```
+
+### Recurring Tasks
+
+The `recur` command allows you to create recurring instances of existing tasks with customizable intervals and limits:
+
+```bash
+# Create weekly recurring meeting
+xit add "Team standup -> 2025-10-21"
+xit show --show-id  # Find the task ID (e.g., #5)
+xit recur 5 --interval 1w --count 8    # Create 8 weeks worth
+
+# Monthly reports with end date
+xit recur 3 --interval 1m --end-date 2026-12-31
+
+# Daily tasks for a project sprint
+xit recur 12 -i 1d -n 14 --target-file sprint.xit
+```
+
+#### Interval Formats
+
+- **Days**: `1d`, `7d`, `30d` - Daily intervals
+- **Weeks**: `1w`, `2w`, `4w` - Weekly intervals  
+- **Months**: `1m`, `3m`, `6m` - Monthly intervals (30-day periods)
+- **Years**: `1y`, `2y` - Yearly intervals (365-day periods)
+
+#### Recurrence Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--interval` | `-i` | Recurrence interval (required) |
+| `--count` | `-n` | Maximum number of instances |
+| `--end-date` | `-e` | End date for recurrence (YYYY-MM-DD) |
+| `--target-file` | `-t` | File for new tasks (default: original file) |
+
+#### Recurring Task Behavior
+
+- **Preserves Properties**: Priority, tags, and descriptions are copied
+- **Updates Due Dates**: Each instance gets the calculated next due date
+- **Original Unchanged**: Source task remains unmodified
+- **Smart Scheduling**: Tasks without due dates start from tomorrow
+- **Flexible Limits**: Use either count or end-date (mutually exclusive)
+
+#### Examples by Use Case
+
+**Weekly Meetings**:
+```bash
+xit recur 5 -i 1w -n 12  # 3 months of weekly meetings
+```
+
+**Monthly Reports**:
+```bash  
+xit recur 8 -i 1m -e 2026-06-30  # Until mid-2026
+```
+
+**Daily Standups (Sprint)**:
+```bash
+xit recur 3 -i 1d -n 10 -t sprint.xit  # 2-week sprint in separate file
+```
+
+**Quarterly Reviews**:
+```bash
+xit recur 15 -i 3m -n 4  # Full year of quarterly reviews
 ```
 
 ## File Structure

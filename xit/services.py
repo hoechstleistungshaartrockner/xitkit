@@ -500,6 +500,118 @@ class TaskService:
             description += f" -> {task.due_date}"
         
         return description
+    
+    def recur_task_by_id(self, task_id: int, interval: str, end_date: str = None, 
+                        count: int = None, target_file: str = None,
+                        directory: Path = None, specified_files: list = None) -> List[Task]:
+        """Create recurring instances of a task.
+        
+        Args:
+            task_id: ID of the task to make recurring
+            interval: Interval expression (e.g., "1w", "30d", "3m")
+            end_date: Optional end date in YYYY-MM-DD format
+            count: Optional maximum number of occurrences
+            target_file: Optional target file for new tasks (default: same as original)
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+            
+        Returns:
+            List of newly created recurring tasks
+            
+        Raises:
+            ValueError: If task not found or parameters invalid
+        """
+        # Resolve file paths first
+        file_discovery = FileDiscoveryService()
+        file_paths = file_discovery.resolve_file_paths(
+            path=None, 
+            directory=directory, 
+            specified_files=specified_files
+        )
+        
+        # Load all tasks to find the target task
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task by ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            raise ValueError(f"Task with ID {task_id} not found.")
+        
+        # Determine start date for recurring sequence
+        start_date = target_task.due_date
+        if not start_date or start_date == "None":
+            # Use tomorrow as default start date if no due date exists
+            from datetime import datetime, timedelta
+            tomorrow = datetime.now() + timedelta(days=1)
+            start_date = tomorrow.strftime("%Y-%m-%d")
+        
+        # Generate recurring dates
+        from .dateutils import generate_recurring_dates
+        try:
+            recurring_dates = generate_recurring_dates(start_date, interval, end_date, count)
+        except ValueError as e:
+            raise ValueError(f"Error generating recurring dates: {e}")
+        
+        # Skip the first date if it matches the original task's due date
+        if recurring_dates and recurring_dates[0] == target_task.due_date:
+            recurring_dates = recurring_dates[1:]
+        
+        # Determine target file
+        if not target_file:
+            target_file = target_task.file
+        
+        # Validate target file has supported extension
+        if not target_file.endswith(('.md', '.xit')):
+            raise ValueError(f"Target file '{target_file}' must have .md or .xit extension")
+        
+        # Create recurring tasks
+        created_tasks = []
+        for i, due_date in enumerate(recurring_dates):
+            # Create task description with new due date
+            base_description = target_task.description
+            
+            # Remove existing due date from description if present
+            import re
+            base_description = re.sub(r'\s*->\s*\S+', '', base_description).strip()
+            
+            # Add new due date
+            new_description = f"{base_description} -> {due_date}"
+            
+            # Copy other attributes (priority, tags, etc.)
+            if target_task.priority:
+                priority_markers = "!" * target_task.priority
+                new_description = f"{priority_markers} {new_description}"
+            
+            # Add tags if present
+            if target_task.tags:
+                for tag in target_task.tags:
+                    if not tag.startswith('#'):
+                        tag = f"#{tag}"
+                    new_description += f" {tag}"
+            
+            # Create the recurring task
+            self.add_task_to_file(new_description, target_file)
+            
+            # Create a task object for return (this is approximate since we don't reload)
+            from .task import Task
+            new_task = Task(
+                id=0,  # Will be assigned when reloaded
+                status="OPEN",  # New recurring tasks start as open
+                description=base_description,
+                file=target_file,
+                line_number=0,  # Will be assigned when reloaded
+                priority=target_task.priority,
+                due_date=due_date,
+                tags=target_task.tags.copy() if target_task.tags else []
+            )
+            created_tasks.append(new_task)
+        
+        return created_tasks
 
 
 class FileDiscoveryService:

@@ -356,3 +356,131 @@ def parse_date_expression(expression: str, current_date: Optional[datetime] = No
     """
     parser = get_date_parser(current_date)
     return parser.parse_date_expression(expression)
+
+
+def parse_interval_expression(interval: str) -> timedelta:
+    """Parse interval expression for recurring tasks.
+    
+    Supports formats like:
+    - 1d, 7d (days)
+    - 1w, 2w (weeks)
+    - 1m, 3m (months - approximated as 30 days)
+    - 1y (years - approximated as 365 days)
+    
+    Args:
+        interval: Interval expression (e.g., "1w", "30d", "3m")
+        
+    Returns:
+        timedelta object representing the interval
+        
+    Raises:
+        ValueError: If interval format is invalid
+    """
+    if not interval or not isinstance(interval, str):
+        raise ValueError("Interval must be a non-empty string")
+    
+    # Remove whitespace and make lowercase
+    interval = interval.strip().lower()
+    
+    # Pattern for interval parsing (allow optional negative sign)
+    pattern = re.compile(r'^([+-]?\d+)([dwmy])$')
+    match = pattern.match(interval)
+    
+    if not match:
+        raise ValueError(f"Invalid interval format: '{interval}'. Use format like '1d', '2w', '3m', '1y'")
+    
+    amount = int(match.group(1))
+    unit = match.group(2)
+    
+    if amount <= 0:
+        raise ValueError("Interval amount must be positive")
+    
+    # Convert to timedelta
+    if unit == 'd':  # days
+        return timedelta(days=amount)
+    elif unit == 'w':  # weeks
+        return timedelta(weeks=amount)
+    elif unit == 'm':  # months (approximate as 30 days)
+        return timedelta(days=amount * 30)
+    elif unit == 'y':  # years (approximate as 365 days)
+        return timedelta(days=amount * 365)
+    
+    raise ValueError(f"Unsupported interval unit: '{unit}'. Use d, w, m, or y")
+
+
+def generate_recurring_dates(start_date: str, interval: str, end_date: str = None, 
+                           count: int = None) -> list[str]:
+    """Generate a list of recurring dates based on interval.
+    
+    Args:
+        start_date: Starting date in YYYY-MM-DD format
+        interval: Interval expression (e.g., "1w", "30d", "3m")
+        end_date: Optional end date in YYYY-MM-DD format
+        count: Optional maximum number of occurrences
+        
+    Returns:
+        List of date strings in YYYY-MM-DD format
+        
+    Raises:
+        ValueError: If parameters are invalid
+    """
+    if not start_date:
+        raise ValueError("Start date is required")
+    
+    # Parse start date
+    try:
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"Invalid start date format: '{start_date}'. Use YYYY-MM-DD format")
+    
+    # Parse interval
+    interval_delta = parse_interval_expression(interval)
+    
+    # Parse end date if provided
+    end_dt = None
+    if end_date:
+        try:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError(f"Invalid end date format: '{end_date}'. Use YYYY-MM-DD format")
+        
+        if end_dt <= start_dt:
+            raise ValueError("End date must be after start date")
+    
+    # Validate count
+    if count is not None:
+        if count <= 0:
+            raise ValueError("Count must be positive")
+        if count > 1000:  # Reasonable limit
+            raise ValueError("Count cannot exceed 1000 occurrences")
+    
+    # Require at least one limit parameter
+    if end_date is None and count is None:
+        raise ValueError("Either end_date or count must be specified")
+    
+    # Generate dates
+    dates = []
+    current_dt = start_dt
+    occurrence_count = 0
+    
+    while True:
+        # Check if we've reached the end date
+        if end_dt and current_dt > end_dt:
+            break
+        
+        # Check if we've reached the max count
+        if count and occurrence_count >= count:
+            break
+        
+        # Add current date
+        dates.append(current_dt.strftime("%Y-%m-%d"))
+        occurrence_count += 1
+        
+        # Move to next occurrence
+        current_dt += interval_delta
+        
+        # Safety check to prevent infinite loops
+        if len(dates) > 1000:
+            raise ValueError("Too many occurrences generated (limit: 1000)")
+    
+    return dates

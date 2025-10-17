@@ -11,5 +11,5 @@
 [ ] undo the last X xit commands executed ('xit undo <number>')
 [x] xit stats command to show statistics about tasks
 [x] support for multiple task files (e.g., work.xit, personal.xit)
-[ ] support for recurring tasks ('xit recur <task_id> <interval> <end_date>')
+[x] support for recurring tasks ('xit recur <task_id> -i <interval> -e <end_date> -f <file> -n <number_of_occurrences>')
 [x] support for batch operations on multiple tasks at once (e.g., 'xit mark 1 2 3 --done' to mark tasks 1, 2, and 3 as done)

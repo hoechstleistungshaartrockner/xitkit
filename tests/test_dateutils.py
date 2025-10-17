@@ -447,3 +447,174 @@ class TestBackwardCompatibility:
         assert not parser.matches_date_filter("2025-10-16", "today")
         assert parser.matches_date_filter("2025-12-31", "2025-12-31")
         assert not parser.matches_date_filter(None, "today")
+
+
+class TestIntervalParsing:
+    """Test interval parsing for recurring tasks."""
+    
+    def test_parse_interval_expression_days(self):
+        """Test parsing day intervals."""
+        from xit.dateutils import parse_interval_expression
+        
+        result = parse_interval_expression("1d")
+        assert result == timedelta(days=1)
+        
+        result = parse_interval_expression("7d")
+        assert result == timedelta(days=7)
+        
+        result = parse_interval_expression("30d")
+        assert result == timedelta(days=30)
+    
+    def test_parse_interval_expression_weeks(self):
+        """Test parsing week intervals."""
+        from xit.dateutils import parse_interval_expression
+        
+        result = parse_interval_expression("1w")
+        assert result == timedelta(weeks=1)
+        
+        result = parse_interval_expression("2w")
+        assert result == timedelta(weeks=2)
+        
+        result = parse_interval_expression("4w")
+        assert result == timedelta(weeks=4)
+    
+    def test_parse_interval_expression_months(self):
+        """Test parsing month intervals (approximated as 30-day periods)."""
+        from xit.dateutils import parse_interval_expression
+        
+        result = parse_interval_expression("1m")
+        assert result == timedelta(days=30)
+        
+        result = parse_interval_expression("3m")
+        assert result == timedelta(days=90)
+        
+        result = parse_interval_expression("6m")
+        assert result == timedelta(days=180)
+    
+    def test_parse_interval_expression_years(self):
+        """Test parsing year intervals (approximated as 365-day periods)."""
+        from xit.dateutils import parse_interval_expression
+        
+        result = parse_interval_expression("1y")
+        assert result == timedelta(days=365)
+        
+        result = parse_interval_expression("2y")
+        assert result == timedelta(days=730)
+    
+    def test_parse_interval_expression_case_insensitive(self):
+        """Test that interval parsing is case insensitive."""
+        from xit.dateutils import parse_interval_expression
+        
+        result1 = parse_interval_expression("1W")
+        result2 = parse_interval_expression("1w")
+        assert result1 == result2
+        
+        result1 = parse_interval_expression("3M")
+        result2 = parse_interval_expression("3m")
+        assert result1 == result2
+    
+    def test_parse_interval_expression_invalid_formats(self):
+        """Test error handling for invalid interval formats."""
+        from xit.dateutils import parse_interval_expression
+        
+        with pytest.raises(ValueError, match="Invalid interval format"):
+            parse_interval_expression("1x")  # Invalid unit
+        
+        with pytest.raises(ValueError, match="Invalid interval format"):
+            parse_interval_expression("abc")  # No digits
+        
+        with pytest.raises(ValueError, match="Invalid interval format"):
+            parse_interval_expression("1")  # No unit
+        
+        with pytest.raises(ValueError, match="Interval must be a non-empty string"):
+            parse_interval_expression("")
+        
+        with pytest.raises(ValueError, match="Interval must be a non-empty string"):
+            parse_interval_expression(None)
+    
+    def test_parse_interval_expression_zero_negative(self):
+        """Test error handling for zero and negative amounts."""
+        from xit.dateutils import parse_interval_expression
+        
+        with pytest.raises(ValueError, match="Interval amount must be positive"):
+            parse_interval_expression("0d")
+        
+        with pytest.raises(ValueError, match="Interval amount must be positive"):
+            parse_interval_expression("-1w")
+
+
+class TestRecurringDateGeneration:
+    """Test generation of recurring dates."""
+    
+    def test_generate_recurring_dates_with_count(self):
+        """Test generating recurring dates with count limit."""
+        from xit.dateutils import generate_recurring_dates
+        
+        dates = generate_recurring_dates("2025-10-20", "1w", count=4)
+        expected = ["2025-10-20", "2025-10-27", "2025-11-03", "2025-11-10"]
+        assert dates == expected
+    
+    def test_generate_recurring_dates_with_end_date(self):
+        """Test generating recurring dates with end date limit."""
+        from xit.dateutils import generate_recurring_dates
+        
+        dates = generate_recurring_dates("2025-10-01", "1w", end_date="2025-10-31")
+        expected = ["2025-10-01", "2025-10-08", "2025-10-15", "2025-10-22", "2025-10-29"]
+        assert dates == expected
+    
+    def test_generate_recurring_dates_monthly(self):
+        """Test generating monthly recurring dates."""
+        from xit.dateutils import generate_recurring_dates
+        
+        dates = generate_recurring_dates("2025-01-01", "1m", count=3)
+        expected = ["2025-01-01", "2025-01-31", "2025-03-02"]
+        assert dates == expected
+    
+    def test_generate_recurring_dates_daily(self):
+        """Test generating daily recurring dates."""
+        from xit.dateutils import generate_recurring_dates
+        
+        dates = generate_recurring_dates("2025-10-15", "1d", count=3)
+        expected = ["2025-10-15", "2025-10-16", "2025-10-17"]
+        assert dates == expected
+    
+    def test_generate_recurring_dates_invalid_start_date(self):
+        """Test error handling for invalid start date."""
+        from xit.dateutils import generate_recurring_dates
+        
+        with pytest.raises(ValueError, match="Invalid start date format"):
+            generate_recurring_dates("invalid-date", "1w", count=2)
+        
+        with pytest.raises(ValueError, match="Start date is required"):
+            generate_recurring_dates("", "1w", count=2)
+    
+    def test_generate_recurring_dates_invalid_end_date(self):
+        """Test error handling for invalid end date."""
+        from xit.dateutils import generate_recurring_dates
+        
+        with pytest.raises(ValueError, match="Invalid end date format"):
+            generate_recurring_dates("2025-10-01", "1w", end_date="invalid-date")
+        
+        with pytest.raises(ValueError, match="End date must be after start date"):
+            generate_recurring_dates("2025-10-01", "1w", end_date="2025-09-01")
+    
+    def test_generate_recurring_dates_invalid_count(self):
+        """Test error handling for invalid count."""
+        from xit.dateutils import generate_recurring_dates
+        
+        with pytest.raises(ValueError, match="Count must be positive"):
+            generate_recurring_dates("2025-10-01", "1w", count=0)
+        
+        with pytest.raises(ValueError, match="Count must be positive"):
+            generate_recurring_dates("2025-10-01", "1w", count=-1)
+        
+        with pytest.raises(ValueError, match="Count cannot exceed 1000"):
+            generate_recurring_dates("2025-10-01", "1w", count=1001)
+    
+    def test_generate_recurring_dates_no_parameters(self):
+        """Test that either end_date or count is required."""
+        from xit.dateutils import generate_recurring_dates
+        
+        # This should raise an error when no limit is specified
+        with pytest.raises(ValueError, match="Either end_date or count must be specified"):
+            generate_recurring_dates("2025-10-01", "1w")

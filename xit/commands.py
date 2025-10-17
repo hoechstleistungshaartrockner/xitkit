@@ -562,6 +562,80 @@ class MoveTaskCommand(Command):
             return file_path
 
 
+class RecurTaskCommand(Command):
+    """Command for creating recurring instances of a task."""
+    
+    def execute(self, task_id: int, interval: str, end_date: str = None, 
+                count: int = None, target_file: str = None,
+                directory: Path = None, specified_files: list = None) -> None:
+        """Execute the recur task command.
+        
+        Args:
+            task_id: ID of the task to make recurring
+            interval: Interval expression (e.g., "1w", "30d", "3m")
+            end_date: Optional end date in YYYY-MM-DD format
+            count: Optional maximum number of occurrences  
+            target_file: Optional target file for new tasks
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+        """
+        try:
+            # Create recurring tasks
+            created_tasks = self.task_service.recur_task_by_id(
+                task_id=task_id,
+                interval=interval,
+                end_date=end_date,
+                count=count,
+                target_file=target_file,
+                directory=directory,
+                specified_files=specified_files
+            )
+            
+            # Display success message
+            if created_tasks:
+                self.formatter.display_success(
+                    f"Created {len(created_tasks)} recurring instance(s) of task #{task_id:03d}"
+                )
+                
+                # Show additional info about created tasks
+                if target_file:
+                    target_display = self._get_relative_path(target_file)
+                    from rich.console import Console
+                    console = Console()
+                    console.print(f"📁 Recurring tasks added to {target_display} with {interval} interval", style="dim")
+                else:
+                    from rich.console import Console  
+                    console = Console()
+                    console.print(f"📁 Recurring tasks added to original file with {interval} interval", style="dim")
+                
+                # Display date range if we have dates
+                if len(created_tasks) >= 1:
+                    first_date = created_tasks[0].due_date
+                    last_date = created_tasks[-1].due_date
+                    if first_date and last_date:
+                        from rich.console import Console
+                        console = Console()
+                        if first_date == last_date:
+                            console.print(f"📅 Due date: {first_date}", style="dim")
+                        else:
+                            console.print(f"📅 Date range: {first_date} to {last_date}", style="dim")
+            else:
+                self.formatter.display_warning(f"No recurring instances created for task #{task_id:03d}")
+                
+        except Exception as e:
+            if isinstance(e, XitError):
+                self.formatter.display_error(str(e))
+            else:
+                self.formatter.display_error(f"Error creating recurring tasks: {e}")
+    
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display purposes."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -599,3 +673,8 @@ class CommandFactory:
     def create_move_command(formatter: TaskFormatter = None) -> MoveTaskCommand:
         """Create a move task command."""
         return MoveTaskCommand(formatter)
+    
+    @staticmethod
+    def create_recur_command(formatter: TaskFormatter = None) -> RecurTaskCommand:
+        """Create a recur task command."""
+        return RecurTaskCommand(formatter)

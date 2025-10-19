@@ -8,19 +8,22 @@ in the xit framework.
 
 from dataclasses import dataclass, field
 from .tags import Tag
+from .duedate import DueDate
 from copy import deepcopy
 import re
 from typing import Optional
 
 @dataclass
 class Description:
-    """Class representing a task description."""
+    """Class representing a task description with optional due date."""
     text: str = field(default_factory=str)
     tags: list = field(init=False)
+    due_date: Optional[DueDate] = field(init=False)
 
     def __post_init__(self):
-        """Post-initialization to extract tags from the text."""
+        """Post-initialization to extract tags and due date from the text."""
         self.tags = Tag.from_line(self.text)
+        self.due_date = DueDate.from_line(self.text)
 
     def __str__(self) -> str:
         """String representation of the description."""
@@ -35,8 +38,9 @@ class Description:
         if new_text is None:
             new_text = ""
         self.text = new_text
-        # Re-extract tags from the new text
+        # Re-extract tags and due date from the new text
         self.tags = Tag.from_line(self.text)
+        self.due_date = DueDate.from_line(self.text)
 
     def add_tag(self, tag: Tag) -> None:
         """Add a tag to the description.
@@ -134,6 +138,76 @@ class Description:
                 return True
         return False
     
+    def has_due_date(self) -> bool:
+        """Check if the description has a due date.
+        
+        Returns:
+            bool: True if there is a valid due date, False otherwise.
+        """
+        return self.due_date is not None and self.due_date.is_valid
+    
+    def get_due_date(self) -> Optional[DueDate]:
+        """Get the due date associated with the description.
+        
+        Returns:
+            Optional[DueDate]: The due date or None if no valid due date exists.
+        """
+        return self.due_date
+    
+    def set_due_date(self, due_date: Optional[DueDate]) -> None:
+        """Set or clear the due date for the description.
+        
+        Args:
+            due_date (Optional[DueDate]): The due date to set, or None to clear.
+        """
+        # Remove existing due date from text if present
+        if self.due_date is not None:
+            due_date_str = str(self.due_date)
+            if due_date_str in self.text:
+                # Handle various spacing scenarios
+                patterns_to_try = [
+                    f"{due_date_str} ",  # Due date with trailing space  
+                    f" {due_date_str}",  # Due date with leading space
+                    due_date_str,        # Just the due date
+                ]
+                
+                for pattern in patterns_to_try:
+                    if pattern in self.text:
+                        self.text = self.text.replace(pattern, "", 1)
+                        break
+                
+                # Clean up extra whitespace
+                self.text = re.sub(r'\s+', ' ', self.text).strip()
+        
+        # Set new due date
+        self.due_date = due_date
+        
+        # Add new due date to text if provided
+        if due_date is not None and due_date.is_valid:
+            if self.text:
+                self.text += f" {str(due_date)}"
+            else:
+                self.text = str(due_date)
+    
+    def clear_due_date(self) -> None:
+        """Remove the due date from the description."""
+        self.set_due_date(None)
+    
+    def add_due_date_from_string(self, date_str: str) -> bool:
+        """Add a due date from a date string.
+        
+        Args:
+            date_str (str): Date string like "2025-12-31" or "2025-Q1"
+            
+        Returns:
+            bool: True if due date was successfully added, False otherwise.
+        """
+        due_date = DueDate.from_string(date_str)
+        if due_date is not None:
+            self.set_due_date(due_date)
+            return True
+        return False
+    
     def compare_tags(self, other: 'Description', soft: bool = False) -> bool:
         """Compare tags of this description with another description.
 
@@ -177,17 +251,19 @@ class Description:
     
     def __repr__(self) -> str:
         """String representation for debugging."""
-        return f"Description(text='{self.text}', tags={self.tags})"
+        return f"Description(text='{self.text}', tags={self.tags}, due_date={self.due_date})"
     
     def __eq__(self, other) -> bool:
         """Check equality with another Description."""
         if not isinstance(other, Description):
             return False
-        return self.text == other.text and self.tags == other.tags
+        return (self.text == other.text and 
+                self.tags == other.tags and 
+                self.due_date == other.due_date)
     
     def __hash__(self) -> int:
         """Hash function for Description objects."""
-        return hash((self.text, tuple(self.tags)))
+        return hash((self.text, tuple(self.tags), self.due_date))
     
     def to_display_format(self) -> str:
         """Get display format (same as text for now)."""
@@ -262,6 +338,28 @@ class Description:
         for tag in self.tags:
             tag_str = str(tag)
             text = text.replace(tag_str, '')
+        # Clean up extra whitespace
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+    
+    def get_text_without_tags_and_dates(self) -> str:
+        """Get text with all tags and due dates removed.
+        
+        Returns:
+            str: Text without any tags or due dates.
+        """
+        text = self.text
+        
+        # Remove tags
+        for tag in self.tags:
+            tag_str = str(tag)
+            text = text.replace(tag_str, '')
+        
+        # Remove due date
+        if self.due_date is not None:
+            due_date_str = str(self.due_date)
+            text = text.replace(due_date_str, '')
+        
         # Clean up extra whitespace
         text = re.sub(r'\s+', ' ', text)
         return text.strip()

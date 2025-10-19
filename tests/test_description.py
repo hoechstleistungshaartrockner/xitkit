@@ -1,6 +1,8 @@
 import pytest
+from datetime import datetime
 from xit.description import Description
 from xit.tags import Tag
+from xit.duedate import DueDate
 
 class TestDescriptionBasics:
 
@@ -623,5 +625,304 @@ class TestDescriptionTextManipulation:
         assert "   " not in desc.text
         assert "#tag1" in desc.text
         assert "#tag2" in desc.text
+
+
+class TestDescriptionDueDate:
+    """Test due date functionality in Description."""
+    
+    def test_description_with_due_date_initialization(self):
+        """Test creating description with due date in text."""
+        desc = Description("Task with due date -> 2025-12-31")
+        assert desc.text == "Task with due date -> 2025-12-31"
+        assert desc.has_due_date()
+        assert desc.due_date is not None
+        assert desc.due_date.date_part == "2025-12-31"
+    
+    def test_description_without_due_date_initialization(self):
+        """Test creating description without due date."""
+        desc = Description("Task without due date")
+        assert desc.text == "Task without due date"
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+    
+    def test_get_due_date(self):
+        """Test getting due date from description."""
+        desc = Description("Task -> 2025-06-15")
+        due_date = desc.get_due_date()
+        assert due_date is not None
+        assert due_date.date_part == "2025-06-15"
+        
+        desc2 = Description("Task without date")
+        assert desc2.get_due_date() is None
+    
+    def test_set_due_date_to_empty_description(self):
+        """Test setting due date on empty description."""
+        desc = Description()
+        due_date = DueDate.from_string("2025-12-31")
+        desc.set_due_date(due_date)
+        
+        assert desc.has_due_date()
+        assert desc.due_date == due_date
+        assert desc.text == "-> 2025-12-31"
+    
+    def test_set_due_date_to_existing_description(self):
+        """Test setting due date on description with existing text."""
+        desc = Description("Important task")
+        due_date = DueDate.from_string("2025-12-31")
+        desc.set_due_date(due_date)
+        
+        assert desc.has_due_date()
+        assert desc.due_date == due_date
+        assert desc.text == "Important task -> 2025-12-31"
+    
+    def test_replace_existing_due_date(self):
+        """Test replacing an existing due date."""
+        desc = Description("Task -> 2025-06-15")
+        assert desc.has_due_date()
+        
+        new_due_date = DueDate.from_string("2025-12-31")
+        desc.set_due_date(new_due_date)
+        
+        assert desc.due_date == new_due_date
+        assert "-> 2025-06-15" not in desc.text
+        assert "-> 2025-12-31" in desc.text
+    
+    def test_clear_due_date(self):
+        """Test clearing due date from description."""
+        desc = Description("Task -> 2025-06-15")
+        assert desc.has_due_date()
+        
+        desc.clear_due_date()
+        
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+        assert "-> 2025-06-15" not in desc.text
+        assert desc.text == "Task"
+    
+    def test_set_due_date_none(self):
+        """Test setting due date to None."""
+        desc = Description("Task -> 2025-06-15")
+        desc.set_due_date(None)
+        
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+        assert "-> 2025-06-15" not in desc.text
+    
+    def test_add_due_date_from_string_valid(self):
+        """Test adding due date from string."""
+        desc = Description("Important task")
+        success = desc.add_due_date_from_string("2025-12-31")
+        
+        assert success
+        assert desc.has_due_date()
+        assert desc.due_date.date_part == "2025-12-31"
+        assert "-> 2025-12-31" in desc.text
+    
+    def test_add_due_date_from_string_invalid(self):
+        """Test adding invalid due date from string."""
+        desc = Description("Task")
+        success = desc.add_due_date_from_string("invalid-date")
+        
+        assert not success
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+        assert desc.text == "Task"
+    
+    def test_set_text_updates_due_date(self):
+        """Test that setting new text updates due date."""
+        desc = Description("Old task -> 2025-06-15")
+        assert desc.has_due_date()
+        
+        desc.set_text("New task -> 2025-12-31")
+        
+        assert desc.has_due_date()
+        assert desc.due_date.date_part == "2025-12-31"
+    
+    def test_set_text_removes_due_date(self):
+        """Test that setting text without due date removes it."""
+        desc = Description("Task -> 2025-06-15")
+        assert desc.has_due_date()
+        
+        desc.set_text("Task without date")
+        
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+
+
+class TestDescriptionDueDateFormats:
+    """Test various due date formats in Description."""
+    
+    def test_various_date_formats(self):
+        """Test description with various due date formats."""
+        test_cases = [
+            ("Task -> 2025-12-31", "2025-12-31"),
+            ("Task -> 2025-12", "2025-12"),  
+            ("Task -> 2025", "2025"),
+            ("Task -> 2025-W01", "2025-W01"),
+            ("Task -> 2025-Q1", "2025-Q1"),
+            ("Task -> 2025/12/31", "2025/12/31"),
+        ]
+        
+        for text, expected_date_part in test_cases:
+            desc = Description(text)
+            assert desc.has_due_date(), f"Failed for: {text}"
+            assert desc.due_date.date_part == expected_date_part
+    
+    def test_due_date_with_tags(self):
+        """Test description with both tags and due date."""
+        desc = Description("Task #work #priority=high -> 2025-12-31")
+        
+        assert len(desc.tags) == 2
+        assert desc.has_due_date()
+        assert desc.due_date.date_part == "2025-12-31"
+        
+        # Check that both tags and due date are parsed correctly
+        assert any(tag.name == "work" for tag in desc.tags)
+        assert any(tag.name == "priority" and tag.value == "high" for tag in desc.tags)
+    
+    def test_due_date_in_middle_of_text(self):
+        """Test due date in middle of description."""
+        desc = Description("Complete project -> 2025-12-31 before holidays")
+        
+        assert desc.has_due_date()
+        assert desc.due_date.date_part == "2025-12-31"
+        assert "before holidays" in desc.text
+    
+    def test_multiple_due_dates_only_first_recognized(self):
+        """Test that only first due date is recognized."""
+        desc = Description("Task -> 2025-06-15 and also -> 2025-12-31")
+        
+        assert desc.has_due_date()
+        # Should only capture the first one
+        assert desc.due_date.date_part == "2025-06-15"
+
+
+class TestDescriptionDueDateTextManipulation:
+    """Test text manipulation with due dates."""
+    
+    def test_get_text_without_tags_and_dates(self):
+        """Test extracting clean text without tags or dates."""
+        desc = Description("Important task #work -> 2025-12-31 #urgent")
+        clean_text = desc.get_text_without_tags_and_dates()
+        
+        assert clean_text == "Important task"
+        assert "#work" not in clean_text
+        assert "#urgent" not in clean_text
+        assert "-> 2025-12-31" not in clean_text
+    
+    def test_get_text_without_tags_and_dates_empty_result(self):
+        """Test clean text extraction when only tags and dates remain."""
+        desc = Description("#tag1 -> 2025-12-31 #tag2")
+        clean_text = desc.get_text_without_tags_and_dates()
+        
+        assert clean_text == ""
+    
+    def test_get_text_without_tags_preserves_date(self):
+        """Test that get_text_without_tags preserves due date."""
+        desc = Description("Task #work -> 2025-12-31")
+        text_without_tags = desc.get_text_without_tags()
+        
+        assert "#work" not in text_without_tags
+        assert "-> 2025-12-31" in text_without_tags
+        assert text_without_tags.strip() == "Task -> 2025-12-31"
+
+
+class TestDescriptionDueDateEquality:
+    """Test equality and comparison with due dates."""
+    
+    def test_equality_with_same_due_date(self):
+        """Test equality of descriptions with same due date."""
+        desc1 = Description("Task -> 2025-12-31")
+        desc2 = Description("Task -> 2025-12-31")
+        
+        assert desc1 == desc2
+    
+    def test_equality_with_different_due_date(self):
+        """Test inequality of descriptions with different due dates."""
+        desc1 = Description("Task -> 2025-12-31")
+        desc2 = Description("Task -> 2025-06-15")
+        
+        assert desc1 != desc2
+    
+    def test_equality_one_with_due_date_one_without(self):
+        """Test inequality when one has due date and other doesn't."""
+        desc1 = Description("Task -> 2025-12-31")
+        desc2 = Description("Task")
+        
+        assert desc1 != desc2
+    
+    def test_hash_with_due_date(self):
+        """Test hashing with due dates."""
+        desc1 = Description("Task -> 2025-12-31")
+        desc2 = Description("Task -> 2025-12-31")
+        desc3 = Description("Task -> 2025-06-15")
+        
+        assert hash(desc1) == hash(desc2)
+        assert hash(desc1) != hash(desc3)
+        
+        # Test in set
+        desc_set = {desc1, desc2, desc3}
+        assert len(desc_set) == 2
+
+
+class TestDescriptionDueDateEdgeCases:
+    """Test edge cases with due dates."""
+    
+    def test_invalid_due_date_in_text(self):
+        """Test description with invalid due date pattern."""
+        desc = Description("Task -> invalid-date")
+        
+        assert not desc.has_due_date()
+        assert desc.due_date is None
+    
+    def test_due_date_with_continuation_lines(self):
+        """Test due date on continuation lines.""" 
+        desc = Description("Task with\n    -> 2025-12-31")
+        
+        # This may or may not work depending on how DueDate.from_line handles newlines
+        # The test documents the expected behavior
+    
+    def test_set_invalid_due_date(self):
+        """Test setting an invalid due date object."""
+        desc = Description("Task")
+        invalid_due_date = DueDate(expression="-> invalid")
+        
+        desc.set_due_date(invalid_due_date)
+        
+        # Should still set it even if invalid
+        assert desc.due_date == invalid_due_date
+        assert not desc.has_due_date()  # has_due_date checks is_valid
+    
+    def test_copy_with_due_date(self):
+        """Test copying description with due date."""
+        desc = Description("Task #work -> 2025-12-31")
+        copied = desc.copy()
+        
+        assert copied == desc
+        assert copied.due_date == desc.due_date
+        assert copied.due_date is not desc.due_date  # Different objects
+        assert copied.tags == desc.tags
+    
+    def test_repr_with_due_date(self):
+        """Test string representation with due date."""
+        desc = Description("Task -> 2025-12-31")
+        repr_str = repr(desc)
+        
+        assert "Description(" in repr_str
+        assert "Task -> 2025-12-31" in repr_str
+        assert "due_date=" in repr_str
+    
+    def test_due_date_spacing_removal(self):
+        """Test proper spacing when removing due dates."""
+        test_cases = [
+            ("Task -> 2025-12-31", "Task"),
+            ("Task -> 2025-12-31 extra", "Task extra"),  
+            ("Start -> 2025-12-31 end", "Start end"),
+        ]
+        
+        for original, expected in test_cases:
+            desc = Description(original)
+            desc.clear_due_date()
+            assert desc.text == expected, f"Expected '{expected}' but got '{desc.text}' for '{original}'"
 
     

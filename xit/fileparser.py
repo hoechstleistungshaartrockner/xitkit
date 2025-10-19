@@ -3,8 +3,13 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
 from .task import Task
+from .status import Status, StatusType
+from .priority import Priority
+from .tags import Tag
+from .duedate import DueDate
 from .config import get_config
 from .exceptions import FileNotSupportedError, ParseError
+from .patterns import *
 
 
 @dataclass
@@ -45,41 +50,16 @@ class FileParser:
         >>> print(f"Found {len(tasks)} tasks")
     """
     
-    # Status mapping from checkbox character to status string
+    # Status mapping from checkbox character to StatusType enum
     # These are the only valid status characters according to the spec
     STATUS_MAP = {
-        ' ': 'OPEN',        # [ ] - Open/uncompleted task
-        'x': 'DONE',        # [x] - Completed task
-        '@': 'ONGOING',     # [@] - Currently in progress
-        '~': 'OBSOLETE',    # [~] - No longer relevant
-        '?': 'INQUESTION'   # [?] - Needs clarification
+        ' ': StatusType.OPEN,        # [ ] - Open/uncompleted task
+        'x': StatusType.CHECKED,     # [x] - Completed task
+        '@': StatusType.ONGOING,     # [@] - Currently in progress
+        '~': StatusType.OBSOLETE,    # [~] - No longer relevant
+        '?': StatusType.IN_QUESTION  # [?] - Needs clarification
     }
-    
-    # Compiled regex patterns for efficient parsing of different components
-    # Using compiled patterns significantly improves performance for repeated use
-    
-    # Matches checkbox format: [status_char]rest_of_line
-    CHECKBOX_PATTERN = re.compile(r'^\[(.)\](.*)$')
-    
-    # Matches priority format: optional_spaces + priority_chars + spaces + description
-    # Groups: (leading_spaces, priority_chars, separator_spaces, description)
-    PRIORITY_PATTERN = re.compile(r'^(\s*)([.!]+)(\s+)(.*)$')
-    
-    # Matches due date format: -> YYYY[-/][MM[-/]DD] or -> YYYY-W## or -> YYYY-Q#
-    # Supports various date formats as specified in the syntax guide
-    DUE_DATE_PATTERN = re.compile(r'->\s*(\d{4}(?:[-/](?:W\d{2}|Q[1-4]|\d{1,2}(?:[-/]\d{1,2})?))?)(?=\s|[^\w/-]|$)')
-    
-    # Matches tag format: #tag_name or #tag_name=value
-    # Supports Unicode characters for international tag names
-    # Groups: (tag_name, quoted_value_double, quoted_value_single, unquoted_value)
-    TAG_PATTERN = re.compile(r'#([a-zA-Z\u00C0-\u017F\u0400-\u04FF\u4e00-\u9fff\u10A0-\u10FF\w_-]+)(?:=(?:"([^"]*)"|\'([^\']*)\'|([a-zA-Z\u00C0-\u017F\u0400-\u04FF\u4e00-\u9fff\u10A0-\u10FF\w_-]*)))?')
-    
-    # Matches continuation lines: exactly 4 spaces + content
-    CONTINUATION_PATTERN = re.compile(r'^    (.*)$')
-    
-    # Matches blank lines (empty or whitespace only)
-    BLANK_LINE_PATTERN = re.compile(r'^\s*$')
-    
+        
     def __init__(self):
         """Initialize the file parser.
         
@@ -185,13 +165,13 @@ class FileParser:
                 context.current_task = None
             
             # Check if this is a blank line (resets group context)
-            if self.BLANK_LINE_PATTERN.match(line):
+            if BLANK_LINE_PATTERN.match(line):
                 context.current_group = None
                 i += 1
                 continue
                 
             # Check if this is a checkbox line (the main content we're parsing)
-            checkbox_match = self.CHECKBOX_PATTERN.match(line)
+            checkbox_match = CHECKBOX_PATTERN.match(line)
             if checkbox_match:
                 self._parse_checkbox_line(checkbox_match, context)
                 i += 1
@@ -229,25 +209,33 @@ class FileParser:
         if not rest_of_line.startswith(' '):
             return  # Invalid format, skip this line
             
-        # Remove the mandatory space to get the actual content
-        content = rest_of_line[1:]
+        # Parse priority first with the space (priority pattern expects leading space)
+        priority = self._parse_priority(rest_of_line)
         
-        # Parse all components of the task line
-        # Order matters: priority first, then remove it before parsing other elements
-        priority = self._parse_priority(content)
+        # Remove the mandatory space to get the actual content for other parsing
+        content = rest_of_line[1:]
         content = self._remove_priority(content)  # Clean content for further parsing
         
         due_date = self._parse_due_date(content)
         tags = self._parse_tags(content)
         
+        # Create Status object
+        status = Status(self.STATUS_MAP[status_char])
+        
+        # Create Priority object (priority is already parsed as integer)
+        priority_obj = Priority(level=priority) if priority > 0 else Priority()
+        
+        # tags are already Tag objects from _parse_tags method
+        tag_objects = tags if tags else []
+        
         # Create task object with all parsed information
         task = Task(
+            description=content.strip(),  # Clean up whitespace
             file=context.file_path,
             line_number=context.line_number,
-            description=content.strip(),  # Clean up whitespace
-            status=self.STATUS_MAP[status_char],
-            priority=priority,
-            tags=tags,
+            status=status,
+            priority=priority_obj,
+            tags=tag_objects,
             due_date=due_date
         )
         
@@ -265,7 +253,7 @@ class FileParser:
         Returns:
             True if this is a valid continuation line
         """
-        return bool(self.CONTINUATION_PATTERN.match(line))
+        return bool(CONTINUATION_PATTERN.match(line))
     
     def _handle_continuation_line(self, line: str, context: ParseContext) -> None:
         """Handle a continuation line for the current task.
@@ -280,7 +268,7 @@ class FileParser:
         if not context.current_task:
             return  # No current task to continue
             
-        match = self.CONTINUATION_PATTERN.match(line)
+        match = CONTINUATION_PATTERN.match(line)
         if match:
             continuation_content = match.group(1)  # Content after the 4 spaces
             
@@ -290,13 +278,15 @@ class FileParser:
             
             # Only set due date if not already set (first occurrence wins)
             if not context.current_task.due_date:
-                context.current_task.due_date = self._parse_due_date(continuation_content)
+                due_date_str = self._parse_due_date(continuation_content)
+                if due_date_str:
+                    context.current_task.due_date = DueDate.from_string(due_date_str)
             
             # Append to description with newline separator
-            if context.current_task.description:
-                context.current_task.description += '\n' + continuation_content
+            if context.current_task.description.text:
+                context.current_task.description.append_text('\n' + continuation_content)
             else:
-                context.current_task.description = continuation_content
+                context.current_task.description.set_text(continuation_content)
     
     def _parse_priority(self, content: str) -> int:
         """Parse priority from content (count exclamation marks).
@@ -311,22 +301,14 @@ class FileParser:
         Returns:
             Priority level (0 = no priority, 1+ = number of exclamation marks)
         """
-        match = self.PRIORITY_PATTERN.match(content)
+        match = PRIORITY_PATTERN.match(content)
         if not match:
             return 0  # No priority pattern found
             
-        leading_spaces = match.group(1)
-        priority_chars = match.group(2)
-        separator_spaces = match.group(3)
+        priority_chars = match.group(1)  # The priority characters (!, !!, .!, etc.)
+        rest_content = match.group(2)    # Space + remaining content
         
-        # Must have exactly one space before priority (no leading spaces allowed)
-        if leading_spaces:
-            return 0
-            
-        # Must have at least one space after priority
-        if not separator_spaces:
-            return 0
-            
+        # Pattern already ensures space before and after priority
         # Count exclamation marks (dots are just padding)
         exclamation_count = priority_chars.count('!')
         
@@ -363,7 +345,7 @@ class FileParser:
         Returns:
             Content with priority markers removed
         """
-        match = self.PRIORITY_PATTERN.match(content)
+        match = PRIORITY_PATTERN.match(content)
         # Only remove if valid priority format (no leading spaces)
         if match and not match.group(1):
             return match.group(4)  # Return everything after priority and spaces
@@ -385,12 +367,12 @@ class FileParser:
             >>> parser._parse_due_date("Task -> 2025-12-31 (urgent)")
             "2025-12-31"
         """
-        match = self.DUE_DATE_PATTERN.search(content)
+        match = DUE_DATE_PATTERN.search(content)
         if match:
             return match.group(1)  # Return the captured date string
         return None
     
-    def _parse_tags(self, content: str) -> List[str]:
+    def _parse_tags(self, content: str) -> List[Tag]:
         """Parse all tags from content.
         
         Tags start with # and can have values: #tag or #tag=value
@@ -401,25 +383,13 @@ class FileParser:
             content: Content to search for tags
             
         Returns:
-            List of tag strings (including the # prefix)
+            List of Tag objects parsed from the content
             
         Example:
             >>> parser._parse_tags("Task #work #priority=high #tag='quoted value'")
-            ["#work", "#priority=high", "#tag=quoted value"]
+            [Tag(name="work"), Tag(name="priority", value="high"), Tag(name="tag", value="quoted value")]
         """
-        tags = []
-        for match in self.TAG_PATTERN.finditer(content):
-            tag_name = match.group(1)
-            # Check for different value formats (double quote, single quote, unquoted)
-            tag_value = match.group(2) or match.group(3) or match.group(4) or ""
-            
-            # Build tag string with or without value
-            if tag_value:
-                tags.append(f"#{tag_name}={tag_value}")
-            else:
-                tags.append(f"#{tag_name}")
-                
-        return tags
+        return Tag.from_line(content)
 
 
 def parse_file(file_path: str) -> List[Task]:

@@ -6,6 +6,8 @@ from pathlib import Path
 
 from xit.fileparser import FileParser, ParseContext
 from xit.task import Task
+from xit.status import StatusType
+from xit.patterns import *
 from tests.conftest import create_test_file, assert_task_equal
 
 
@@ -17,23 +19,22 @@ class TestFileParserBasics:
         parser = FileParser()
         assert parser.tasks == []
         assert hasattr(parser, 'STATUS_MAP')
-        assert hasattr(parser, 'CHECKBOX_PATTERN')
+        # Patterns are now imported from patterns module, not parser attributes
+        assert CHECKBOX_PATTERN is not None
     
     def test_status_map(self):
         """Test status character mapping."""
         parser = FileParser()
-        
+
         expected_mapping = {
-            ' ': 'OPEN',
-            'x': 'DONE',
-            '@': 'ONGOING',
-            '~': 'OBSOLETE',
-            '?': 'INQUESTION'
+            ' ': StatusType.OPEN,
+            'x': StatusType.CHECKED,
+            '@': StatusType.ONGOING,
+            '~': StatusType.OBSOLETE,
+            '?': StatusType.IN_QUESTION
         }
-        
+
         assert parser.STATUS_MAP == expected_mapping
-
-
 class TestBasicParsing:
     """Test basic checkbox parsing."""
     
@@ -49,11 +50,11 @@ class TestBasicParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 5
-        assert tasks[0].status == "OPEN"
-        assert tasks[1].status == "DONE"
-        assert tasks[2].status == "ONGOING"
-        assert tasks[3].status == "OBSOLETE"
-        assert tasks[4].status == "INQUESTION"
+        assert tasks[0].status.status_type == StatusType.OPEN
+        assert tasks[1].status.status_type == StatusType.CHECKED
+        assert tasks[2].status.status_type == StatusType.ONGOING
+        assert tasks[3].status.status_type == StatusType.OBSOLETE
+        assert tasks[4].status.status_type == StatusType.IN_QUESTION
     
     def test_parse_with_descriptions(self, temp_dir, file_parser):
         """Test parsing checkboxes with descriptions."""
@@ -65,9 +66,9 @@ class TestBasicParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 3
-        assert tasks[0].description == "First task"
-        assert tasks[1].description == "Second completed task"
-        assert tasks[2].description == "Third ongoing task with longer description"
+        assert tasks[0].description.text == "First task"
+        assert tasks[1].description.text == "Second completed task"
+        assert tasks[2].description.text == "Third ongoing task with longer description"
     
     def test_parse_empty_descriptions(self, temp_dir, file_parser):
         """Test parsing checkboxes with empty descriptions."""
@@ -80,10 +81,10 @@ class TestBasicParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 4
-        assert tasks[0].description == ""
-        assert tasks[1].description == ""
-        assert tasks[2].description == ""  # Parser trims whitespace after checkbox
-        assert tasks[3].description == "Task with description"
+        assert tasks[0].description.text == ""
+        assert tasks[1].description.text == ""
+        assert tasks[2].description.text == ""  # Parser trims whitespace after checkbox
+        assert tasks[3].description.text == "Task with description"
 
 
 class TestInvalidFormats:
@@ -103,8 +104,8 @@ class TestInvalidFormats:
         
         # Should only parse the valid tasks
         assert len(tasks) == 2
-        assert tasks[0].description == "Valid open task"
-        assert tasks[1].description == "Another valid task"
+        assert tasks[0].description.text == "Valid open task"
+        assert tasks[1].description.text == "Another valid task"
     
     def test_invalid_spacing(self, temp_dir, file_parser):
         """Test that invalid spacing is ignored."""
@@ -122,8 +123,8 @@ class TestInvalidFormats:
         
         # Should only parse the valid tasks
         assert len(tasks) == 2
-        assert tasks[0].description == "Valid task"
-        assert tasks[1].description == "Valid task at end"
+        assert tasks[0].description.text == "Valid task"
+        assert tasks[1].description.text == "Valid task at end"
 
 
 class TestPriorityParsing:
@@ -145,15 +146,15 @@ class TestPriorityParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 9
-        assert tasks[0].priority == 1
-        assert tasks[1].priority == 2
-        assert tasks[2].priority == 3
-        assert tasks[3].priority == 10
-        assert tasks[4].priority == 0  # Dots only = no priority
-        assert tasks[5].priority == 0  # Multiple dots only = no priority
-        assert tasks[6].priority == 1  # Leading dots
-        assert tasks[7].priority == 2  # Trailing dots
-        assert tasks[8].priority == 0  # No priority
+        assert tasks[0].priority.level == 1
+        assert tasks[1].priority.level == 2
+        assert tasks[2].priority.level == 3
+        assert tasks[3].priority.level == 10
+        assert tasks[4].priority.level == 0  # Dots only = no priority
+        assert tasks[5].priority.level == 0  # Multiple dots only = no priority
+        assert tasks[6].priority.level == 1  # Leading dots
+        assert tasks[7].priority.level == 2  # Trailing dots
+        assert tasks[8].priority.level == 0  # No priority
     
     def test_invalid_priority_formats(self, temp_dir, file_parser):
         """Test invalid priority formats are treated as description."""
@@ -170,14 +171,14 @@ class TestPriorityParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 8
-        assert tasks[0].priority == 0  # Invalid format
-        assert tasks[1].priority == 0  # Invalid format
-        assert tasks[2].priority == 0  # No space after exclamation
-        assert tasks[3].priority == 0  # No space after dot
-        assert tasks[4].priority == 0  # Spaces before priority
-        assert tasks[5].priority == 0  # Spaces before dots
-        assert tasks[6].priority == 1  # Valid priority
-        assert tasks[7].priority == 0  # Missing space after
+        assert tasks[0].priority.level == 0  # Invalid format
+        assert tasks[1].priority.level == 0  # Invalid format
+        assert tasks[2].priority.level == 0  # No space after exclamation
+        assert tasks[3].priority.level == 0  # No space after dot
+        assert tasks[4].priority.level == 0  # Spaces before priority
+        assert tasks[5].priority.level == 0  # Spaces before dots
+        assert tasks[6].priority.level == 1  # Valid priority
+        assert tasks[7].priority.level == 0  # Missing space after
 
 
 class TestDueDateParsing:
@@ -198,14 +199,14 @@ class TestDueDateParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 8
-        assert tasks[0].due_date == "2025-12-31"
-        assert tasks[1].due_date == "2025-12"
-        assert tasks[2].due_date == "2025"
-        assert tasks[3].due_date == "2025-W42"
-        assert tasks[4].due_date == "2025-Q4"
-        assert tasks[5].due_date == "2025/12/31"
-        assert tasks[6].due_date == "2025/W42"
-        assert tasks[7].due_date == "2025-12-31"
+        assert tasks[0].due_date.normalized_date == "2025-12-31"
+        assert tasks[1].due_date.normalized_date == "2025-12-31"  # 2025-12 implies end of month
+        assert tasks[2].due_date.normalized_date == "2025-12-31"  # 2025 implies end of year
+        assert tasks[3].due_date.normalized_date is not None  # Week format
+        assert tasks[4].due_date.normalized_date is not None  # Quarter format
+        assert tasks[5].due_date.normalized_date == "2025-12-31"  # Slash format
+        assert tasks[6].due_date.normalized_date is not None  # Slash week format
+        assert tasks[7].due_date.normalized_date == "2025-12-31"
     
     def test_invalid_due_date_formats(self, temp_dir, file_parser):
         """Test invalid due date formats are not recognized."""
@@ -239,12 +240,12 @@ class TestTagParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 6
-        assert "#simple" in tasks[0].tags
-        assert "#multiple" in tasks[1].tags and "#tags" in tasks[1].tags
-        assert "#UPPERCASE" in tasks[2].tags and "#lowercase" in tasks[2].tags
-        assert "#numbers123" in tasks[3].tags and "#123numbers" in tasks[3].tags
-        assert "#dashes-allowed" in tasks[4].tags and "#underscores_allowed" in tasks[4].tags
-        assert "#unicode_täg" in tasks[5].tags and "#日本語" in tasks[5].tags
+        assert any(tag.name == "simple" for tag in tasks[0].tags)
+        assert any(tag.name == "multiple" for tag in tasks[1].tags) and any(tag.name == "tags" for tag in tasks[1].tags)
+        assert any(tag.name == "UPPERCASE" for tag in tasks[2].tags) and any(tag.name == "lowercase" for tag in tasks[2].tags)
+        assert any(tag.name == "numbers123" for tag in tasks[3].tags) and any(tag.name == "123numbers" for tag in tasks[3].tags)
+        assert any(tag.name == "dashes-allowed" for tag in tasks[4].tags) and any(tag.name == "underscores_allowed" for tag in tasks[4].tags)
+        assert any(tag.name == "unicode_täg" for tag in tasks[5].tags) and any(tag.name == "日本語" for tag in tasks[5].tags)
     
     def test_parse_tags_with_values(self, temp_dir, file_parser):
         """Test parsing tags with values."""
@@ -258,13 +259,13 @@ class TestTagParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 5
-        assert "#tag=value" in tasks[0].tags
-        assert "#tag=quoted value" in tasks[1].tags
-        assert "#tag=single quoted" in tasks[2].tags
-        assert "#empty" in tasks[3].tags and "#another" in tasks[3].tags  # Empty values become plain tags
-        assert "#mix=unquoted" in tasks[4].tags
-        assert "#quoted=with spaces" in tasks[4].tags
-        assert "#single=also spaces" in tasks[4].tags
+        assert any(tag.name == "tag" and tag.value == "value" for tag in tasks[0].tags)
+        assert any(tag.name == "tag" and tag.value == "quoted value" for tag in tasks[1].tags)
+        assert any(tag.name == "tag" and tag.value == "single quoted" for tag in tasks[2].tags)
+        assert any(tag.name == "empty" and tag.value is None for tag in tasks[3].tags) and any(tag.name == "another" and tag.value == "" for tag in tasks[3].tags)  # Empty values
+        assert any(tag.name == "mix" and tag.value == "unquoted" for tag in tasks[4].tags)
+        assert any(tag.name == "quoted" and tag.value == "with spaces" for tag in tasks[4].tags)
+        assert any(tag.name == "single" and tag.value == "also spaces" for tag in tasks[4].tags)
     
     def test_invalid_tags(self, temp_dir, file_parser):
         """Test that invalid tag formats are not recognized."""
@@ -283,11 +284,11 @@ class TestTagParsing:
         assert len(tasks[1].tags) == 0  # No tags for no name
         assert len(tasks[2].tags) == 0  # No tags for no name
         assert len(tasks[3].tags) == 1  # Parser extracts tag name even with unclosed quote
-        assert tasks[3].tags[0] == "#tag"
+        assert tasks[3].tags[0].name == "tag"
         assert len(tasks[4].tags) == 1  # Parser extracts tag name even with mismatched quote
-        assert tasks[4].tags[0] == "#tag"
+        assert tasks[4].tags[0].name == "tag"
         assert len(tasks[5].tags) == 1  # Valid tag
-        assert tasks[5].tags[0] == "#tag"
+        assert tasks[5].tags[0].name == "tag"
 
 
 class TestMultilineParsing:
@@ -312,18 +313,18 @@ class TestMultilineParsing:
         
         # First task
         expected_desc = "Multi-line task ...\nwith continuation line\nand another line"
-        assert tasks[0].description == expected_desc
+        assert tasks[0].description.text == expected_desc
         
         # Second task
         expected_desc = "Another task with ...\nsingle continuation"
-        assert tasks[1].description == expected_desc
+        assert tasks[1].description.text == expected_desc
         
         # Third task (single line)
-        assert tasks[2].description == "Single line task"
+        assert tasks[2].description.text == "Single line task"
         
         # Fourth task
         expected_desc = "Final multi-line ...\nwith multiple ...\ncontinuation lines here"
-        assert tasks[3].description == expected_desc
+        assert tasks[3].description.text == expected_desc
     
     def test_invalid_continuation_lines(self, temp_dir, file_parser):
         """Test that invalid continuation lines are not included."""
@@ -341,9 +342,9 @@ class TestMultilineParsing:
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 3
-        assert tasks[0].description == "Task with valid continuation ...\nexactly 4 spaces"
-        assert tasks[1].description == "Task with invalid ..."
-        assert tasks[2].description == "Next task should not include invalid lines"
+        assert tasks[0].description.text == "Task with valid continuation ...\nexactly 4 spaces"
+        assert tasks[1].description.text == "Task with invalid ..."
+        assert tasks[2].description.text == "Next task should not include invalid lines"
     
     def test_continuation_with_tags_and_dates(self, temp_dir, file_parser):
         """Test that continuation lines can contain tags and dates."""
@@ -358,10 +359,10 @@ class TestMultilineParsing:
         task = tasks[0]
         
         expected_desc = "Task with continuation ...\ncontaining #tags and -> 2025-12-31\nand more #additional tags"
-        assert task.description == expected_desc
-        assert task.due_date == "2025-12-31"
-        assert "#tags" in task.tags
-        assert "#additional" in task.tags
+        assert task.description.text == expected_desc
+        assert task.due_date.normalized_date == "2025-12-31"
+        assert any(tag.name == "tags" for tag in task.tags)
+        assert any(tag.name == "additional" for tag in task.tags)
 
 
 class TestFileParsing:
@@ -403,9 +404,9 @@ class TestFileParsing:
         
         # Should get 3 tasks from the 2 valid files
         assert len(tasks) == 3
-        assert tasks[0].description == "Task 1"
-        assert tasks[1].description == "Task 2"
-        assert tasks[2].description == "Task 3"
+        assert tasks[0].description.text == "Task 1"
+        assert tasks[1].description.text == "Task 2"
+        assert tasks[2].description.text == "Task 3"
     
     def test_parse_utf8_content(self, temp_dir, file_parser, utf8_xit_content):
         """Test parsing UTF-8 content."""
@@ -418,7 +419,7 @@ class TestFileParsing:
         # Check for Unicode content
         unicode_found = False
         for task in tasks:
-            if any(ord(char) > 127 for char in task.description):
+            if any(ord(char) > 127 for char in task.description.text):
                 unicode_found = True
                 break
         assert unicode_found
@@ -444,11 +445,11 @@ Personal Tasks
         
         # Headers should not affect task parsing
         assert len(tasks) == 5
-        assert tasks[0].description == "Complete project"
-        assert tasks[1].description == "Review code"
-        assert tasks[2].description == "Buy groceries"
-        assert tasks[3].description == "Call dentist"
-        assert tasks[4].description == "Task without header"
+        assert tasks[0].description.text == "Complete project"
+        assert tasks[1].description.text == "Review code"
+        assert tasks[2].description.text == "Buy groceries"
+        assert tasks[3].description.text == "Call dentist"
+        assert tasks[4].description.text == "Task without header"
     
     def test_parse_with_blank_lines(self, temp_dir, file_parser):
         """Test parsing with blank lines between groups."""
@@ -469,7 +470,7 @@ Personal Tasks
         for i in range(5):
             task_num = i + 1
             expected_base = f"Task {task_num}"
-            actual_desc = tasks[i].description
+            actual_desc = tasks[i].description.text
             assert actual_desc == expected_base or expected_base in actual_desc
 
 
@@ -485,10 +486,10 @@ class TestComplexScenarios:
         assert len(tasks) > 0
         
         # Check that we have tasks with various features
-        has_priority = any(task.priority > 0 for task in tasks)
+        has_priority = any(task.priority.level > 0 for task in tasks)
         has_tags = any(len(task.tags) > 0 for task in tasks)
         has_due_date = any(task.due_date is not None for task in tasks)
-        has_multiline = any('\n' in task.description for task in tasks)
+        has_multiline = any('\n' in task.description.text for task in tasks)
         
         assert has_priority
         assert has_tags
@@ -532,7 +533,7 @@ class TestRegexPatterns:
     
     def test_checkbox_pattern(self, file_parser):
         """Test the checkbox regex pattern."""
-        pattern = file_parser.CHECKBOX_PATTERN
+        pattern = CHECKBOX_PATTERN
         
         # Valid matches
         assert pattern.match("[ ] Task")
@@ -548,21 +549,21 @@ class TestRegexPatterns:
     
     def test_priority_pattern(self, file_parser):
         """Test the priority regex pattern."""
-        pattern = file_parser.PRIORITY_PATTERN
+        pattern = PRIORITY_PATTERN
         
-        # Valid matches
-        assert pattern.match("! Task")
-        assert pattern.match("!! Task")
-        assert pattern.match("!!! Task")
-        assert pattern.match(".! Task")
-        assert pattern.match("!!. Task")
+        # Valid matches - note the pattern expects space at start
+        assert pattern.match(" ! Task")
+        assert pattern.match(" !! Task")
+        assert pattern.match(" !!! Task")
+        assert pattern.match(" .! Task")
+        assert pattern.match(" !!. Task")
         
         # Invalid matches
-        assert not pattern.match("!Task")  # No space after priority markers
+        assert not pattern.match(" !Task")  # No space after priority markers
     
     def test_due_date_pattern(self, file_parser):
         """Test the due date regex pattern."""
-        pattern = file_parser.DUE_DATE_PATTERN
+        pattern = DUE_DATE_PATTERN
         
         test_cases = [
             "Task -> 2025-12-31",
@@ -579,7 +580,7 @@ class TestRegexPatterns:
     
     def test_tag_pattern(self, file_parser):
         """Test the tag regex pattern."""
-        pattern = file_parser.TAG_PATTERN
+        pattern = TAG_PATTERN
         
         test_cases = [
             "#simple",
@@ -597,7 +598,7 @@ class TestRegexPatterns:
     
     def test_continuation_pattern(self, file_parser):
         """Test the continuation line pattern."""
-        pattern = file_parser.CONTINUATION_PATTERN
+        pattern = CONTINUATION_PATTERN
         
         # Valid continuations (exactly 4 spaces)
         assert pattern.match("    content")

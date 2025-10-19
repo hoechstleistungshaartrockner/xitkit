@@ -1,9 +1,15 @@
 from dataclasses import dataclass
 from typing import Tuple, Optional
 from pathlib import Path
+from .patterns import *
+from copy import deepcopy
+from .tags import *
+from .status import *
+from .duedate import *
+from .priority import *
+from .description import *
 
 
-@dataclass
 class Task:
     """Represents a task parsed from .md or .xit files.
     
@@ -22,26 +28,86 @@ class Task:
         due_date: Due date string if present, None otherwise
         id: Unique sequential ID assigned when reading files
     """
-    file: str
-    line_number: int
-    description: str
-    status: str  # one of ["OPEN", "ONGOING", "DONE", "OBSOLETE", "INQUESTION"]
-    priority: int  # e.g., 0 (low) to open-ended (high)
-    tags: list[str]  # e.g., ["#work", "#personal"]
-    due_date: str | None  # e.g., "2023-12-31" or None
-    id: int = 0  # Sequential ID assigned when reading files
 
-    # Status symbols for visual representation - using square bracket format
-    _STATUS_SYMBOLS = {
-        'OPEN': '[ ]',
-        'DONE': '[x]',
-        'ONGOING': '[@]',
-        'OBSOLETE': '[~]',
-        'INQUESTION': '[?]'
-    }
+    def __init__(self,
+                 description: str,
+                 file=None,
+                 line_number=None,
+                 status=None,
+                 priority=None,
+                 tags=None,
+                 due_date=None,
+                 id=None):
+        """Initialize a Task instance.
 
-    # Valid status values
-    _VALID_STATUSES = {'OPEN', 'ONGOING', 'DONE', 'OBSOLETE', 'INQUESTION'}
+        Args:
+            description (str): Task description text.
+            file (Optional[str]): File path where the task is located.
+            line_number (Optional[int]): Line number of the task in the file.
+            status (Optional[Status]): Task status object.
+            priority (Optional[Priority]): Priority object or integer level.
+            tags (Optional[List[Tag]]): List of Tag objects associated with the task.
+            due_date (Optional[str]): Due date string if any.
+            id (Optional[int]): Unique ID for the task.
+        """
+        
+        self.description = Description(description)
+        self.file = file
+        self.line_number = line_number
+        
+        # Handle status - can be Status object, StatusType, string, or None
+        if isinstance(status, Status):
+            self.status = status
+        elif isinstance(status, StatusType):
+            self.status = Status(status)
+        elif isinstance(status, str):
+            # Map legacy status strings to StatusType
+            status_mapping = {
+                "OPEN": StatusType.OPEN,
+                "DONE": StatusType.CHECKED,
+                "ONGOING": StatusType.ONGOING,
+                "OBSOLETE": StatusType.OBSOLETE,
+                "INQUESTION": StatusType.IN_QUESTION
+            }
+            if status in status_mapping:
+                self.status = Status(status_mapping[status])
+            else:
+                # Try to parse as status string or indicator
+                parsed_status = Status.from_string(status) or Status.from_indicator(status)
+                if parsed_status:
+                    self.status = parsed_status
+                else:
+                    self.status = Status(StatusType.OPEN)
+        else:
+            self.status = Status(StatusType.OPEN)
+        
+        # Handle priority - can be Priority object, integer, or None
+        if isinstance(priority, Priority):
+            self.priority = priority
+        elif isinstance(priority, int):
+            self.priority = Priority(level=priority)
+        else:
+            self.priority = Priority()
+            
+        self.id = id if id is not None else 0
+        
+        # Handle tags - can be Tag objects or strings
+        # Keep a separate list for easier management
+        self.tags = []
+        tags = tags if tags is not None else []
+        for tag in tags:
+            if isinstance(tag, Tag):
+                self.tags.append(tag)
+            else:
+                # Assume it's a string, create Tag object
+                self.tags.append(Tag(name=str(tag)))
+        
+        # Handle due date
+        if due_date is not None:
+            self.due_date = DueDate.from_string(due_date)
+        else:
+            self.due_date = None
+
 
     @property
     def location(self) -> Tuple[str, int]:
@@ -66,8 +132,10 @@ class Task:
         """Get just the filename without the full path.
         
         Returns:
-            The filename portion of the file path
+            The filename portion of the file path, or None if no file is set
         """
+        if self.file is None:
+            return None
         return Path(self.file).name
 
     @property
@@ -89,16 +157,36 @@ class Task:
         Returns:
             Unicode symbol representing the task status
         """
-        return self._STATUS_SYMBOLS.get(self.status, self.status)
+        return self.status.to_checkbox()
 
     @property
     def has_priority(self) -> bool:
         """Check if the task has a priority set.
         
         Returns:
-            True if priority > 0, False otherwise
+            True if priority level > 0, False otherwise
         """
-        return self.priority > 0
+        return self.priority.level > 0
+    
+    @property
+    def description_text(self) -> str:
+        """Get the description text for backward compatibility.
+        
+        Returns:
+            The description text as a string
+        """
+        return str(self.description)
+    
+    @property
+    def due_date_string(self) -> Optional[str]:
+        """Get the due date as a string for backward compatibility.
+        
+        Returns:
+            The due date as a string or None if no due date
+        """
+        if self.due_date:
+            return self.due_date.implied_date
+        return None
 
     @property
     def has_due_date(self) -> bool:
@@ -123,86 +211,166 @@ class Task:
         """Get the priority indicator string.
         
         Returns:
-            String of exclamation marks representing priority level
+            String of dots and exclamation marks representing priority level
         """
-        return "!" * self.priority if self.priority > 0 else ""
+        return str(self.priority) if self.priority.level > 0 else "" 
 
-    def set_status(self, status: str) -> None:
+    def set_status(self, status) -> None:
         """Set the task status with validation.
         
         Args:
-            status: New status value
+            status: New status value (Status object, StatusType, or status string)
             
         Raises:
             ValueError: If status is not valid
         """
-        if status not in self._VALID_STATUSES:
-            raise ValueError(f"Invalid status: {status}. Must be one of {self._VALID_STATUSES}")
-        self.status = status
+        if isinstance(status, Status):
+            self.status = status
+        elif isinstance(status, StatusType):
+            self.status = Status(status)
+        elif isinstance(status, str):
+            # Map legacy status strings to StatusType
+            status_mapping = {
+                "OPEN": StatusType.OPEN,
+                "DONE": StatusType.CHECKED,
+                "ONGOING": StatusType.ONGOING,
+                "OBSOLETE": StatusType.OBSOLETE,
+                "INQUESTION": StatusType.IN_QUESTION
+            }
+            if status in status_mapping:
+                self.status = Status(status_mapping[status])
+            else:
+                # Try to parse as status string like '[x]' or as indicator like 'x'
+                parsed_status = Status.from_string(status)
+                if parsed_status is None:
+                    parsed_status = Status.from_indicator(status)
+                if parsed_status is None:
+                    raise ValueError(f"Invalid status: {status}")
+                self.status = parsed_status
+        else:
+            raise ValueError(f"Invalid status type: {type(status)}")
 
-    def set_priority(self, priority: int) -> None:
+    def set_priority(self, priority) -> None:
         """Set the task priority with validation.
         
         Args:
-            priority: New priority value (must be >= 0)
+            priority: New priority value (Priority object or integer >= 0)
             
         Raises:
-            ValueError: If priority is negative
+            ValueError: If priority is invalid
         """
-        if priority < 0:
-            raise ValueError("Priority must be >= 0")
-        self.priority = priority
+        if isinstance(priority, Priority):
+            self.priority = priority
+        elif isinstance(priority, int):
+            if priority < 0:
+                raise ValueError("Priority must be >= 0")
+            self.priority = Priority(level=priority)
+        else:
+            raise ValueError(f"Invalid priority type: {type(priority)}")
 
-    def add_tag(self, tag: str) -> None:
+    def add_tag(self, tag: Tag) -> None:
         """Add a tag to the task.
         
         Args:
-            tag: Tag to add (will be normalized to include # if missing)
+            tag: Tag to add
         """
-        if not tag.startswith('#'):
-            tag = f'#{tag}'
         if tag not in self.tags:
             self.tags.append(tag)
 
-    def remove_tag(self, tag: str) -> bool:
+    def add_tag_by_name(self, name: str, value: Optional[str] = None) -> None:
+        """Add a tag by name and optional value.
+        
+        Args:
+            name: Tag name (without # prefix)
+            value: Optional tag value
+        """
+        # Remove # prefix if present
+        name = name.lstrip('#')
+        tag = Tag(name=name, value=value)
+        self.add_tag(tag)
+
+    def remove_tag(self, tag: Tag) -> bool:
         """Remove a tag from the task.
         
         Args:
-            tag: Tag to remove (with or without # prefix)
+            tag: Tag to remove
+
+        Returns:
+            True if tag was removed, False if not found
+        """
+        if tag in self.tags:
+            self.tags.remove(tag)
+            return True
+        return False
+
+    def remove_tag_by_name(self, name: str, soft: bool = True) -> bool:
+        """Remove a tag by name.
+        
+        Args:
+            name: Tag name to remove (with or without # prefix)
+            soft: If True, remove by name only; if False, require exact match including value
             
         Returns:
             True if tag was removed, False if not found
         """
-        # Try both with and without # prefix
-        normalized_tag = tag if tag.startswith('#') else f'#{tag}'
-        alt_tag = tag[1:] if tag.startswith('#') else tag
+        # Remove # prefix if present
+        name = name.lstrip('#')
+        search_tag = Tag(name=name)
         
-        for t in [tag, normalized_tag, alt_tag]:
-            if t in self.tags:
-                self.tags.remove(t)
+        for existing_tag in self.tags[:]:  # Create a copy to iterate over
+            if existing_tag.compare(search_tag, soft=soft):
+                self.tags.remove(existing_tag)
                 return True
         return False
 
-    def has_tag(self, tag: str) -> bool:
+    def has_tag(self, tag: Tag, soft: bool = False) -> bool:
         """Check if the task has a specific tag.
         
         Args:
-            tag: Tag to check for (with or without # prefix)
+            tag: Tag to check for
+            soft: If True, compare only tag names; if False, compare names and values
             
         Returns:
             True if tag exists, False otherwise
         """
-        # Extract tag names without values for comparison
-        tag_names = []
-        for task_tag in self.tags:
-            if '=' in task_tag:
-                tag_names.append(task_tag.split('=')[0])
-            else:
-                tag_names.append(task_tag)
+        return any(existing_tag.compare(tag, soft=soft) for existing_tag in self.tags)
+
+    def has_tag_by_name(self, name: str, soft: bool = True) -> bool:
+        """Check if the task has a tag with the specified name.
         
-        # Check both with and without # prefix
-        normalized_tag = tag if tag.startswith('#') else f'#{tag}'
-        return normalized_tag in tag_names or tag in tag_names
+        Args:
+            name: Tag name to check for (with or without # prefix)
+            soft: If True, check by name only; if False, require exact match including value
+            
+        Returns:
+            True if tag exists, False otherwise
+        """
+        # Remove # prefix if present
+        name = name.lstrip('#')
+        search_tag = Tag(name=name)
+        return self.has_tag(search_tag, soft=soft)
+
+    def get_description_with_tags(self) -> str:
+        """Get the full description including tags and due date.
+        
+        Returns:
+            Description string with tags and due date appended
+        """
+        parts = [self.description_text]
+        
+        # Add tags if present
+        if self.has_tags:
+            tag_strings = [str(tag) for tag in self.tags]
+            parts.extend(tag_strings)
+        
+        # Add due date if present
+        if self.has_due_date:
+            if hasattr(self.due_date, 'implied_date'):
+                parts.append(f"-> {self.due_date.implied_date}")
+            else:
+                parts.append(f"-> {self.due_date}")
+        
+        return ' '.join(parts)
 
     def set_due_date(self, due_date: Optional[str]) -> None:
         """Set the due date for the task.
@@ -210,7 +378,10 @@ class Task:
         Args:
             due_date: Due date string or None to clear
         """
-        self.due_date = due_date
+        if due_date is not None:
+            self.due_date = DueDate.from_string(due_date)
+        else:
+            self.due_date = None
 
     def clear_due_date(self) -> None:
         """Clear the due date for the task."""
@@ -229,9 +400,11 @@ class Task:
             return False
         
         # Simple string comparison works for YYYY-MM-DD format
-        # For more complex dates, this would need more sophisticated parsing
         try:
-            return self.due_date < current_date
+            if hasattr(self.due_date, 'implied_date'):
+                return self.due_date.implied_date < current_date
+            else:
+                return str(self.due_date) < current_date
         except (TypeError, ValueError):
             return False
 
@@ -239,11 +412,9 @@ class Task:
         """String representation for terminal display.
         
         Returns:
-            Formatted string with status symbol and description only
+            Formatted string for terminal output
         """
-        # Just show the status symbol and description
-        # Don't duplicate metadata that's already in the description
-        return f"{self.status_symbol} {self.description}"
+        return self.to_checkbox_format()
 
     def __repr__(self) -> str:
         """Developer-friendly string representation.
@@ -251,77 +422,12 @@ class Task:
         Returns:
             Detailed string representation for debugging
         """
+        desc_text = str(self.description)
+        desc_preview = desc_text[:30] + "..." if len(desc_text) > 30 else desc_text
         return (f"Task(file='{self.file}', line={self.line_number}, "
                 f"status='{self.status}', priority={self.priority}, "
-                f"description='{self.description[:30]}...', "
+                f"description='{desc_preview}', "
                 f"tags={self.tags}, due_date='{self.due_date}')")
-
-    def to_terminal_line(self, show_file: bool = True, show_line: bool = True) -> str:
-        """Format task for terminal output with location information.
-        
-        Args:
-            show_file: Whether to include file path in output
-            show_line: Whether to include line number in output
-            
-        Returns:
-            Formatted string ready for terminal display
-        """
-        # Format the main task content
-        lines = self.description.split('\n')
-        result_lines = []
-        
-        # First line gets the status symbol
-        if lines:
-            result_lines.append(f"{self.status_symbol} {lines[0]}")
-            
-            # Subsequent lines get proper indentation (4 spaces to align with description)
-            for line in lines[1:]:
-                result_lines.append(f"    {line}")
-        else:
-            result_lines.append(f"{self.status_symbol}")
-        
-        result = '\n'.join(result_lines)
-        
-        # Add location information if requested (only on the last line)
-        if show_file or show_line:
-            location_parts = []
-            if show_file:
-                location_parts.append(self.relative_path)
-            if show_line:
-                location_parts.append(f"L{self.line_number}")
-            
-            if location_parts:
-                location = ":".join(location_parts)
-                result += f" [{location}]"
-        
-        return result
-
-    def to_checkbox_format(self) -> str:
-        """Convert task back to checkbox format for writing to files.
-        
-        Returns:
-            String in the original checkbox format
-        """
-        # Map status back to checkbox characters
-        status_chars = {
-            'OPEN': ' ',
-            'DONE': 'x',
-            'ONGOING': '@',
-            'OBSOLETE': '~',
-            'INQUESTION': '?'
-        }
-        
-        status_char = status_chars.get(self.status, ' ')
-        result = f"[{status_char}]"
-        
-        # Add priority if present
-        if self.has_priority:
-            result += f" {self.priority_indicator}"
-        
-        # Add description
-        result += f" {self.description}"
-        
-        return result
 
     def copy(self) -> 'Task':
         """Create a copy of this task.
@@ -329,12 +435,71 @@ class Task:
         Returns:
             New Task instance with the same properties
         """
-        return Task(
-            file=self.file,
-            line_number=self.line_number,
-            description=self.description,
-            status=self.status,
-            priority=self.priority,
-            tags=self.tags.copy(),  # Shallow copy of tags list
-            due_date=self.due_date
-        )
+        return deepcopy(self)
+
+    def to_terminal_line(self, show_file: bool = True, show_line: bool = True, show_id: bool = False) -> str:
+        """Convert task to terminal line format for display.
+        
+        Args:
+            show_file: Whether to include file path in output
+            show_line: Whether to include line number in output
+            show_id: Whether to include task ID in output
+            
+        Returns:
+            Formatted string suitable for terminal display
+        """
+        # Start with status symbol
+        line_parts = [self.status_symbol]
+        
+        # Add priority if present
+        if self.has_priority:
+            line_parts.append(self.priority_indicator)
+        
+        # Add description, handling multi-line descriptions
+        description_lines = str(self.description).split('\n')
+        line_parts.append(description_lines[0])
+        
+        # Build first line
+        result = ' '.join(line_parts)
+        
+        # Add continuation lines with proper indentation
+        for continuation_line in description_lines[1:]:
+            result += '\n    ' + continuation_line
+        
+        # Add location info if requested
+        if (show_file or show_line) and (self.file is not None or self.line_number is not None):
+            location_parts = []
+            if show_file and self.file is not None:
+                try:
+                    relative_path = str(Path(self.file).relative_to(Path.cwd()))
+                except ValueError:
+                    relative_path = self.file
+                location_parts.append(relative_path)
+            
+            if show_line and self.line_number is not None:
+                location_parts.append(f"L{self.line_number}")
+            
+            if location_parts:
+                location_str = ':'.join(location_parts)
+                result += f" [{location_str}]"
+        
+        return result
+
+    def to_checkbox_format(self) -> str:
+        """Convert task back to checkbox format suitable for .xit files.
+        
+        Returns:
+            String in checkbox format that can be written to file
+        """
+        # Start with status symbol
+        line_parts = [self.status_symbol]
+        
+        # Add priority if present
+        if self.has_priority:
+            line_parts.append(self.priority_indicator)
+        
+        # Add description with tags and due date
+        line_parts.append(self.get_description_with_tags())
+        
+        return ' '.join(line_parts)
+

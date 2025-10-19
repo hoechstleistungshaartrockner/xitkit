@@ -7,22 +7,26 @@ of the task management system, separating business logic from CLI concerns.
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from dataclasses import dataclass
+from datetime import timedelta
 
 from .fileparser import FileParser
 from .task import Task
 from .dateutils import DateParser
 from .config import get_config
+from .description import Description
 from .exceptions import FileNotSupportedError, TaskFilterError
-
+from .status import *
+from .tags import Tag
+from .duedate import DueDate
 
 @dataclass
 class TaskFilter:
     """Configuration for filtering tasks."""
-    status: Optional[str] = None
-    priority: Optional[int] = None
-    tags: Optional[List[str]] = None
-    due_on: Optional[str] = None
-    due_by: Optional[str] = None
+    status: Optional[Status] = None
+    priority: Optional[Priority] = None
+    tags: Optional[List[Tag]] = None
+    due_on: Optional[DueDate] = None
+    due_by: Optional[DueDate] = None
 
 
 class TaskService:
@@ -71,17 +75,18 @@ class TaskService:
             FileNotFoundError: If a file doesn't exist
             ValueError: If a file has an unsupported format
         """
-        # Sort file paths alphabetically to ensure consistent ID assignment
-        sorted_file_paths = sorted(file_paths)
+        # Sort file paths to ensure consistent ordering
+        sorted_paths = sorted(file_paths)
         
         # Parse all tasks from all files
-        all_tasks = self.parser.parse_files(sorted_file_paths)
+        all_tasks = self.parser.parse_files(sorted_paths)
         
         # Assign sequential IDs starting from 1
         for i, task in enumerate(all_tasks, start=1):
             task.id = i
-        
+            
         return all_tasks
+
     
     def filter_tasks(self, tasks: List[Task], filters: TaskFilter) -> List[Task]:
         """Apply filters to a list of tasks.
@@ -93,51 +98,37 @@ class TaskService:
         Returns:
             Filtered list of tasks
         """
-        filtered = tasks.copy()
+        filtered_tasks = tasks
         
-        # Apply status filter
+        # Filter by status
         if filters.status:
-            status_upper = filters.status.upper()
-            filtered = [t for t in filtered if t.status == status_upper]
+            filtered_tasks = [task for task in filtered_tasks 
+                            if task.status.status_type == filters.status.status_type]
         
-        # Apply priority filter
-        if filters.priority is not None:
-            filtered = [t for t in filtered if t.priority >= filters.priority]
+        # Filter by priority (minimum level)
+        if filters.priority:
+            filtered_tasks = [task for task in filtered_tasks 
+                            if task.priority.level >= filters.priority.level]
         
-        # Apply tag filters
+        # Filter by tags
         if filters.tags:
-            normalized_tags = self._normalize_tags(filters.tags)
-            filtered = [t for t in filtered if self._has_all_tags(t.tags, normalized_tags)]
+            for filter_tag in filters.tags:
+                filtered_tasks = [task for task in filtered_tasks 
+                                if task.has_tag(filter_tag, soft=True)]
         
-        # Apply date filters
+        # Filter by due_on (exact date match)
         if filters.due_on:
-            filtered = [t for t in filtered if self.date_parser.matches_date_filter_on(t.due_date, filters.due_on)]
+            filtered_tasks = [task for task in filtered_tasks 
+                            if task.due_date and task.due_date.implied_date == filters.due_on.implied_date]
         
+        # Filter by due_by (tasks due on or before this date)
         if filters.due_by:
-            filtered = [t for t in filtered if self.date_parser.matches_date_filter_by(t.due_date, filters.due_by)]
+            filtered_tasks = [task for task in filtered_tasks 
+                            if task.due_date and task.due_date.implied_date <= filters.due_by.implied_date]
         
-        return filtered
+        return filtered_tasks
+
     
-    def _normalize_tags(self, tags: List[str]) -> List[str]:
-        """Normalize tag list to include # prefix."""
-        normalized = []
-        for tag in tags:
-            if not tag.startswith('#'):
-                normalized.append(f'#{tag}')
-            else:
-                normalized.append(tag)
-        return normalized
-    
-    def _has_all_tags(self, task_tags: List[str], required_tags: List[str]) -> bool:
-        """Check if task has all required tags."""
-        task_tag_names = []
-        for task_tag in task_tags:
-            if '=' in task_tag:
-                task_tag_names.append(task_tag.split('=')[0])
-            else:
-                task_tag_names.append(task_tag)
-        
-        return all(req_tag in task_tag_names for req_tag in required_tags)
     
     def get_task_statistics(self, tasks: List[Task]) -> Dict[str, Any]:
         """Calculate statistics for a list of tasks.
@@ -148,79 +139,102 @@ class TaskService:
         Returns:
             Dictionary containing various statistics
         """
-        stats = {
-            'total_tasks': len(tasks),
-            'status_counts': {},
-            'priority_counts': {},
-            'files_with_tasks': set(),
-            'tasks_with_due_dates': 0,
-            'tasks_with_tags': 0
-        }
+        if not tasks:
+            return {
+                'total': 0,
+                'by_status': {},
+                'by_priority': {},
+                'by_file': {},
+                'with_tags': 0,
+                'with_due_date': 0,
+                'overdue': 0
+            }
         
+        # Status counts
+        status_counts = {}
         for task in tasks:
-            # Count by status
-            stats['status_counts'][task.status] = stats['status_counts'].get(task.status, 0) + 1
-            
-            # Count by priority
-            stats['priority_counts'][task.priority] = stats['priority_counts'].get(task.priority, 0) + 1
-            
-            # Track files
-            stats['files_with_tasks'].add(task.file)
-            
-            # Count tasks with due dates and tags
-            if task.due_date:
-                stats['tasks_with_due_dates'] += 1
-            if task.tags:
-                stats['tasks_with_tags'] += 1
+            status_name = task.status.status_type.name
+            status_counts[status_name] = status_counts.get(status_name, 0) + 1
         
-        return stats
+        # Priority counts
+        priority_counts = {}
+        for task in tasks:
+            priority_level = task.priority.level
+            priority_counts[priority_level] = priority_counts.get(priority_level, 0) + 1
+        
+        # File counts
+        file_counts = {}
+        for task in tasks:
+            file_name = task.filename if task.file else 'unknown'
+            file_counts[file_name] = file_counts.get(file_name, 0) + 1
+        
+        # Count tasks with tags and due dates
+        tasks_with_tags = sum(1 for task in tasks if task.has_tags)
+        tasks_with_due_date = sum(1 for task in tasks if task.has_due_date)
+        
+        # Count overdue tasks (using a reasonable current date)
+        from datetime import datetime
+        current_date = datetime.now().strftime('%Y-%m-%d')
+        overdue_tasks = sum(1 for task in tasks if task.is_overdue(current_date))
+        
+        return {
+            'total': len(tasks),
+            'by_status': status_counts,
+            'by_priority': priority_counts,
+            'by_file': file_counts,
+            'with_tags': tasks_with_tags,
+            'with_due_date': tasks_with_due_date,
+            'overdue': overdue_tasks
+        }
+
+        
     
-    def add_task_to_file(self, description: str, file_path: str) -> None:
+    def add_task_to_file(self, task: Task, file_path: str) -> None:
         """Add a new task to the specified file.
         
         Args:
-            description: The task description text
+            task: Task object to add
             file_path: Path to the file where task should be added
             
         Raises:
             FileNotSupportedError: If file extension is not supported
         """
-        file_path_obj = Path(file_path)
+        path = Path(file_path)
         
         # Validate file extension
-        if file_path_obj.suffix not in ['.md', '.xit']:
-            raise FileNotSupportedError(file_path, {'.md', '.xit'})
+        if path.suffix not in ['.md', '.xit']:
+            raise FileNotSupportedError(str(path), {'.md', '.xit'})
         
         # Create directory if it doesn't exist
-        file_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Format the task line (always create as open task)
-        task_line = f"[ ] {description}\n"
+        # Convert task to checkbox format
+        task_line = task.to_checkbox_format()
         
-        # Check if file exists and has content
-        file_exists = file_path_obj.exists()
-        needs_newline = False
-        
-        if file_exists and file_path_obj.stat().st_size > 0:
-            # Check if file ends with newline
-            with open(file_path, 'rb') as f:
-                f.seek(-1, 2)  # Go to last byte
-                last_char = f.read(1)
-                needs_newline = last_char != b'\n'
-        
-        # Append the task to the file
+        # Append task to file
         with open(file_path, 'a', encoding='utf-8') as f:
-            if needs_newline:
-                f.write('\n')
-            f.write(task_line)
+            # Add newline if file doesn't end with one
+            if path.exists() and path.stat().st_size > 0:
+                with open(file_path, 'r', encoding='utf-8') as read_f:
+                    content = read_f.read()
+                    if content and not content.endswith('\n'):
+                        f.write('\n')
+            f.write(task_line + '\n')
+
     
-    def mark_task_by_id(self, task_id: int, new_status: str, file_paths: List[str]) -> Optional[Task]:
-        """Find and update a task's status by its ID.
+    def update_task_by_id(self, task_id: int,
+        file_paths: List[str], 
+        new_status: Status=None, 
+        new_priority: Priority=None, 
+        new_due_date: DueDate=None) -> Optional[Task]:
+        """Find and update a task's status, priority and/or due date by its ID.
         
         Args:
             task_id: The ID of the task to update
-            new_status: The new status to set
             file_paths: List of file paths to search
+            new_status: New status to set
+            new_priority: New priority to set
+            new_due_date: New due date to set
             
         Returns:
             The updated Task object if found, None otherwise
@@ -228,16 +242,10 @@ class TaskService:
         Raises:
             ValueError: If the new status is invalid
         """
-        from .task import Task
-        
-        # Validate status
-        if new_status not in Task._VALID_STATUSES:
-            raise ValueError(f"Invalid status: {new_status}. Must be one of {Task._VALID_STATUSES}")
-        
-        # Load all tasks and assign IDs
+        # Load all tasks to find the one with matching ID
         all_tasks = self.load_tasks(file_paths)
         
-        # Find the task with the matching ID
+        # Find the task with the specified ID
         target_task = None
         for task in all_tasks:
             if task.id == task_id:
@@ -247,67 +255,43 @@ class TaskService:
         if not target_task:
             return None
         
-        # Update the task in the file
-        self._update_task_in_file(target_task, new_status)
+        # Update task properties
+        if new_status:
+            target_task.set_status(new_status)
+        if new_priority:
+            target_task.set_priority(new_priority)
+        if new_due_date:
+            target_task.set_due_date(new_due_date.implied_date if new_due_date else None)
         
-        # Update the task object and return it
-        target_task.status = new_status
-        return target_task
-    
-    def _update_task_in_file(self, task: Task, new_status: str) -> None:
-        """Update a task's status in its source file.
-        
-        Args:
-            task: The task to update
-            new_status: The new status to set
-        """
-        # Map status to the character used in files
-        status_char_map = {
-            'OPEN': ' ',
-            'DONE': 'x',
-            'ONGOING': '@',
-            'OBSOLETE': '~',
-            'INQUESTION': '?'
-        }
-        
-        new_char = status_char_map[new_status]
-        
-        # Read the entire file
-        with open(task.file, 'r', encoding='utf-8') as f:
+        # Read the file content
+        with open(target_task.file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # Update the specific line (convert to 0-based index)
-        line_index = task.line_number - 1
-        if 0 <= line_index < len(lines):
-            original_line = lines[line_index].rstrip('\n\r')
+        # Update the specific line
+        if target_task.line_number <= len(lines):
+            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
             
-            # Simple approach: if line starts with [ and has ] as third character, update
-            if len(original_line) >= 3 and original_line.startswith('[') and original_line[2] == ']':
-                # Replace the status character (at index 1)
-                updated_line = f"[{new_char}]{original_line[3:]}\n"
-                lines[line_index] = updated_line
-                
-                # Write the file back
-                with open(task.file, 'w', encoding='utf-8') as f:
-                    f.writelines(lines)
-    
-    def reschedule_task_by_id(self, task_id: int, new_date: str, file_paths: List[str]) -> Optional[Task]:
-        """Find and update a task's due date by its ID.
+            # Write back to file
+            with open(target_task.file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+        
+        return target_task
+
+    def update_task_description(self, task_id: int, new_description: str, file_paths: List[str]) -> Optional[Task]:
+        """Update a task's description by its ID.
         
         Args:
             task_id: The ID of the task to update
-            new_date: The new due date string
+            new_description: New description text
             file_paths: List of file paths to search
             
         Returns:
             The updated Task object if found, None otherwise
         """
-        from .task import Task
-        
-        # Load all tasks and assign IDs
+        # Load all tasks to find the one with matching ID
         all_tasks = self.load_tasks(file_paths)
         
-        # Find the task with the matching ID
+        # Find the task with the specified ID
         target_task = None
         for task in all_tasks:
             if task.id == task_id:
@@ -317,53 +301,22 @@ class TaskService:
         if not target_task:
             return None
         
-        # Update the task in the file
-        self._update_due_date_in_file(target_task, new_date)
+        # Update task description
+        target_task.description = Description(new_description)
         
-        # Update the task object and return it
-        target_task.due_date = new_date
-        return target_task
-    
-    def _update_due_date_in_file(self, task: Task, new_date: str) -> None:
-        """Update a task's due date in its source file.
-        
-        Args:
-            task: The task to update
-            new_date: The new due date to set
-        """
-        # Read the entire file
-        with open(task.file, 'r', encoding='utf-8') as f:
+        # Read the file content
+        with open(target_task.file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # Update the specific line (convert to 0-based index)
-        line_index = task.line_number - 1
-        if 0 <= line_index < len(lines):
-            original_line = lines[line_index].rstrip('\n\r')
+        # Update the specific line
+        if target_task.line_number <= len(lines):
+            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
             
-            # Parse the line to update or add due date
-            import re
-            
-            # Pattern to match existing due dates
-            due_date_pattern = r'->\s*\d{4}(?:[-/](?:W\d{2}|Q[1-4]|\d{1,2}(?:[-/]\d{1,2})?))?'
-            
-            # Pattern to match "-> None" or similar invalid dates  
-            invalid_date_pattern = r'->\s*None'
-            
-            # Remove any invalid dates first
-            cleaned_line = re.sub(invalid_date_pattern, '', original_line).strip()
-            
-            if re.search(due_date_pattern, cleaned_line):
-                # Replace only the first valid due date occurrence
-                updated_line = re.sub(due_date_pattern, f'-> {new_date}', cleaned_line, count=1) + '\n'
-            else:
-                # Add new due date at the end of the line
-                updated_line = f"{cleaned_line} -> {new_date}\n"
-            
-            lines[line_index] = updated_line
-            
-            # Write the file back
-            with open(task.file, 'w', encoding='utf-8') as f:
+            # Write back to file
+            with open(target_task.file, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
+        
+        return target_task
 
     def remove_task_by_id(self, task_id: int, file_paths: List[str]) -> Optional[Task]:
         """Remove a task by its ID from the files.
@@ -375,10 +328,10 @@ class TaskService:
         Returns:
             The removed Task object if found, None otherwise
         """
-        # Load all tasks and assign IDs
+        # Load all tasks to find the one with matching ID
         all_tasks = self.load_tasks(file_paths)
         
-        # Find the task with the matching ID
+        # Find the task with the specified ID
         target_task = None
         for task in all_tasks:
             if task.id == task_id:
@@ -388,38 +341,32 @@ class TaskService:
         if not target_task:
             return None
         
-        # Remove the task from its file
-        self._remove_task_from_file(target_task)
-        
-        return target_task
-    
-    def _remove_task_from_file(self, task: Task) -> None:
-        """Remove a task from its source file.
-        
-        Args:
-            task: The task to remove
-        """
-        # Read the entire file
-        with open(task.file, 'r', encoding='utf-8') as f:
+        # Read the file content
+        with open(target_task.file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # Remove the task line and any continuation lines
-        line_index = task.line_number - 1  # Convert to 0-based
-        
-        if 0 <= line_index < len(lines):
-            # Remove the main task line
-            del lines[line_index]
+        # Remove the specific line (accounting for 1-based line numbers)
+        if target_task.line_number <= len(lines):
+            # Check if we need to handle multi-line tasks by looking for continuation lines
+            lines_to_remove = [target_task.line_number - 1]  # Convert to 0-based
             
-            # Remove any continuation lines that follow (lines starting with 4 spaces)
-            while (line_index < len(lines) and 
-                   lines[line_index].startswith('    ') and 
-                   lines[line_index].strip()):
-                del lines[line_index]
+            # Check for continuation lines (lines starting with 4 spaces)
+            for i in range(target_task.line_number, len(lines)):
+                if lines[i].startswith('    ') and lines[i].strip():
+                    lines_to_remove.append(i)
+                else:
+                    break
+            
+            # Remove lines in reverse order to maintain indices
+            for line_idx in reversed(lines_to_remove):
+                del lines[line_idx]
+            
+            # Write back to file
+            with open(target_task.file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
         
-        # Write the file back
-        with open(task.file, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    
+        return target_task
+
     def move_task_by_id(self, task_id: int, source_files: List[str], target_file: str) -> Optional[Task]:
         """Move a task by its ID from source files to a target file.
         
@@ -434,18 +381,41 @@ class TaskService:
         Raises:
             FileNotSupportedError: If target file extension is not supported
         """
-        from pathlib import Path
-        
         # Validate target file extension
         target_path = Path(target_file)
         if target_path.suffix not in ['.md', '.xit']:
-            from .exceptions import FileNotSupportedError
-            raise FileNotSupportedError(target_file, {'.md', '.xit'})
+            raise FileNotSupportedError(str(target_path), {'.md', '.xit'})
         
-        # Load all tasks and assign IDs
-        all_tasks = self.load_tasks(source_files)
+        # Find and remove the task from source files
+        removed_task = self.remove_task_by_id(task_id, source_files)
         
-        # Find the task with the matching ID
+        if not removed_task:
+            return None
+        
+        # Update task's file reference
+        removed_task.file = target_file
+        removed_task.line_number = None  # Will be set when added to new file
+        
+        # Add task to target file
+        self.add_task_to_file(removed_task, target_file)
+        
+        return removed_task
+    
+    def add_task_tag(self, task_id: int, tag: str, file_paths: List[str]) -> bool:
+        """Add a tag to a task.
+        
+        Args:
+            task_id: ID of the task to modify
+            tag: Tag to add (without # prefix)
+            file_paths: List of file paths to search
+            
+        Returns:
+            True if task was found and tag was added, False otherwise
+        """
+        # Load all tasks to find the one with matching ID
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task with the specified ID
         target_task = None
         for task in all_tasks:
             if task.id == task_id:
@@ -453,53 +423,68 @@ class TaskService:
                 break
         
         if not target_task:
-            return None
+            return False
         
-        # Get the original task description (including due date, priority, etc.)
-        original_description = self._extract_task_description(target_task)
+        # Add the tag (remove # prefix if present)
+        clean_tag = tag.lstrip('#')
+        target_task.add_tag_by_name(clean_tag)
         
-        # Add the task to the target file
-        self.add_task_to_file(original_description, target_file)
-        
-        # Remove the task from the source file
-        self._remove_task_from_file(target_task)
-        
-        # Update task file path for return
-        target_task.file = str(target_path)
-        
-        return target_task
-    
-    def _extract_task_description(self, task: Task) -> str:
-        """Extract the complete task description including priority, tags, and due date.
-        
-        Args:
-            task: The task to extract description from
-            
-        Returns:
-            Complete task description string
-        """
-        # Read the task line from file to preserve original formatting
-        with open(task.file, 'r', encoding='utf-8') as f:
+        # Read the file content
+        with open(target_task.file, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        line_index = task.line_number - 1
-        if 0 <= line_index < len(lines):
-            task_line = lines[line_index].strip()
+        # Update the specific line
+        if target_task.line_number <= len(lines):
+            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
             
-            # Remove the checkbox part [x] or [ ] etc.
-            import re
-            checkbox_match = re.match(r'^\[.\]\s*(.*)', task_line)
-            if checkbox_match:
-                return checkbox_match.group(1)
-            else:
-                return task_line
+            # Write back to file
+            with open(target_task.file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
         
-        # Fallback to constructing from task properties
-        description = task.description
-        if task.due_date and task.due_date != "None":
-            description += f" -> {task.due_date}"
+        return True
+
+    
+    def remove_task_tag(self, task_id: int, tag: str, file_paths: List[str]) -> bool:
+        """Remove a tag from a task.
         
-        return description
+        Args:
+            task_id: ID of the task to modify
+            tag: Tag to remove (without # prefix)
+            file_paths: List of file paths to search
+            
+        Returns:
+            True if task was found and tag was removed (or didn't exist), False otherwise
+        """
+        # Load all tasks to find the one with matching ID
+        all_tasks = self.load_tasks(file_paths)
+        
+        # Find the task with the specified ID
+        target_task = None
+        for task in all_tasks:
+            if task.id == task_id:
+                target_task = task
+                break
+        
+        if not target_task:
+            return False
+        
+        # Remove the tag (remove # prefix if present)
+        clean_tag = tag.lstrip('#')
+        target_task.remove_tag_by_name(clean_tag)
+        
+        # Read the file content
+        with open(target_task.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Update the specific line
+        if target_task.line_number <= len(lines):
+            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
+            
+            # Write back to file
+            with open(target_task.file, 'w', encoding='utf-8') as f:
+                f.writelines(lines)
+        
+        return True
     
     def recur_task_by_id(self, task_id: int, interval: str, end_date: str = None, 
                         count: int = None, target_file: str = None,
@@ -508,7 +493,7 @@ class TaskService:
         
         Args:
             task_id: ID of the task to make recurring
-            interval: Interval expression (e.g., "1w", "30d", "3m")
+            interval: Interval expression (e.g., "1w", "30d", "3m", "1y2m1w4d")
             end_date: Optional end date in YYYY-MM-DD format
             count: Optional maximum number of occurrences
             target_file: Optional target file for new tasks (default: same as original)
@@ -521,97 +506,143 @@ class TaskService:
         Raises:
             ValueError: If task not found or parameters invalid
         """
-        # Resolve file paths first
-        file_discovery = FileDiscoveryService()
-        file_paths = file_discovery.resolve_file_paths(
-            path=None, 
-            directory=directory, 
-            specified_files=specified_files
-        )
+        # Determine which files to search
+        if specified_files:
+            file_paths = specified_files
+        elif directory:
+            file_paths = self.find_task_files(directory)
+        else:
+            file_paths = self.find_task_files()
         
-        # Load all tasks to find the target task
+        # Find the original task
         all_tasks = self.load_tasks(file_paths)
-        
-        # Find the task by ID
-        target_task = None
+        original_task = None
         for task in all_tasks:
             if task.id == task_id:
-                target_task = task
+                original_task = task
                 break
         
-        if not target_task:
-            raise ValueError(f"Task with ID {task_id} not found.")
+        if not original_task:
+            raise ValueError(f"Task with ID {task_id} not found")
         
-        # Determine start date for recurring sequence
-        start_date = target_task.due_date
-        if not start_date or start_date == "None":
-            # Use tomorrow as default start date if no due date exists
-            from datetime import datetime, timedelta
-            tomorrow = datetime.now() + timedelta(days=1)
-            start_date = tomorrow.strftime("%Y-%m-%d")
+        # Use target file or original task's file
+        output_file = target_file or original_task.file
         
-        # Generate recurring dates
-        from .dateutils import generate_recurring_dates
-        try:
-            recurring_dates = generate_recurring_dates(start_date, interval, end_date, count)
-        except ValueError as e:
-            raise ValueError(f"Error generating recurring dates: {e}")
-        
-        # Skip the first date if it matches the original task's due date
-        if recurring_dates and recurring_dates[0] == target_task.due_date:
-            recurring_dates = recurring_dates[1:]
-        
-        # Determine target file
-        if not target_file:
-            target_file = target_task.file
-        
-        # Validate target file has supported extension
-        if not target_file.endswith(('.md', '.xit')):
-            raise ValueError(f"Target file '{target_file}' must have .md or .xit extension")
+        # Parse interval to calculate days
+        interval_days = self._parse_interval(interval)
+        if interval_days <= 0:
+            raise ValueError(f"Invalid interval: {interval}")
         
         # Create recurring tasks
-        created_tasks = []
-        for i, due_date in enumerate(recurring_dates):
-            # Create task description with new due date
-            base_description = target_task.description
-            
-            # Remove existing due date from description if present
-            import re
-            base_description = re.sub(r'\s*->\s*\S+', '', base_description).strip()
-            
-            # Add new due date
-            new_description = f"{base_description} -> {due_date}"
-            
-            # Copy other attributes (priority, tags, etc.)
-            if target_task.priority:
-                priority_markers = "!" * target_task.priority
-                new_description = f"{priority_markers} {new_description}"
-            
-            # Add tags if present
-            if target_task.tags:
-                for tag in target_task.tags:
-                    if not tag.startswith('#'):
-                        tag = f"#{tag}"
-                    new_description += f" {tag}"
-            
-            # Create the recurring task
-            self.add_task_to_file(new_description, target_file)
-            
-            # Create a task object for return (this is approximate since we don't reload)
-            from .task import Task
-            new_task = Task(
-                id=0,  # Will be assigned when reloaded
-                status="OPEN",  # New recurring tasks start as open
-                description=base_description,
-                file=target_file,
-                line_number=0,  # Will be assigned when reloaded
-                priority=target_task.priority,
-                due_date=due_date,
-                tags=target_task.tags.copy() if target_task.tags else []
-            )
-            created_tasks.append(new_task)
+        recurring_tasks = []
+        current_date = self.date_parser.current_date
         
-        return created_tasks
+        # Determine max occurrences
+        max_occurrences = count or 10  # Default to 10 if no count specified
+        
+        for i in range(max_occurrences):
+            # Calculate next occurrence date
+            next_date = current_date + timedelta(days=interval_days * (i + 1))
+            next_date_str = next_date.strftime('%Y-%m-%d')
+            
+            # Check end date constraint
+            if end_date and next_date_str > end_date:
+                break
+            
+            # Create new task based on original
+            new_task = original_task.copy()
+            new_task.id = None  # Will be assigned when saved
+            new_task.file = output_file
+            new_task.line_number = None
+            
+            # Update due date to the new occurrence
+            new_task.set_due_date(next_date_str)
+            
+            # Reset status to OPEN for recurring tasks
+            from .status import StatusType, Status
+            new_task.status = Status(StatusType.OPEN)
+            
+            # Add the task to file
+            self.add_task_to_file(new_task, output_file)
+            recurring_tasks.append(new_task)
+        
+        return recurring_tasks
+    
+    def set_task_priority(self, task_id: int, priority: int, 
+                         directory: Path = None, specified_files: list = None) -> bool:
+        """Set the priority of a task by its ID.
+        
+        Args:
+            task_id: ID of the task to modify
+            priority: Priority level (integer >= 0)
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+            
+        Returns:
+            True if task was found and priority was set, False otherwise
+        """
+        # Determine which files to search
+        if specified_files:
+            file_paths = specified_files
+        elif directory:
+            file_paths = self.find_task_files(directory)
+        else:
+            file_paths = self.find_task_files()
+        
+        # Create Priority object and update task
+        from .priority import Priority
+        new_priority = Priority(level=priority)
+        
+        updated_task = self.update_task_by_id(
+            task_id=task_id,
+            file_paths=file_paths,
+            new_priority=new_priority
+        )
+        
+        return updated_task is not None
+    
+    def _parse_interval(self, interval: str) -> int:
+        """Parse interval string and return total days.
+        
+        Args:
+            interval: Interval string like "1w", "30d", "3m", "1y2m1w4d"
+            
+        Returns:
+            Total number of days
+        """
+        import re
+        
+        # Parse complex intervals like "1y2m1w4d"
+        pattern = r'(?:(\d+)y)?(?:(\d+)m)?(?:(\d+)w)?(?:(\d+)d)?'
+        match = re.match(pattern, interval.lower())
+        
+        if not match:
+            # Try simple formats
+            simple_pattern = r'(\d+)([dwmy])'
+            simple_match = re.match(simple_pattern, interval.lower())
+            if simple_match:
+                amount = int(simple_match.group(1))
+                unit = simple_match.group(2)
+                
+                if unit == 'd':
+                    return amount
+                elif unit == 'w':
+                    return amount * 7
+                elif unit == 'm':
+                    return amount * 30  # Approximate
+                elif unit == 'y':
+                    return amount * 365  # Approximate
+            return 0
+        
+        years = int(match.group(1) or 0)
+        months = int(match.group(2) or 0)
+        weeks = int(match.group(3) or 0)
+        days = int(match.group(4) or 0)
+        
+        # Convert to total days (approximations for months/years)
+        total_days = days + weeks * 7 + months * 30 + years * 365
+        return total_days
+        
 
 
 class FileDiscoveryService:

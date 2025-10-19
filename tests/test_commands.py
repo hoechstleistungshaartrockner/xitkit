@@ -7,7 +7,8 @@ from pathlib import Path
 from xit.commands import (
     Command, ShowTasksCommand, ShowStatsCommand, AddTaskCommand, 
     MarkTaskCommand, RescheduleTaskCommand, RemoveTaskCommand, 
-    MoveTaskCommand, RecurTaskCommand, CommandFactory
+    MoveTaskCommand, RecurTaskCommand, EditTaskCommand, PriorityTaskCommand,
+    TagTaskCommand, UntagTaskCommand, CommandFactory
 )
 from xit.services import TaskFilter
 from xit.task import Task
@@ -1288,11 +1289,11 @@ class TestCommandIntegration:
         tasks = args[0]
         
         assert len(tasks) == 3
-        assert tasks[0].description == "Open high priority task #work"
-        assert tasks[0].priority == 1
-        assert tasks[1].status == "DONE"
-        assert tasks[2].status == "ONGOING"
-        assert tasks[2].due_date == "2025-12-31"
+        assert str(tasks[0].description) == "! Open high priority task #work"
+        assert tasks[0].priority.level == 1
+        assert tasks[1].status.status_type.name == "CHECKED"
+        assert tasks[2].status.status_type.name == "ONGOING"
+        assert tasks[2].due_date_string == "2025-12-31"
     
     def test_stats_command_real_integration(self, temp_dir):
         """Test ShowStatsCommand with real file system and components."""
@@ -1324,13 +1325,13 @@ class TestCommandIntegration:
         cmd._display_statistics.assert_called_once()
         stats, path_arg = cmd._display_statistics.call_args[0]
         
-        assert stats['total_tasks'] == 5
-        assert stats['status_counts']['OPEN'] == 1
-        assert stats['status_counts']['DONE'] == 1
-        assert stats['status_counts']['ONGOING'] == 1
-        assert stats['status_counts']['OBSOLETE'] == 1
-        assert stats['status_counts']['INQUESTION'] == 1
-        assert len(stats['files_with_tasks']) == 2
+        assert stats['total'] == 5
+        assert stats['by_status']['OPEN'] == 1
+        assert stats['by_status']['CHECKED'] == 1
+        assert stats['by_status']['ONGOING'] == 1
+        assert stats['by_status']['OBSOLETE'] == 1
+        assert stats['by_status']['IN_QUESTION'] == 1
+        assert len(stats['by_file']) == 2
     
     def test_command_with_filters_integration(self, temp_dir):
         """Test command with filters using real components."""
@@ -1349,7 +1350,8 @@ class TestCommandIntegration:
         cmd.formatter.display_summary = Mock()
         
         # Test filtering by status
-        filters = TaskFilter(status="OPEN")
+        from xit.status import Status, StatusType
+        filters = TaskFilter(status=Status(StatusType.OPEN))
         cmd.execute(
             path=str(test_file),
             filters=filters
@@ -1359,11 +1361,12 @@ class TestCommandIntegration:
         filtered_tasks = args[0]
         
         assert len(filtered_tasks) == 2  # Two OPEN tasks
-        assert all(task.status == "OPEN" for task in filtered_tasks)
+        assert all(task.status.status_type == StatusType.OPEN for task in filtered_tasks)
         
         # Test filtering by tags
         cmd.formatter.display_tasks.reset_mock()
-        filters = TaskFilter(tags=["work"])
+        from xit.tags import Tag
+        filters = TaskFilter(tags=[Tag(name="work")])
         cmd.execute(
             path=str(test_file),
             filters=filters
@@ -1373,7 +1376,7 @@ class TestCommandIntegration:
         filtered_tasks = args[0]
         
         assert len(filtered_tasks) == 3  # Three tasks with #work tag
-        assert all("#work" in task.tags for task in filtered_tasks)
+        assert all(task.has_tag_by_name("work") for task in filtered_tasks)
 
 
 class TestCommandErrorScenarios:
@@ -1889,3 +1892,488 @@ class TestRecurTaskCommand:
         with patch('pathlib.Path.cwd', return_value=Path("/home/user/project")):
             result = command._get_relative_path("/etc/config.txt")
             assert result == "/etc/config.txt"
+
+
+class TestEditTaskCommand:
+    """Test the EditTaskCommand functionality."""
+    
+    def test_edit_command_creation(self):
+        """Test creating an EditTaskCommand."""
+        from xit.commands import EditTaskCommand
+        
+        command = EditTaskCommand()
+        
+        assert isinstance(command.formatter, TaskFormatter)
+        assert hasattr(command, 'task_service')
+        assert hasattr(command, 'file_service')
+    
+    def test_edit_command_with_custom_formatter(self):
+        """Test EditTaskCommand with custom formatter."""
+        from xit.commands import EditTaskCommand
+        
+        custom_formatter = TaskFormatter()
+        command = EditTaskCommand(custom_formatter)
+        
+        assert command.formatter is custom_formatter
+    
+    def test_execute_edit_task_success(self):
+        """Test successful task description editing."""
+        from xit.commands import EditTaskCommand
+        
+        mock_formatter = Mock()
+        edit_command = EditTaskCommand(mock_formatter)
+        edit_command.task_service = Mock()
+        edit_command.task_service.edit_task_description.return_value = True
+        edit_command.file_service = Mock()
+        edit_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        edit_command.execute(
+            task_id=1,
+            description="Updated description",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service call
+        edit_command.task_service.edit_task_description.assert_called_once_with(
+            task_id=1,
+            new_description="Updated description",
+            file_paths=["/test/file.xit"]
+        )
+        
+        # Verify success message
+        mock_formatter.display_success.assert_called_once_with(
+            "Updated description for task #001"
+        )
+    
+    def test_execute_edit_task_not_found(self):
+        """Test editing a task that doesn't exist."""
+        from xit.commands import EditTaskCommand
+        
+        mock_formatter = Mock()
+        edit_command = EditTaskCommand(mock_formatter)
+        edit_command.task_service = Mock()
+        edit_command.task_service.edit_task_description.return_value = False
+        edit_command.file_service = Mock()
+        edit_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        edit_command.execute(
+            task_id=999,
+            description="Updated description",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message
+        mock_formatter.display_error.assert_called_once_with(
+            "Task #999 not found"
+        )
+    
+    def test_execute_edit_task_exception(self):
+        """Test edit task with exception handling."""
+        from xit.commands import EditTaskCommand
+        
+        mock_formatter = Mock()
+        edit_command = EditTaskCommand(mock_formatter)
+        edit_command.task_service = Mock()
+        edit_command.task_service.edit_task_description.side_effect = XitError("Test error")
+        edit_command.file_service = Mock()
+        edit_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        edit_command.execute(
+            task_id=1,
+            description="Updated description",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message
+        mock_formatter.display_error.assert_called_once_with("Test error")
+
+
+class TestPriorityTaskCommand:
+    """Test the PriorityTaskCommand functionality."""
+    
+    def test_priority_command_creation(self):
+        """Test creating a PriorityTaskCommand."""
+        from xit.commands import PriorityTaskCommand
+        
+        command = PriorityTaskCommand()
+        
+        assert isinstance(command.formatter, TaskFormatter)
+        assert hasattr(command, 'task_service')
+        assert hasattr(command, 'file_service')
+    
+    def test_execute_priority_task_success(self):
+        """Test successful task priority setting."""
+        from xit.commands import PriorityTaskCommand
+        
+        mock_formatter = Mock()
+        priority_command = PriorityTaskCommand(mock_formatter)
+        priority_command.task_service = Mock()
+        priority_command.task_service.set_task_priority.return_value = True
+        priority_command.file_service = Mock()
+        priority_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        priority_command.execute(
+            task_id=1,
+            priority="1",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service call
+        priority_command.task_service.set_task_priority.assert_called_once_with(
+            task_id=1,
+            priority=1,
+            file_paths=priority_command.file_service.resolve_file_paths.return_value
+        )
+        
+        # Verify success message
+        mock_formatter.display_success.assert_called_once_with(
+            "Set priority (1) for task #001"
+        )
+    
+    def test_execute_priority_task_valid_integer(self):
+        """Test priority setting with valid integer input."""
+        from xit.commands import PriorityTaskCommand
+        
+        mock_formatter = Mock()
+        priority_command = PriorityTaskCommand(mock_formatter)
+        priority_command.task_service = Mock()
+        priority_command.task_service.set_task_priority.return_value = True
+        priority_command.file_service = Mock()
+        priority_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command with integer priority
+        priority_command.execute(
+            task_id=1,
+            priority="2",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service called with integer
+        priority_command.task_service.set_task_priority.assert_called_once_with(
+            task_id=1,
+            priority=2,
+            file_paths=["/test/file.xit"]
+        )
+    
+    def test_execute_priority_task_invalid_format(self):
+        """Test priority setting with invalid format."""
+        from xit.commands import PriorityTaskCommand
+        
+        mock_formatter = Mock()
+        priority_command = PriorityTaskCommand(mock_formatter)
+        priority_command.task_service = Mock()
+        
+        # Execute command with invalid priority
+        priority_command.execute(
+            task_id=1,
+            priority="invalid",  # Not an integer
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message and no service call
+        mock_formatter.display_error.assert_called_once_with(
+            "Priority must be an integer (0, 1, 2, etc.)"
+        )
+        priority_command.task_service.set_task_priority.assert_not_called()
+    
+    def test_execute_priority_task_not_found(self):
+        """Test setting priority for a task that doesn't exist."""
+        from xit.commands import PriorityTaskCommand
+        
+        mock_formatter = Mock()
+        priority_command = PriorityTaskCommand(mock_formatter)
+        priority_command.task_service = Mock()
+        priority_command.task_service.set_task_priority.return_value = False
+        priority_command.file_service = Mock()
+        priority_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        priority_command.execute(
+            task_id=999,
+            priority="1",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message
+        mock_formatter.display_error.assert_called_once_with(
+            "Task #999 not found"
+        )
+
+
+class TestTagTaskCommand:
+    """Test the TagTaskCommand functionality."""
+    
+    def test_tag_command_creation(self):
+        """Test creating a TagTaskCommand."""
+        from xit.commands import TagTaskCommand
+        
+        command = TagTaskCommand()
+        
+        assert isinstance(command.formatter, TaskFormatter)
+        assert hasattr(command, 'task_service')
+        assert hasattr(command, 'file_service')
+    
+    def test_execute_tag_task_success(self):
+        """Test successful tag addition."""
+        from xit.commands import TagTaskCommand
+        
+        mock_formatter = Mock()
+        tag_command = TagTaskCommand(mock_formatter)
+        tag_command.task_service = Mock()
+        tag_command.task_service.add_task_tag.return_value = True
+        tag_command.file_service = Mock()
+        tag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command
+        tag_command.execute(
+            task_id=1,
+            tag="urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service call
+        tag_command.task_service.add_task_tag.assert_called_once_with(
+            task_id=1,
+            tag="urgent",
+            file_paths=["/test/file.xit"]
+        )
+        
+        # Verify success message
+        mock_formatter.display_success.assert_called_once_with(
+            "Added tag #urgent to task #001"
+        )
+    
+    def test_execute_tag_task_with_hash_prefix(self):
+        """Test tag addition with hash prefix."""
+        from xit.commands import TagTaskCommand
+        
+        mock_formatter = Mock()
+        tag_command = TagTaskCommand(mock_formatter)
+        tag_command.task_service = Mock()
+        tag_command.task_service.add_task_tag.return_value = True
+        tag_command.file_service = Mock()
+        tag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        
+        # Execute command with # prefix
+        tag_command.execute(
+            task_id=1,
+            tag="#urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify # was stripped from service call
+        tag_command.task_service.add_task_tag.assert_called_once_with(
+            task_id=1,
+            tag="urgent",
+            file_paths=["/test/file.xit"]
+        )
+    
+    def test_execute_tag_task_invalid_format(self):
+        """Test tag addition with invalid format."""
+        from xit.commands import TagTaskCommand
+        
+        mock_formatter = Mock()
+        tag_command = TagTaskCommand(mock_formatter)
+        tag_command.task_service = Mock()
+        
+        # Execute command with invalid tag (contains space)
+        tag_command.execute(
+            task_id=1,
+            tag="urgent task",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message and no service call
+        mock_formatter.display_error.assert_called_once_with(
+            "Tag must be a single word without spaces"
+        )
+        tag_command.task_service.add_task_tag.assert_not_called()
+    
+    def test_execute_tag_task_not_found(self):
+        """Test adding tag to a task that doesn't exist."""
+        from xit.commands import TagTaskCommand
+        
+        mock_formatter = Mock()
+        tag_command = TagTaskCommand(mock_formatter)
+        tag_command.task_service = Mock()
+        tag_command.file_service = Mock()
+        tag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        tag_command.task_service.add_task_tag.return_value = False
+        
+        # Execute command
+        tag_command.execute(
+            task_id=999,
+            tag="urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message and service call
+        mock_formatter.display_error.assert_called_once_with(
+            "Task #999 not found"
+        )
+        tag_command.task_service.add_task_tag.assert_called_once_with(
+            task_id=999, tag="urgent", file_paths=["/test/file.xit"]
+        )
+
+
+class TestUntagTaskCommand:
+    """Test the UntagTaskCommand functionality."""
+    
+    def test_untag_command_creation(self):
+        """Test creating an UntagTaskCommand."""
+        from xit.commands import UntagTaskCommand
+        
+        command = UntagTaskCommand()
+        
+        assert isinstance(command.formatter, TaskFormatter)
+        assert hasattr(command, 'task_service')
+        assert hasattr(command, 'file_service')
+    
+    def test_execute_untag_task_success(self):
+        """Test successful tag removal."""
+        from xit.commands import UntagTaskCommand
+        
+        mock_formatter = Mock()
+        untag_command = UntagTaskCommand(mock_formatter)
+        untag_command.task_service = Mock()
+        untag_command.file_service = Mock()
+        untag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        untag_command.task_service.remove_task_tag.return_value = True
+        
+        # Execute command
+        untag_command.execute(
+            task_id=1,
+            tag="urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify service call
+        untag_command.task_service.remove_task_tag.assert_called_once_with(
+            task_id=1,
+            tag="urgent",
+            file_paths=["/test/file.xit"]
+        )
+        
+        # Verify success message
+        mock_formatter.display_success.assert_called_once_with(
+            "Removed tag #urgent from task #001"
+        )
+    
+    def test_execute_untag_task_with_hash_prefix(self):
+        """Test tag removal with hash prefix."""
+        from xit.commands import UntagTaskCommand
+        
+        mock_formatter = Mock()
+        untag_command = UntagTaskCommand(mock_formatter)
+        untag_command.task_service = Mock()
+        untag_command.file_service = Mock()
+        untag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        untag_command.task_service.remove_task_tag.return_value = True
+        
+        # Execute command with # prefix
+        untag_command.execute(
+            task_id=1,
+            tag="#urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify # was stripped from service call
+        untag_command.task_service.remove_task_tag.assert_called_once_with(
+            task_id=1,
+            tag="urgent",
+            file_paths=["/test/file.xit"]
+        )
+    
+    def test_execute_untag_task_not_found(self):
+        """Test removing tag from a task that doesn't exist."""
+        from xit.commands import UntagTaskCommand
+        
+        mock_formatter = Mock()
+        untag_command = UntagTaskCommand(mock_formatter)
+        untag_command.task_service = Mock()
+        untag_command.file_service = Mock()
+        untag_command.file_service.resolve_file_paths.return_value = ["/test/file.xit"]
+        untag_command.task_service.remove_task_tag.return_value = False
+        
+        # Execute command
+        untag_command.execute(
+            task_id=999,
+            tag="urgent",
+            directory=Path("/test"),
+            specified_files=[]
+        )
+        
+        # Verify error message and service call
+        mock_formatter.display_error.assert_called_once_with(
+            "Task #999 not found"
+        )
+        untag_command.task_service.remove_task_tag.assert_called_once_with(
+            task_id=999, tag="urgent", file_paths=["/test/file.xit"]
+        )
+
+
+class TestCommandFactoryNew:
+    """Test the CommandFactory for new commands."""
+    
+    def test_create_edit_command(self):
+        """Test creating EditTaskCommand through factory."""
+        from xit.commands import CommandFactory, EditTaskCommand
+        
+        command = CommandFactory.create_edit_command()
+        
+        assert isinstance(command, EditTaskCommand)
+        assert isinstance(command.formatter, TaskFormatter)
+    
+    def test_create_edit_command_with_formatter(self):
+        """Test creating EditTaskCommand with custom formatter."""
+        from xit.commands import CommandFactory, EditTaskCommand
+        
+        custom_formatter = TaskFormatter()
+        command = CommandFactory.create_edit_command(custom_formatter)
+        
+        assert isinstance(command, EditTaskCommand)
+        assert command.formatter is custom_formatter
+    
+    def test_create_priority_command(self):
+        """Test creating PriorityTaskCommand through factory."""
+        from xit.commands import CommandFactory, PriorityTaskCommand
+        
+        command = CommandFactory.create_priority_command()
+        
+        assert isinstance(command, PriorityTaskCommand)
+        assert isinstance(command.formatter, TaskFormatter)
+    
+    def test_create_tag_command(self):
+        """Test creating TagTaskCommand through factory."""
+        from xit.commands import CommandFactory, TagTaskCommand
+        
+        command = CommandFactory.create_tag_command()
+        
+        assert isinstance(command, TagTaskCommand)
+        assert isinstance(command.formatter, TaskFormatter)
+    
+    def test_create_untag_command(self):
+        """Test creating UntagTaskCommand through factory."""
+        from xit.commands import CommandFactory, UntagTaskCommand
+        
+        command = CommandFactory.create_untag_command()
+        
+        assert isinstance(command, UntagTaskCommand)
+        assert isinstance(command.formatter, TaskFormatter)

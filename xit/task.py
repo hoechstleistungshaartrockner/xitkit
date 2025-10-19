@@ -61,13 +61,15 @@ class Task:
         elif isinstance(status, StatusType):
             self.status = Status(status)
         elif isinstance(status, str):
-            # Map legacy status strings to StatusType
+            # Map legacy and current status strings to StatusType
             status_mapping = {
                 "OPEN": StatusType.OPEN,
-                "DONE": StatusType.CHECKED,
+                "DONE": StatusType.CHECKED,      # legacy name
+                "CHECKED": StatusType.CHECKED,   # current name
                 "ONGOING": StatusType.ONGOING,
                 "OBSOLETE": StatusType.OBSOLETE,
-                "INQUESTION": StatusType.IN_QUESTION
+                "INQUESTION": StatusType.IN_QUESTION,  # legacy name
+                "IN_QUESTION": StatusType.IN_QUESTION  # current name
             }
             if status in status_mapping:
                 self.status = Status(status_mapping[status])

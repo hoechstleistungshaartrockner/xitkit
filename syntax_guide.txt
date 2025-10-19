@@ -1,5 +1,7 @@
 
+# Syntax Guide for xit Todo Lists
 
+## Status
 A checkbox can have one of five statuses: open, checked, ongoing, obsolete, in-question.
 [ ] Open
 [x] Checked
@@ -22,7 +24,9 @@ It’s also invalid if the status character is missing, or if it contains extra 
 The checkbox cannot be preceded by whitespace.
  [x] Invalid
     [x] Invalid
-Description
+
+
+## Description
 
 The checkbox can be followed by a description, which is separated by one space from the checkbox.
 [ ] Do this
@@ -83,7 +87,9 @@ Square brackets in the description (even at the beginning of subsequent lines) a
     [ ] all description text
 [ ] ! Check: [ #tags ] / [ -> 2022
     (I.e., other tokens still work)
-Priority
+
+
+## Priority
 
 If a priority is specified, it must follow after the checkbox, and must be separated by one space from surrounding elements.
 [ ] ! This is important
@@ -118,8 +124,9 @@ Any exclamation marks after the priority don’t belong to the priority anymore,
 [ ] . ! This is not important
 [ ] The next line is also ...
     !!! not important
-Due Date
 
+
+## Due Date
 The description can contain a due date.
 [ ] -> 2022-01-31
 [ ] Do this -> 2022-01-31
@@ -128,11 +135,19 @@ The description can contain a due date.
     -> 2022-01-31
 
 Due dates can be expressed through various patterns to reference a day, week, month, quarter or year.
+The last day of that period is implied.
 [ ] -> 2022-01-31
 [ ] -> 2022-01
 [ ] -> 2022
 [ ] -> 2022-W01
 [ ] -> 2022-Q1
+
+The following date formats are equivalent:
+[ ] -> 2022-12-31
+[ ] -> 2022-12
+[ ] -> 2022
+[ ] -> 2022-Q4
+
 
 Instead of a hyphen, the delimiter can also be a slash.
 [ ] -> 2022/01/31
@@ -142,7 +157,7 @@ The delimiter style cannot be mixed, though.
 [ ] -> 2022-01/31
 
 Redundant due dates are not recognised.
-[ ] -> 2022-01-31 -> 2022-01-31
+[ ] -> 2022-01-31 -> 2022-01-31 (second one is ignored)
 
 Due dates can be surrounded by a space or punctuation (apart from a hyphen or slash).
 [ ] Do this soon -> 2022-01-31!!!
@@ -163,7 +178,9 @@ The prefix must be exactly: a hyphen, a greater-than sign, and a space. Otherwis
 [ ] >2022-01-31
 [ ] Do until ->
     2022-01-31
-Tags
+
+
+## Tags
 
 Description can contain tags. A tag starts with a hashtag, followed by letters (as of the Unicode letter category), digits, hyphens, or underscores.
 [ ] #tag

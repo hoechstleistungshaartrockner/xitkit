@@ -107,6 +107,14 @@ xit recur 5 --interval 1w --count 4    # Create 4 weekly instances of task #5
 xit recur 3 -i 2w -n 5                # Create 5 bi-weekly instances of task #3
 xit recur 7 -i 1m -e 2026-12-31       # Monthly recurrence until end of 2026
 xit recur 2 -i 1d -n 30 -t work.xit  # 30 daily instances in work.xit file
+
+# Edit task properties
+xit edit 5 "Updated task description"   # Change the description of task #5
+xit prio 3 2                          # Set priority level 2 (!!) for task #3
+xit prio 7 0                          # Remove priority from task #7
+xit tag 5 urgent                      # Add #urgent tag to task #5
+xit tag 3 "work"                      # Add #work tag to task #3
+xit untag 5 urgent                    # Remove #urgent tag from task #5
 ```
 
 #### Key Features
@@ -336,6 +344,91 @@ xit recur 3 -i 1d -n 10 -t sprint.xit  # 2-week sprint in separate file
 **Quarterly Reviews**:
 ```bash
 xit recur 15 -i 3m -n 4  # Full year of quarterly reviews
+```
+
+### Task Editing
+
+The task editing commands allow you to modify existing tasks without recreating them. All editing operations preserve the task's status and location while updating specific properties.
+
+#### Edit Task Description
+
+Change the description text of a task while preserving its priority, tags, and due date:
+
+```bash
+# Basic description editing
+xit edit 5 "Updated task description"
+xit edit 3 "New project requirements" --files work.xit
+
+# Task properties are automatically preserved
+# Original: [ ] !!! Old description #urgent #work -> 2025-12-31
+# After:    [ ] !!! Updated description #urgent #work -> 2025-12-31
+```
+
+#### Set Task Priority
+
+Assign or change task priority levels using integer values (0 = no priority, 1+ = exclamation marks):
+
+```bash
+# Set priority levels
+xit prio 5 1                          # Set priority 1 (!)
+xit prio 3 3                          # Set priority 3 (!!!)
+xit prio 7 0                          # Remove priority (set to none)
+
+# Priority examples in task files:
+# Priority 0: [ ] Normal task
+# Priority 1: [ ] ! Important task  
+# Priority 2: [ ] !! Very important task
+# Priority 3: [ ] !!! Critical task
+```
+
+#### Manage Task Tags
+
+Add or remove hashtags from tasks:
+
+```bash
+# Add tags (# symbol is optional)
+xit tag 5 urgent                      # Add #urgent tag
+xit tag 3 "work"                      # Add #work tag  
+xit tag 7 "#meeting"                  # Add #meeting tag (# is optional)
+
+# Remove tags
+xit untag 5 urgent                    # Remove #urgent tag
+xit untag 3 work                      # Remove #work tag
+xit untag 7 "#meeting"                # Remove #meeting tag (# is optional)
+
+# Tags are preserved when editing other properties
+```
+
+#### Editing Command Options
+
+All editing commands support the same file targeting options:
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--directory` | `-d` | Search specific directory |
+| `--files` | `-f` | Target specific files (multiple allowed) |
+
+#### Examples by Use Case
+
+**Update Project Tasks**:
+```bash
+xit edit 12 "Implement new authentication system"
+xit prio 12 2                        # Make it high priority
+xit tag 12 security                  # Add security tag
+```
+
+**Bulk Tag Management**:
+```bash
+xit tag 5 urgent                     # Mark as urgent
+xit tag 6 urgent                     # Mark another as urgent
+xit untag 7 urgent                   # Remove urgent from completed task
+```
+
+**Priority Adjustment**:
+```bash
+xit prio 3 1                         # Lower priority  
+xit prio 15 3                        # Raise to critical
+xit prio 8 0                         # Remove priority entirely
 ```
 
 ## File Structure

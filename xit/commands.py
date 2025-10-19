@@ -11,6 +11,11 @@ from pathlib import Path
 from .services import TaskService, FileDiscoveryService, TaskFilter
 from .formatter import TaskFormatter
 from .exceptions import XitError
+from .status import Status, StatusType
+from .description import Description
+from .priority import Priority
+from .task import Task
+from .duedate import DueDate
 
 
 class Command(ABC):
@@ -33,7 +38,7 @@ class ShowTasksCommand(Command):
     
     def execute(self, path: str = None, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
-                show_line: bool = False, show_id: bool = False, count_only: bool = False) -> None:
+                show_line: bool = False, no_id: bool = False, count_only: bool = False) -> None:
         """Execute the show tasks command.
         
         Args:
@@ -42,7 +47,7 @@ class ShowTasksCommand(Command):
             specified_files: Explicitly specified files
             filters: Task filters to apply
             show_line: Whether to show line numbers
-            show_id: Whether to show task IDs
+            no_id: Whether to hide task IDs
             count_only: Whether to show only count
         """
         try:
@@ -72,13 +77,20 @@ class ShowTasksCommand(Command):
             elif not filtered_tasks:
                 self.formatter.display_warning("No tasks match the specified criteria.")
             else:
-                self.formatter.display_tasks(filtered_tasks, show_line=show_line, show_id=show_id)
+                self.formatter.display_tasks(filtered_tasks, show_line=show_line, no_id=no_id)
                 self.formatter.display_summary(len(filtered_tasks), len(all_tasks))
                 
         except XitError as e:
             self.formatter.display_error(str(e))
         except Exception as e:
             self.formatter.display_error(f"Unexpected error: {e}")
+
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
 
 
 class ShowStatsCommand(Command):
@@ -127,22 +139,23 @@ class ShowStatsCommand(Command):
             self.formatter.console.print("[bold]Task Statistics[/bold]")
         
         self.formatter.console.print("=" * 40)
-        self.formatter.console.print(f"Total tasks: {stats['total_tasks']}")
-        self.formatter.console.print(f"Files with tasks: {len(stats['files_with_tasks'])}")
+        self.formatter.console.print(f"Total tasks: {stats['total']}")
+        self.formatter.console.print(f"Files with tasks: {len(stats['by_file'])}")
         self.formatter.console.print()
         
         # Status breakdown
         self.formatter.console.print("[bold]By Status:[/bold]")
-        for status in ['OPEN', 'ONGOING', 'DONE', 'OBSOLETE', 'INQUESTION']:
-            count = stats['status_counts'].get(status, 0)
+        status_display = {'OPEN': 'Open', 'CHECKED': 'Done', 'ONGOING': 'Ongoing', 'OBSOLETE': 'Obsolete', 'IN_QUESTION': 'In Question'}
+        for status, display_name in status_display.items():
+            count = stats['by_status'].get(status, 0)
             if count > 0:
-                self.formatter.console.print(f"  {status}: {count}")
+                self.formatter.console.print(f"  {display_name}: {count}")
         self.formatter.console.print()
         
         # Priority breakdown
         self.formatter.console.print("[bold]By Priority:[/bold]")
-        for priority in sorted(stats['priority_counts'].keys()):
-            count = stats['priority_counts'][priority]
+        for priority in sorted(stats['by_priority'].keys()):
+            count = stats['by_priority'][priority]
             if priority == 0:
                 self.formatter.console.print(f"  No priority: {count}")
             else:
@@ -150,8 +163,16 @@ class ShowStatsCommand(Command):
         self.formatter.console.print()
         
         # Additional stats
-        self.formatter.console.print(f"Tasks with due dates: {stats['tasks_with_due_dates']}")
-        self.formatter.console.print(f"Tasks with tags: {stats['tasks_with_tags']}")
+        self.formatter.console.print(f"Tasks with due dates: {stats['with_due_date']}")
+        self.formatter.console.print(f"Tasks with tags: {stats['with_tags']}")
+        self.formatter.console.print(f"Overdue tasks: {stats['overdue']}")
+        
+        # File breakdown  
+        if len(stats['by_file']) > 1:
+            self.formatter.console.print()
+            self.formatter.console.print("[bold]By File:[/bold]")
+            for filename, count in sorted(stats['by_file'].items()):
+                self.formatter.console.print(f"  {filename}: {count}")
 
 
 class AddTaskCommand(Command):
@@ -173,8 +194,20 @@ class AddTaskCommand(Command):
                 else:
                     file_path = str(Path.cwd() / file_path)
             
+            # Create a task object
+            task = Task(
+                description=description,
+                file=file_path,
+                line_number=None,  # Will be determined when added
+                status=Status(StatusType.OPEN),
+                priority=Priority(0),  # No priority by default
+                tags=[],
+                due_date=None,
+                id=None  # Will be assigned when loaded
+            )
+            
             # Add the task to the file
-            self.task_service.add_task_to_file(description, file_path)
+            self.task_service.add_task_to_file(task, file_path)
             
             # Display confirmation message
             relative_path = self._get_relative_path(file_path)
@@ -218,19 +251,36 @@ class MarkTaskCommand(Command):
                 self.formatter.display_warning("No task files found.")
                 return
             
+            # Convert status string to Status object
+            status_mapping = {
+                'OPEN': StatusType.OPEN,
+                'DONE': StatusType.CHECKED,  # CLI uses 'done', StatusType uses 'CHECKED'
+                'ONGOING': StatusType.ONGOING,
+                'OBSOLETE': StatusType.OBSOLETE,
+                'INQUESTION': StatusType.IN_QUESTION
+            }
+            
+            if status.upper() not in status_mapping:
+                self.formatter.display_error(f"Invalid status: {status}")
+                return
+                
+            status_obj = Status(status_mapping[status.upper()])
+            
             # Process each task ID
             updated_count = 0
             for task_id in task_ids:
                 try:
                     # Find and update the task
-                    updated_task = self.task_service.mark_task_by_id(task_id, status, file_paths)
+                    updated_task = self.task_service.update_task_by_id(
+                        task_id, file_paths, new_status=status_obj
+                    )
                     
                     if updated_task:
                         # Display confirmation message
                         relative_path = self._get_relative_path(updated_task.file)
                         status_display = status.lower()
                         self.formatter.display_success(
-                            f"✓ Marked task #{task_id} as {status_display} in {relative_path}: \"{updated_task.description}\""
+                            f"✓ Marked task #{task_id:03d} as {status_display} in {relative_path}: \"{updated_task.description.text}\""
                         )
                         updated_count += 1
                     else:
@@ -297,7 +347,8 @@ class RescheduleTaskCommand(Command):
                 if parsed_date is None:
                     self.formatter.display_error(f"Invalid date format: {new_date}")
                     return
-                    
+                
+                parsed_date = DueDate.from_string(str(parsed_date))
             except Exception as e:
                 self.formatter.display_error(f"Invalid date format: {new_date}")
                 return
@@ -307,7 +358,7 @@ class RescheduleTaskCommand(Command):
             for task_id in task_ids:
                 try:
                     # Find and update the task
-                    updated_task = self.task_service.reschedule_task_by_id(task_id, parsed_date, file_paths)
+                    updated_task = self.task_service.update_task_by_id(task_id, file_paths, new_due_date=parsed_date)
                     
                     if updated_task:
                         # Display confirmation message
@@ -636,6 +687,202 @@ class RecurTaskCommand(Command):
             return file_path
 
 
+class EditTaskCommand(Command):
+    """Command for editing task descriptions."""
+    
+    def execute(self, task_id: int, description: str,
+                directory: Path = None, specified_files: list = None) -> None:
+        """Execute the edit task command.
+        
+        Args:
+            task_id: ID of the task to edit
+            description: New description text
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+        """
+        try:
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Edit the task description
+            updated_task = self.task_service.update_task_description(
+                task_id=task_id,
+                new_description=description,
+                file_paths=file_paths
+            )
+            
+            if updated_task:
+                relative_path = self._get_relative_path(updated_task.file)
+                self.formatter.display_success(
+                    f"✓ Updated description for task #{task_id:03d} in {relative_path}: \"{updated_task.description.text}\""
+                )
+            else:
+                self.formatter.display_error(f"Task #{task_id:03d} not found")
+                
+        except Exception as e:
+            if isinstance(e, XitError):
+                self.formatter.display_error(str(e))
+            else:
+                self.formatter.display_error(f"Error editing task: {e}")
+
+    def _get_relative_path(self, file_path: str) -> str:
+        """Get relative path for display."""
+        try:
+            return str(Path(file_path).relative_to(Path.cwd()))
+        except ValueError:
+            return file_path
+
+
+class PriorityTaskCommand(Command):
+    """Command for setting task priority."""
+    
+    def execute(self, task_id: int, priority: int,
+                directory: Path = None, specified_files: list = None) -> None:
+        """Execute the priority task command.
+        
+        Args:
+            task_id: ID of the task to modify
+            priority: Priority level (0, 1, 2, etc.)
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+        """
+        try:
+            # Validate priority
+            if priority < 0:
+                self.formatter.display_error("Priority must be a non-negative integer (0, 1, 2, etc.)")
+                return
+            
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Set the task priority
+            success = self.task_service.set_task_priority(
+                task_id=task_id,
+                priority=priority,
+                directory=directory,
+                specified_files=specified_files
+            )
+            
+            if success:
+                priority_display = f"({priority})" if priority > 0 else "(none)"
+                self.formatter.display_success(f"Set priority {priority_display} for task #{task_id:03d}")
+            else:
+                self.formatter.display_error(f"Task #{task_id:03d} not found")
+                
+        except Exception as e:
+            if isinstance(e, XitError):
+                self.formatter.display_error(str(e))
+            else:
+                self.formatter.display_error(f"Error setting task priority: {e}")
+
+
+class TagTaskCommand(Command):
+    """Command for adding tags to tasks."""
+    
+    def execute(self, task_id: int, tag: str,
+                directory: Path = None, specified_files: list = None) -> None:
+        """Execute the tag task command.
+        
+        Args:
+            task_id: ID of the task to modify
+            tag: Tag to add (without # prefix)
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+        """
+        try:
+            # Clean the tag (remove # if present)
+            tag = tag.lstrip('#')
+            
+            # Validate tag format
+            if not tag or ' ' in tag:
+                self.formatter.display_error("Tag must be a single word without spaces")
+                return
+            
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Add the tag
+            success = self.task_service.add_task_tag(
+                task_id=task_id,
+                tag=tag,
+                file_paths=file_paths
+            )
+            
+            if success:
+                self.formatter.display_success(f"Added tag #{tag} to task #{task_id:03d}")
+            else:
+                self.formatter.display_error(f"Task #{task_id:03d} not found")
+                
+        except Exception as e:
+            if isinstance(e, XitError):
+                self.formatter.display_error(str(e))
+            else:
+                self.formatter.display_error(f"Error adding tag: {e}")
+
+
+class UntagTaskCommand(Command):
+    """Command for removing tags from tasks."""
+    
+    def execute(self, task_id: int, tag: str,
+                directory: Path = None, specified_files: list = None) -> None:
+        """Execute the untag task command.
+        
+        Args:
+            task_id: ID of the task to modify
+            tag: Tag to remove (without # prefix)
+            directory: Directory to search for tasks
+            specified_files: Specific files to search in
+        """
+        try:
+            # Clean the tag (remove # if present)
+            tag = tag.lstrip('#')
+            
+            # Resolve file paths
+            file_paths = self.file_service.resolve_file_paths(
+                None, directory, specified_files
+            )
+            
+            if not file_paths:
+                self.formatter.display_warning("No task files found.")
+                return
+            
+            # Remove the tag
+            success = self.task_service.remove_task_tag(
+                task_id=task_id,
+                tag=tag,
+                file_paths=file_paths
+            )
+            
+            if success:
+                self.formatter.display_success(f"Removed tag #{tag} from task #{task_id:03d}")
+            else:
+                self.formatter.display_error(f"Task #{task_id:03d} not found")
+                
+        except Exception as e:
+            if isinstance(e, XitError):
+                self.formatter.display_error(str(e))
+            else:
+                self.formatter.display_error(f"Error removing tag: {e}")
+
+
 class CommandFactory:
     """Factory for creating command instances."""
     
@@ -678,3 +925,23 @@ class CommandFactory:
     def create_recur_command(formatter: TaskFormatter = None) -> RecurTaskCommand:
         """Create a recur task command."""
         return RecurTaskCommand(formatter)
+    
+    @staticmethod
+    def create_edit_command(formatter: TaskFormatter = None) -> EditTaskCommand:
+        """Create an edit task command."""
+        return EditTaskCommand(formatter)
+    
+    @staticmethod
+    def create_priority_command(formatter: TaskFormatter = None) -> PriorityTaskCommand:
+        """Create a priority task command."""
+        return PriorityTaskCommand(formatter)
+    
+    @staticmethod
+    def create_tag_command(formatter: TaskFormatter = None) -> TagTaskCommand:
+        """Create a tag task command."""
+        return TagTaskCommand(formatter)
+    
+    @staticmethod
+    def create_untag_command(formatter: TaskFormatter = None) -> UntagTaskCommand:
+        """Create an untag task command."""
+        return UntagTaskCommand(formatter)

@@ -44,10 +44,10 @@ class TaskFormatter:
         # Status colors for different task states
         self.status_colors = {
             'OPEN': 'white',
-            'DONE': 'green',
+            'CHECKED': 'green',
             'ONGOING': 'yellow',
             'OBSOLETE': 'red',
-            'INQUESTION': 'magenta'
+            'IN_QUESTION': 'magenta'
         }
     
     def _normalize_date_for_display(self, date_str: str) -> str:
@@ -135,14 +135,15 @@ class TaskFormatter:
         
         # Return as-is if we can't normalize it
         return date_str
-    
-    def format_task(self, task: Task, show_line: bool = False, show_id: bool = False) -> Text:
+
+    def format_task(self, task: Task, show_file: bool = False, show_line: bool = False, no_id: bool = False) -> Text:
         """Format a single task using Rich for colored terminal output.
         
         Args:
             task: Task object to format
+            show_file: Whether to include file name in output
             show_line: Whether to include line number in output
-            show_id: Whether to include task ID in output
+            no_id: Whether to include task ID in output
             
         Returns:
             Rich Text object with colored formatting
@@ -151,27 +152,29 @@ class TaskFormatter:
         text = Text()
         
         # Add task ID if requested, with zero padding and reduced opacity
-        if show_id:
+        if not no_id:
             # Calculate the number of digits needed for zero padding based on task ID
             # Use at least 3 digits for padding
             total_digits = max(3, len(str(task.id)))
             padded_id = f"#{task.id:0{total_digits}d}"
-            text.append(padded_id, style="dim white")
+            text.append(padded_id, style="grey39")
             text.append(" ")
         
         # Add status symbol with color
-        status_color = self.status_colors.get(task.status, 'white')
+        # Get status type name for color mapping
+        status_name = task.status.status_type.name
+        status_color = self.status_colors.get(status_name, 'white')
         text.append(task.status_symbol, style=f"bold {status_color}")
         text.append(" ")
         
         # Add priority indicator if task has priority
         if task.has_priority:
-            priority_indicator = "!" * task.priority
+            priority_indicator = task.priority_indicator
             text.append(priority_indicator, style="bold red")
             text.append(" ")
         
         # Parse and format the description with highlighting
-        description_lines = task.description.split('\n')
+        description_lines = task.description.text.split('\n')
         
         for i, line in enumerate(description_lines):
             if i > 0:
@@ -302,13 +305,13 @@ class TaskFormatter:
         
         return Text(relative_path, style="bold underline")
     
-    def display_tasks(self, tasks: List[Task], show_line: bool = False, show_id: bool = False) -> None:
+    def display_tasks(self, tasks: List[Task], show_line: bool = False, no_id: bool = False) -> None:
         """Display a list of tasks grouped by file with Rich formatting.
         
         Args:
             tasks: List of tasks to display
             show_line: Whether to show line numbers
-            show_id: Whether to show task IDs
+            no_id: Whether to hide task IDs
         """
         if not tasks:
             self.console.print("[yellow]No tasks to display.[/yellow]")
@@ -322,12 +325,12 @@ class TaskFormatter:
             
             # Display file header
             file_header = self.format_file_header(file_path)
-            self.console.print(file_header)
-            self.console.print()  # Empty line after header
+            # self.console.print(file_header)
+            # self.console.print()  # Empty line after header
             
             # Display tasks for this file
             for task in file_tasks:
-                task_text = self.format_task(task, show_line=show_line, show_id=show_id)
+                task_text = self.format_task(task, show_line=show_line, no_id=no_id)
                 self.console.print(task_text)
             
             self.console.print()  # Empty line between files
@@ -340,7 +343,7 @@ class TaskFormatter:
             total_count: Total number of tasks found
         """
         if filtered_count != total_count:
-            self.console.print(f"[dim]Showing {filtered_count} of {total_count} total tasks[/dim]")
+            self.console.print(f"[dim]Showing {filtered_count} of {total_count} total tasks.[/dim]")
     
     def display_count(self, count: int) -> None:
         """Display just the count of tasks.
@@ -348,7 +351,7 @@ class TaskFormatter:
         Args:
             count: Number of tasks
         """
-        self.console.print(f"[green]{count} tasks found[/green]")
+        self.console.print(f"[green]{count} tasks found.[/green]")
     
     def display_error(self, message: str) -> None:
         """Display an error message.
@@ -390,4 +393,4 @@ def format_task_rich(task: Task, show_line: bool = False, show_id: bool = False)
         Rich Text object with colored formatting
     """
     formatter = TaskFormatter()
-    return formatter.format_task(task, show_line, show_id)
+    return formatter.format_task(task, show_file=False, show_line=show_line, show_id=show_id)

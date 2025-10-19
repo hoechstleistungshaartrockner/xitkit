@@ -57,8 +57,8 @@ def xit(ctx):
               help='Filter tasks due on or before the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
 @click.option('--show-line', '-l', is_flag=True,
               help='Show line numbers for each task')
-@click.option('--show-id', '-id', is_flag=True,
-              help='Show task IDs with zero padding and reduced opacity')
+@click.option('--no-id', is_flag=True,
+              help='Hide task IDs')
 @click.option('--count', '-c', is_flag=True,
               help='Show only the count of matching tasks')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -66,7 +66,7 @@ def xit(ctx):
 @click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, count, directory, files):
+def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, count, directory, files):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -89,12 +89,37 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, c
         xit show --files work.xit personal.xit --status open  # Show open tasks from multiple files
     """
     # Create filter object from CLI arguments
+    from xit.status import Status, StatusType
+    from xit.priority import Priority
+    from xit.tags import Tag
+    
+    # Convert CLI arguments to proper objects
+    status_obj = None
+    if status:
+        status_mapping = {
+            'open': StatusType.OPEN,
+            'done': StatusType.CHECKED,
+            'ongoing': StatusType.ONGOING,
+            'obsolete': StatusType.OBSOLETE,
+            'inquestion': StatusType.IN_QUESTION
+        }
+        if status in status_mapping:
+            status_obj = Status(status_mapping[status])
+    
+    priority_obj = None
+    if priority is not None:
+        priority_obj = Priority(priority)
+    
+    tag_objects = None
+    if tag:
+        tag_objects = [Tag(t) for t in tag]
+    
     filters = TaskFilter(
-        status=status,
-        priority=priority,
-        tags=list(tag) if tag else None,
-        due_on=due_on,
-        due_by=due_by
+        status=status_obj,
+        priority=priority_obj,
+        tags=tag_objects,
+        due_on=due_on,  # TODO: Convert to DueDate objects
+        due_by=due_by   # TODO: Convert to DueDate objects
     )
     
     # Create and execute command
@@ -105,7 +130,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, show_id, c
         specified_files=list(files) if files else [],
         filters=filters,
         show_line=show_line,
-        show_id=show_id,
+        no_id=no_id,
         count_only=count
     )
 
@@ -385,6 +410,134 @@ def recur(ctx, task_id, interval, end_date, count, target_file, directory, files
         end_date=end_date,
         count=count,
         target_file=target_file,
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('description', type=str, metavar='DESCRIPTION')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
+@click.pass_context
+def edit(ctx, task_id, description, directory, files):
+    """Edit the description of a task.
+    
+    Changes the description text of an existing task while preserving its priority,
+    tags, and due date.
+    
+    ID: Task ID number to edit (use 'xit show --show-id' to find IDs)
+    DESCRIPTION: New description text for the task
+    
+    Examples:
+        xit edit 5 "Updated task description"        # Edit task #5 description
+        xit edit 3 "New text" --files work.xit      # Edit task in specific file
+        xit edit 7 "Revised task" -d ~/projects     # Edit task in project directory
+    """
+    # Create and execute command
+    command = CommandFactory.create_edit_command()
+    command.execute(
+        task_id=task_id,
+        description=description,
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('priority', type=int, metavar='PRIORITY')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
+@click.pass_context
+def prio(ctx, task_id, priority, directory, files):
+    """Set the priority of a task.
+    
+    Assigns or changes the priority level of an existing task.
+    Priority is an integer where 0 = no priority, 1+ = number of exclamation marks.
+    
+    ID: Task ID number to modify (use 'xit show --show-id' to find IDs)
+    PRIORITY: Priority level (0, 1, 2, etc.)
+    
+    Examples:
+        xit prio 5 1                                 # Set task #5 to priority 1 (!)
+        xit prio 3 3 --files work.xit               # Set priority 3 (!!!) in specific file
+        xit prio 7 0 -d ~/projects                  # Remove priority from task #7
+    """
+    # Create and execute command
+    command = CommandFactory.create_priority_command()
+    command.execute(
+        task_id=task_id,
+        priority=priority,
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('tag', type=str, metavar='TAG')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
+@click.pass_context
+def tag(ctx, task_id, tag, directory, files):
+    """Add a tag to a task.
+    
+    Adds a hashtag to an existing task. The # symbol is optional - it will
+    be added automatically if not provided.
+    
+    ID: Task ID number to modify (use 'xit show --show-id' to find IDs)
+    TAG: Tag name (without # prefix)
+    
+    Examples:
+        xit tag 5 urgent                            # Add #urgent tag to task #5
+        xit tag 3 work --files todo.xit            # Add #work tag in specific file
+        xit tag 7 "#meeting" -d ~/projects         # Add #meeting tag (# optional)
+    """
+    # Create and execute command
+    command = CommandFactory.create_tag_command()
+    command.execute(
+        task_id=task_id,
+        tag=tag,
+        directory=Path(directory) if directory else Path.cwd(),
+        specified_files=list(files) if files else []
+    )
+
+
+@xit.command()
+@click.argument('task_id', type=int, metavar='ID')
+@click.argument('tag', type=str, metavar='TAG')
+@click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
+              help='Directory to search for task files (default: current directory)')
+@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+              help='Specific files to parse (can be used multiple times)')
+@click.pass_context
+def untag(ctx, task_id, tag, directory, files):
+    """Remove a tag from a task.
+    
+    Removes a hashtag from an existing task. The # symbol is optional.
+    If the tag doesn't exist, the command succeeds silently.
+    
+    ID: Task ID number to modify (use 'xit show --show-id' to find IDs)
+    TAG: Tag name to remove (without # prefix)
+    
+    Examples:
+        xit untag 5 urgent                          # Remove #urgent tag from task #5
+        xit untag 3 work --files todo.xit          # Remove #work tag in specific file
+        xit untag 7 "#meeting" -d ~/projects       # Remove #meeting tag (# optional)
+    """
+    # Create and execute command
+    command = CommandFactory.create_untag_command()
+    command.execute(
+        task_id=task_id,
+        tag=tag,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else []
     )

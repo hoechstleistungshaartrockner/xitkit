@@ -1,6 +1,6 @@
 [project]
 name = "xit"
-version = "0.1.0"
+version = "1.0.0"
 description = ""
 authors = [
     {name = "Christian",email = "202550520+hoechstleistungshaartrockner@users.noreply.github.com"}

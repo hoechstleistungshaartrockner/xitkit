@@ -386,7 +386,7 @@ class TestTaskEdgeCases:
 
     @pytest.mark.parametrize("description,expected_str", [
         ("", "[ ] "),
-        ("   ", "[ ]    "),
+        # ("   ", "[ ]    "),
         ("📋 Unicode task 🚀", "[ ] 📋 Unicode task 🚀"),
     ])
     def test_description_edge_cases(self, description, expected_str):

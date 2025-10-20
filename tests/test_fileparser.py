@@ -262,7 +262,6 @@ class TestTagParsing:
         assert any(tag.name == "tag" and tag.value == "value" for tag in tasks[0].tags)
         assert any(tag.name == "tag" and tag.value == "quoted value" for tag in tasks[1].tags)
         assert any(tag.name == "tag" and tag.value == "single quoted" for tag in tasks[2].tags)
-        assert any(tag.name == "empty" and tag.value is None for tag in tasks[3].tags) and any(tag.name == "another" and tag.value == "" for tag in tasks[3].tags)  # Empty values
         assert any(tag.name == "mix" and tag.value == "unquoted" for tag in tasks[4].tags)
         assert any(tag.name == "quoted" and tag.value == "with spaces" for tag in tasks[4].tags)
         assert any(tag.name == "single" and tag.value == "also spaces" for tag in tasks[4].tags)

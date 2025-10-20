@@ -114,12 +114,23 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
     if tag:
         tag_objects = [Tag(t) for t in tag]
     
+    # Convert date strings to DueDate objects
+    from xit.duedate import DueDate
+    
+    due_on_obj = None
+    if due_on:
+        due_on_obj = DueDate.from_string(due_on)
+    
+    due_by_obj = None  
+    if due_by:
+        due_by_obj = DueDate.from_string(due_by)
+
     filters = TaskFilter(
         status=status_obj,
         priority=priority_obj,
         tags=tag_objects,
-        due_on=due_on,  # TODO: Convert to DueDate objects
-        due_by=due_by   # TODO: Convert to DueDate objects
+        due_on=due_on_obj,
+        due_by=due_by_obj
     )
     
     # Create and execute command

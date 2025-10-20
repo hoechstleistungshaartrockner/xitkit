@@ -600,3 +600,106 @@ class TestPerformanceIntegration:
         # Should parse all tasks
         assert len(tasks) == 300  # 3 tasks per file * 100 files
         assert parse_time < 10.0  # 10 seconds max for 100 files
+
+
+class TestFormatRecreation:
+    """" Test if Tasks, that are read from a file are formatted recreating the input."""
+
+    @pytest.mark.parametrize("task_line", [
+        "[ ] Open task",
+        "[x] Completed task with 3 trailing spaces   ",
+        "[@] Ongoing task",
+        "[~] Obsolete task",
+        "[?] Task in question",
+        "[ ] !! High priority task #urgent",
+        "[ ] Task due tomorrow -> 2025-10-20",
+        "[ ] Task with #tags -> 2025-10-21",
+        "[ ] Task with #multiple #tags",
+        "[ ] Simple task\n    task description\n    continues here",
+    ])
+    def test_recreation(self, task_line):
+        """Test that tasks can be recreated correctly after being written to file.
+        
+        This test verifies the complete roundtrip: parse task → create Task object → 
+        write to file → parse again → verify equality.
+        """
+        import tempfile
+        import os
+        from pathlib import Path
+        
+        # Create a temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.xit', delete=False) as temp_file:
+            temp_file.write(task_line + '\n')
+            temp_file_path = temp_file.name
+        
+        try:
+            # Parse the original task
+            parser = FileParser()
+            original_tasks = parser.parse_files([temp_file_path])
+            
+            assert len(original_tasks) == 1
+            original_task = original_tasks[0]
+            
+            # Convert the task back to checkbox format
+            recreated_line = original_task.to_checkbox_format()
+            
+            # Write the recreated line to a new temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.xit', delete=False) as temp_file2:
+                temp_file2.write(recreated_line + '\n')
+                temp_file2_path = temp_file2.name
+            
+            try:
+                # Parse the recreated task
+                recreated_tasks = parser.parse_files([temp_file2_path])
+                
+                assert len(recreated_tasks) == 1
+                recreated_task = recreated_tasks[0]
+                
+                # Compare key properties (ignoring file path and line number)
+                assert original_task.status.status_type == recreated_task.status.status_type
+                assert original_task.priority.level == recreated_task.priority.level
+                
+                # For description, normalize whitespace to handle multiline -> single line conversion
+                original_desc_normalized = ' '.join(original_task.description.text.split())
+                recreated_desc_normalized = ' '.join(recreated_task.description.text.split())
+                assert original_desc_normalized == recreated_desc_normalized
+                
+                # Compare tags
+                original_tag_names = {tag.name for tag in original_task.tags}
+                recreated_tag_names = {tag.name for tag in recreated_task.tags}
+                assert original_tag_names == recreated_tag_names
+                
+                # Compare tag values if any
+                for orig_tag in original_task.tags:
+                    matching_recreated = next(
+                        (tag for tag in recreated_task.tags if tag.name == orig_tag.name), 
+                        None
+                    )
+                    assert matching_recreated is not None
+                    assert orig_tag.value == matching_recreated.value
+                
+                # Compare due dates
+                if original_task.due_date and recreated_task.due_date:
+                    assert original_task.due_date.implied_date == recreated_task.due_date.implied_date
+                elif original_task.due_date is None:
+                    assert recreated_task.due_date is None
+                else:
+                    # One has due date, other doesn't - this is a failure
+                    assert False, f"Due date mismatch: original={original_task.due_date}, recreated={recreated_task.due_date}"
+                
+                # Verify the recreated line matches the expected format structure
+                # (Allow for minor formatting differences but ensure core elements are preserved)
+                if original_task.has_priority:
+                    assert '!' in recreated_line
+                if original_task.has_tags:
+                    assert '#' in recreated_line
+                if original_task.has_due_date:
+                    assert '->' in recreated_line
+                    
+            finally:
+                # Clean up second temporary file
+                os.unlink(temp_file2_path)
+                
+        finally:
+            # Clean up first temporary file
+            os.unlink(temp_file_path)

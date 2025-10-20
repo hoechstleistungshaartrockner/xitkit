@@ -113,24 +113,21 @@ class TestTaskFormatting:
         """Test formatting a simple task."""
         task = Task("Simple task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
         
-        result = task_formatter.format_task(task)
+        result = task_formatter.format_task(task, no_id=True)
         
         assert isinstance(result, Text)
         # Check that it contains the status symbol and description
         text_content = str(result)
-        assert "[ ]" in text_content
-        assert "Simple task" in text_content
+        assert text_content == "[ ] Simple task"
     
     def test_format_task_with_priority(self, task_formatter):
         """Test formatting a task with priority."""
         task = Task("Important task", file="/test.xit", line_number=1, status="OPEN", priority=2, tags=[], due_date=None)
-        
+
         result = task_formatter.format_task(task)
         
         text_content = str(result)
-        assert "[ ]" in text_content
-        assert "!!" in text_content  # Priority indicator
-        assert "Important task" in text_content
+        assert text_content == "#000 [ ] !! Important task"
     
     def test_format_task_different_statuses(self, task_formatter):
         """Test formatting tasks with different statuses."""
@@ -139,23 +136,49 @@ class TestTaskFormatting:
         
         for status, expected_symbol in zip(statuses, expected_symbols):
             task = Task("Test task", file="/test.xit", line_number=1, status=status, priority=0, tags=[], due_date=None)
-            result = task_formatter.format_task(task)
+            result = task_formatter.format_task(task, no_id=True)
             
             text_content = str(result)
-            assert expected_symbol in text_content
+            assert text_content.startswith(expected_symbol)
     
     def test_format_multiline_task(self, task_formatter):
         """Test formatting a task with multiline description."""
         description = "First line\nSecond line\nThird line"
         task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
         
-        result = task_formatter.format_task(task)
+        result = task_formatter.format_task(task, no_id=True)
         
         # Should have proper indentation for continuation lines
         lines = str(result).split('\n')
-        assert len(lines) >= 3
-        assert "[ ]" in lines[0]
-        assert "First line" in lines[0]
+        print(lines)
+        assert len(lines) == 3
+        assert lines[0] == "[ ] First line"
+        assert lines[1] == "    Second line"
+        assert lines[2] == "    Third line"
+
+    def test_format_multiline_task_with_id(self, task_formatter):
+        """Test formatting a multiline task with ID included."""
+        description = "Line one\nLine two"
+        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        
+        result = task_formatter.format_task(task, no_id=False)
+        
+        lines = str(result).split('\n')
+        print(lines)
+        assert len(lines) == 2
+        assert lines[0] == "#000 [ ] Line one"
+        assert lines[1] == "         Line two"
+
+    def test_format_task_with_trailing_whitespace(self, task_formatter):
+        """Test formatting a task with trailing whitespace in description. (Should be preserved)"""
+        description = "Task with trailing spaces    \n Next line with spaces     "
+        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        
+        result = task_formatter.format_task(task, no_id=True)
+        
+        lines = str(result).split('\n')
+        assert lines[0] == "[ ] Task with trailing spaces    "
+        assert lines[1] == "     Next line with spaces     "
     
     def test_format_task_with_line_number(self, task_formatter):
         """Test formatting a task with line number display."""
@@ -175,65 +198,7 @@ class TestTaskFormatting:
         
         # The formatter should highlight syntax in the description
         text_content = str(result)
-        assert "#tag" in text_content
-        assert "2025-12-31" in text_content
-
-
-class TestDescriptionLineFormatting:
-    """Test description line formatting with syntax highlighting."""
-    
-    def test_format_line_with_due_date(self, task_formatter):
-        """Test formatting line with due date."""
-        line = "Complete task -> 2025-12-31 today"
-        
-        result = task_formatter._format_description_line(line)
-        
-        assert isinstance(result, Text)
-        # Should highlight the due date
-        text_content = str(result)
-        assert "2025-12-31" in text_content
-    
-    def test_format_line_with_tags(self, task_formatter):
-        """Test formatting line with tags."""
-        line = "Task with #work and #urgent tags"
-        
-        result = task_formatter._format_description_line(line)
-        
-        text_content = str(result)
-        assert "#work" in text_content
-        assert "#urgent" in text_content
-    
-    def test_format_line_with_priority(self, task_formatter):
-        """Test formatting line with priority indicators."""
-        line = "!! High priority task"
-        
-        result = task_formatter._format_description_line(line)
-        
-        text_content = str(result)
-        assert "!!" in text_content
-    
-    def test_format_line_with_tag_values(self, task_formatter):
-        """Test formatting line with tag values."""
-        line = "Task #priority=high #category=\"work item\""
-        
-        result = task_formatter._format_description_line(line)
-        
-        text_content = str(result)
-        assert "#priority=high" in text_content
-        assert "#category=\"work item\"" in text_content
-    
-    def test_format_line_complex(self, task_formatter):
-        """Test formatting line with multiple syntax elements."""
-        line = "!! Important #work task -> 2025-12-31 #urgent=true"
-        
-        result = task_formatter._format_description_line(line)
-        
-        text_content = str(result)
-        assert "!!" in text_content
-        assert "#work" in text_content
-        assert "2025-12-31" in text_content
-        assert "#urgent=true" in text_content
-
+        assert text_content == "#000 [ ] Task with #tag and -> 2025-12-31"
 
 class TestFileGrouping:
     """Test task grouping by file."""

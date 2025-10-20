@@ -159,7 +159,10 @@ class TaskFormatter:
             padded_id = f"#{task.id:0{total_digits}d}"
             text.append(padded_id, style="grey39")
             text.append(" ")
-        
+            indentation_continuation = " " * (len(padded_id) + 1 + 4) # ID + space + status 
+        else:
+            indentation_continuation = " " * 4  # Status
+
         # Add status symbol with color
         # Get status type name for color mapping
         status_name = task.status.status_type.name
@@ -174,12 +177,14 @@ class TaskFormatter:
             text.append(" ")
         
         # Parse and format the description with highlighting
-        description_lines = task.description.text.split('\n')
+        # Use display text to avoid duplicating priority (but keep tags/dates)
+        display_description = task.description.get_display_text()
+        description_lines = display_description.split('\n')
         
         for i, line in enumerate(description_lines):
             if i > 0:
                 # Add newline and indentation for continuation lines
-                text.append("\n    ")
+                text.append("\n" + indentation_continuation)
             
             # Process the line for tags, due dates, and priority
             line_text = self._format_description_line(line)
@@ -379,7 +384,7 @@ class TaskFormatter:
 
 
 # Convenience function for backward compatibility
-def format_task_rich(task: Task, show_line: bool = False, show_id: bool = False) -> Text:
+def format_task_rich(task: Task, show_line: bool = False, no_id: bool = False) -> Text:
     """Format a task using Rich for colored terminal output.
     
     This is a convenience function that creates a formatter and formats a single task.
@@ -387,10 +392,10 @@ def format_task_rich(task: Task, show_line: bool = False, show_id: bool = False)
     Args:
         task: Task object to format
         show_line: Whether to include line number in output
-        show_id: Whether to include task ID in output
+        no_id: Whether to include task ID in output
         
     Returns:
         Rich Text object with colored formatting
     """
     formatter = TaskFormatter()
-    return formatter.format_task(task, show_file=False, show_line=show_line, show_id=show_id)
+    return formatter.format_task(task, show_file=False, show_line=show_line, no_id=no_id)

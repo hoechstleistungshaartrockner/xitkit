@@ -425,12 +425,12 @@ class TestTaskService:
             result = self.service.recur_task_by_id(
                 task_id=1,
                 interval="1d",
-                end_date="2025-10-21",  # Only 2 days from now
+                end_date="2025-10-21",  # Only 1 day from now
                 count=10,  # Would create 10 but end_date limits it
                 specified_files=[str(file_path)]
             )
             
-            assert len(result) == 2  # Limited by end_date
+            assert len(result) == 1  # Limited by end_date
             
     def test_recur_task_by_id_not_found(self):
         """Test recurring tasks when original task not found."""

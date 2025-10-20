@@ -88,7 +88,7 @@ class TestDescriptionTagIdentification:
     def test_tag_identification_empty_values(self):
         desc = Description('Task #status= #type=""')
         assert len(desc.tags) == 2
-        assert desc.tags[0] == Tag(name="status", value=None)
+        assert desc.tags[0] == Tag(name="status", value="")
         assert desc.tags[1] == Tag(name="type", value="")
 
     def test_tag_identification_unicode(self):

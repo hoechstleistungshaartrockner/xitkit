@@ -358,7 +358,7 @@ class Task:
         Returns:
             Description string with tags and due date appended
         """
-        parts = [self.description_text]
+        parts = [self.description.get_clean_text()]
         
         # Add tags if present
         if self.has_tags:

@@ -121,7 +121,7 @@ class TestTagParsing:
         
         assert len(tags) == 2
         assert tags[0].name == "status"
-        assert tags[0].value is None  # Empty unquoted value becomes None
+        assert tags[0].value == ""  # Empty unquoted value becomes empty string
         assert tags[1].name == "type"
         assert tags[1].value == ""  # Empty quoted value becomes empty string
     

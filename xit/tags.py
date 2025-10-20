@@ -41,7 +41,7 @@ class Tag:
             elif match.group(3) is not None:  # Single-quoted value
                 tag_value = match.group(3)
             elif match.group(4) is not None:  # Unquoted value
-                tag_value = match.group(4) if match.group(4) else None
+                tag_value = match.group(4)
             else:
                 tag_value = None
             tags.append(Tag(name=tag_name, value=tag_value))

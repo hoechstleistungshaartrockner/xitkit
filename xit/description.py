@@ -29,6 +29,45 @@ class Description:
         """String representation of the description."""
         return self.text
 
+    def get_clean_text(self) -> str:
+        """Get description text without tags, due dates, and priority indicators.
+        
+        Returns:
+            str: The description text with tags, due dates, and priority indicators removed.
+        """
+        text = self.text
+        
+        # Remove priority indicators (!! or !)
+        text = re.sub(r'^\s*!+\s*', '', text)
+        
+        # Remove due date patterns (-> YYYY-MM-DD)
+        text = re.sub(r'\s*->\s*\d{4}-\d{2}-\d{2}\s*', '', text)
+        
+        # Remove tags (#tagname)
+        text = re.sub(r'\s*#\w+\s*', ' ', text)
+        
+        # Clean up extra whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+    
+    def get_display_text(self) -> str:
+        """Get description text suitable for display (removes priority but keeps tags/dates).
+        
+        Returns:
+            str: The description text with only priority indicators removed.
+        """
+        text = self.text
+        
+        # Remove priority indicators (!! or !) but keep tags and due dates
+        # Handle both single line and multiline cases
+        lines = text.split('\n')
+        if lines:
+            # Remove priority from the first line only
+            lines[0] = re.sub(r'^\s*!+\s*', '', lines[0])
+        
+        return '\n'.join(lines)
+
     def set_text(self, new_text: Optional[str]) -> None:
         """Set the description text.
 

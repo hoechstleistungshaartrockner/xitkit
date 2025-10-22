@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from xit.commands import CommandFactory
 from xit.services import TaskFilter
 from xit.formatter import TaskFormatter
+from xit.pomodoro import PomodoroApp
 
 
 @click.group(invoke_without_command=True)
@@ -560,6 +561,16 @@ def untag(ctx, task_id, tag, directory, files):
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else []
     )
+
+@xit.command()
+@click.argument('time_work', type=int, default=25)
+@click.argument('time_break', type=int, default=5)
+@click.pass_context
+def pomodoro(ctx, time_work, time_break):
+    """A simple Pomodoro Timer App to run in the terminal."""
+    app = PomodoroApp(time_work=time_work, time_break=time_break)
+    app.run()
+
 
 
 if __name__ == '__main__':

@@ -103,7 +103,7 @@ class TaskService:
         # Filter by status
         if filters.status:
             filtered_tasks = [task for task in filtered_tasks 
-                            if task.status.status_type == filters.status.status_type]
+                            if task.status.status_type in [s.status_type for s in filters.status]]
         
         # Filter by priority (minimum level)
         if filters.priority:

@@ -47,6 +47,7 @@ def xitkit(ctx):
 @click.option('--status', '-s', 
               type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
                                case_sensitive=False),
+              multiple=True,
               help='Filter tasks by status')
 @click.option('--priority', '-p', type=int,
               help='Filter tasks by minimum priority level')
@@ -101,7 +102,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
     from xitkit.tags import Tag
     
     # Convert CLI arguments to proper objects
-    status_obj = None
+    status_objs = []
     if status:
         status_mapping = {
             'open': StatusType.OPEN,
@@ -110,9 +111,10 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
             'obsolete': StatusType.OBSOLETE,
             'inquestion': StatusType.IN_QUESTION
         }
-        if status in status_mapping:
-            status_obj = Status(status_mapping[status])
-    
+        for s in status:
+            if s in status_mapping:
+                status_objs.append(Status(status_mapping[s]))
+
     priority_obj = None
     if priority is not None:
         priority_obj = Priority(priority)
@@ -133,7 +135,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         due_by_obj = DueDate.from_string(due_by)
 
     filters = TaskFilter(
-        status=status_obj,
+        status=status_objs,
         priority=priority_obj,
         tags=tag_objects,
         due_on=due_on_obj,

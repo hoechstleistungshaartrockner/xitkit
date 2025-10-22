@@ -322,23 +322,11 @@ class TaskFormatter:
             self.console.print("[yellow]No tasks to display.[/yellow]")
             return
         
-        # Group tasks by file
-        grouped_tasks = self.group_tasks_by_file(tasks)
         
-        for file_path in sorted(grouped_tasks.keys()):
-            file_tasks = grouped_tasks[file_path]
+        for task in tasks:
+            task_text = self.format_task(task, show_line=show_line, no_id=no_id)
+            self.console.print(task_text)
             
-            # Display file header
-            file_header = self.format_file_header(file_path)
-            # self.console.print(file_header)
-            # self.console.print()  # Empty line after header
-            
-            # Display tasks for this file
-            for task in file_tasks:
-                task_text = self.format_task(task, show_line=show_line, no_id=no_id)
-                self.console.print(task_text)
-            
-            self.console.print()  # Empty line between files
     
     def display_summary(self, filtered_count: int, total_count: int) -> None:
         """Display a summary of filtered vs total tasks.

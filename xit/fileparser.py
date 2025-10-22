@@ -209,21 +209,22 @@ class FileParser:
         if not rest_of_line.startswith(' '):
             return  # Invalid format, skip this line
             
-        # Parse priority first with the space (priority pattern expects leading space)
-        priority = self._parse_priority(rest_of_line)
+        # Parse priority using the Priority class which handles dots correctly
+        priority_obj = Priority.from_line(rest_of_line) or Priority()
         
-        # Remove the mandatory space to get the actual content for other parsing
-        content = rest_of_line[1:]
-        content = self._remove_priority(content)  # Clean content for further parsing
+        # Remove priority from content for further parsing
+        content = rest_of_line[1:]  # Remove the mandatory space
+        if priority_obj.level > 0:
+            # Remove the priority pattern from the content
+            match = PRIORITY_PATTERN.match(rest_of_line)
+            if match:
+                content = match.group(2)[1:]  # Skip the space after priority
         
         due_date = self._parse_due_date(content)
         tags = self._parse_tags(content)
         
         # Create Status object
         status = Status(self.STATUS_MAP[status_char])
-        
-        # Create Priority object (priority is already parsed as integer)
-        priority_obj = Priority(level=priority) if priority > 0 else Priority()
         
         # tags are already Tag objects from _parse_tags method
         tag_objects = tags if tags else []
@@ -288,68 +289,6 @@ class FileParser:
             else:
                 context.current_task.description.set_text(continuation_content)
     
-    def _parse_priority(self, content: str) -> int:
-        """Parse priority from content (count exclamation marks).
-        
-        Priority is indicated by exclamation marks, optionally padded with dots.
-        Valid formats: !, !!, !!!, .!, !!., ...!, etc.
-        Invalid formats: .!., !.!, spaces before priority, etc.
-        
-        Args:
-            content: Content to parse priority from
-            
-        Returns:
-            Priority level (0 = no priority, 1+ = number of exclamation marks)
-        """
-        match = PRIORITY_PATTERN.match(content)
-        if not match:
-            return 0  # No priority pattern found
-            
-        priority_chars = match.group(1)  # The priority characters (!, !!, .!, etc.)
-        rest_content = match.group(2)    # Space + remaining content
-        
-        # Pattern already ensures space before and after priority
-        # Count exclamation marks (dots are just padding)
-        exclamation_count = priority_chars.count('!')
-        
-        # Validate priority format (only dots and exclamation marks allowed)
-        if not all(c in '.!' for c in priority_chars):
-            return 0
-            
-        # Validate dot positioning: dots cannot appear on both sides or in between
-        if '.' in priority_chars and '!' in priority_chars:
-            # Valid patterns: .!, !!., ...!, !!!.
-            # Invalid patterns: .!., !.!, .!!.
-            dot_positions = [i for i, c in enumerate(priority_chars) if c == '.']
-            excl_positions = [i for i, c in enumerate(priority_chars) if c == '!']
-            
-            # Check if all dots are at the beginning
-            all_dots_at_start = all(i < min(excl_positions) for i in dot_positions)
-            # Check if all dots are at the end
-            all_dots_at_end = all(i > max(excl_positions) for i in dot_positions)
-            
-            if not (all_dots_at_start or all_dots_at_end):
-                return 0  # Invalid pattern like .!. or !.!
-        
-        return exclamation_count
-    
-    def _remove_priority(self, content: str) -> str:
-        """Remove priority markers from content.
-        
-        After parsing the priority level, we need to remove the priority
-        markers from the content to get the clean description.
-        
-        Args:
-            content: Original content with potential priority markers
-            
-        Returns:
-            Content with priority markers removed
-        """
-        match = PRIORITY_PATTERN.match(content)
-        # Only remove if valid priority format (no leading spaces)
-        if match and not match.group(1):
-            return match.group(4)  # Return everything after priority and spaces
-        return content  # Return original if no valid priority found
     
     def _parse_due_date(self, content: str) -> Optional[str]:
         """Parse due date from content.

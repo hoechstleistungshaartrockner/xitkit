@@ -187,6 +187,43 @@ class TaskService:
             'overdue': overdue_tasks
         }
 
+    def sort_tasks(self, tasks: List[Task], sort_by: str, sort_order: str = 'asc') -> List[Task]:
+        """Sort tasks by the specified attribute and order.
+        
+        Args:
+            tasks: List of tasks to sort
+            sort_by: Attribute to sort by ('priority', 'due_date')
+            sort_order: Sort order ('asc' or 'desc')
+            
+        Returns:
+            Sorted list of tasks
+            
+        Raises:
+            ValueError: If sort_by or sort_order are invalid
+        """
+        if sort_by not in ['priority', 'due_date']:
+            raise ValueError(f"Invalid sort attribute: {sort_by}")
+        
+        if sort_order not in ['asc', 'desc']:
+            raise ValueError(f"Invalid sort order: {sort_order}")
+        
+        reverse = (sort_order == 'desc')
+        
+        if sort_by == 'priority':
+            # Sort by priority level (higher priority first for desc)
+            return sorted(tasks, key=lambda task: task.priority.level, reverse=reverse)
+        
+        elif sort_by == 'due_date':
+            # Sort by due date, with tasks without due dates at the end for asc, beginning for desc
+            def due_date_key(task):
+                if task.due_date is None:
+                    # Use a very late date for asc (puts None at end), very early for desc (puts None at beginning)
+                    return '9999-12-31' if not reverse else '0000-01-01'
+                # Use implied_date for proper chronological comparison
+                return task.due_date.implied_date or '9999-12-31'
+            
+            return sorted(tasks, key=due_date_key, reverse=reverse)
+
         
     
     def add_task_to_file(self, task: Task, file_path: str) -> None:

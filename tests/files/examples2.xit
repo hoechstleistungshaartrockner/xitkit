@@ -1,0 +1,30 @@
+These are example tasks for testing purposes.
+[ ] Open task
+[ ] Another open task
+[x] Completed task
+[@] Ongoing task
+[~] Obsolete task
+[?] Task in question
+[ ] Task with a due date -> 2024-12-31
+[ ] Task with a later due date -> 2025-01-15
+[ ] Task with an earlier due date -> 2024-11-30
+[ ] ! Task with priority 1
+[ ] !!! Task with priority 3
+[ ] !! Task with priority 2
+[ ] ....!!!! Task with priority 4
+[ ] !!!.. Task with priority 3
+[ ] Task without priority
+[ ] Task with tag #work
+[ ] Task with tag #personal
+[ ] Task with multiple tags #work #urgent
+[ ] Task with no tags
+[ ] Task that is both #work and has a due date -> 2024-12-15
+[ ] ! Urgent task with priority and tag #urgent
+[ ] Recurring task example (not implemented here)
+[ ] Batch operation task example (not implemented here)
+[ ] Task to find by keyword example (not implemented here)
+[ ] Task to check history example (not implemented here)
+[ ] Task to sort by priority example (not implemented here)
+[ ] Task to sort by due date example (not implemented here)
+[ ] Task with special characters !@#$%^&*()_+
+[ ] Task with numbers 1234567890

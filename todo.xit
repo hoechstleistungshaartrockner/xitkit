@@ -17,4 +17,5 @@
 [x] support for batch operations on multiple tasks at once (e.g., 'xit mark 1 2 3 --done' to mark tasks 1, 2, and 3 as done)
 [ ] find tasks by keyword in description ('xit find <keyword>')
 [ ] find out the history of a task (when it was created, modified, marked done, etc.) ('xit history <task_id>')
-[ ] sort tasks by different attributes (due date, priority) ('xit show -f <file> --sort <attribute> --order <asc/desc>')
+[x] sort tasks by different attributes (due date, priority) ('xit show -f <file> --sort <attribute> --order <asc/desc>')
+[x] create test for xit show -f tests/files/examples2.xit --sort due_date

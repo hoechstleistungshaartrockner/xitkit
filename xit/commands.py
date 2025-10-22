@@ -38,7 +38,8 @@ class ShowTasksCommand(Command):
     
     def execute(self, path: str = None, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
-                show_line: bool = False, no_id: bool = False, count_only: bool = False) -> None:
+                show_line: bool = False, no_id: bool = False, count_only: bool = False,
+                sort_by: str = None, sort_order: str = None) -> None:
         """Execute the show tasks command.
         
         Args:
@@ -49,6 +50,8 @@ class ShowTasksCommand(Command):
             show_line: Whether to show line numbers
             no_id: Whether to hide task IDs
             count_only: Whether to show only count
+            sort_by: Sort attribute (priority, due_date)
+            sort_order: Sort order (asc, desc)
         """
         try:
             # Resolve file paths
@@ -70,6 +73,10 @@ class ShowTasksCommand(Command):
             filtered_tasks = all_tasks
             if filters:
                 filtered_tasks = self.task_service.filter_tasks(all_tasks, filters)
+            
+            # Sort tasks if requested
+            if sort_by:
+                filtered_tasks = self.task_service.sort_tasks(filtered_tasks, sort_by, sort_order or 'asc')
             
             # Display results
             if count_only:

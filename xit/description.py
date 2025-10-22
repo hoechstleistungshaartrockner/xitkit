@@ -37,8 +37,9 @@ class Description:
         """
         text = self.text
         
-        # Remove priority indicators (!! or !)
-        text = re.sub(r'^\s*!+\s*', '', text)
+        # Remove priority indicators including dots (..!!, !!, !.., etc.)
+        # This should match the same pattern as PRIORITY_PATTERN but remove it from start of text
+        text = re.sub(r'^(?:[.]*[!]+|[!]+[.]*)\s*', '', text)
         
         # Remove due date patterns (-> YYYY-MM-DD)
         text = re.sub(r'\s*->\s*\d{4}-\d{2}-\d{2}\s*', '', text)

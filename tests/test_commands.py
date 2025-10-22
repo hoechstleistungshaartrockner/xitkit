@@ -12,6 +12,7 @@ from xit.commands import (
 )
 from xit.services import TaskFilter
 from xit.task import Task
+from xit.priority import Priority
 from xit.formatter import TaskFormatter
 from xit.exceptions import XitError
 from tests.conftest import create_test_file
@@ -199,6 +200,89 @@ class TestShowTasksCommand:
         show_command.formatter.display_error.assert_called_once_with(
             "Unexpected error: Unexpected"
         )
+
+    def test_execute_with_sort_priority_asc(self, show_command):
+        """Test execution with sort by priority ascending."""
+        tasks = [
+            Task("/test.xit", 1, "High priority", "OPEN", Priority(2), [], None),
+            Task("/test.xit", 2, "Low priority", "OPEN", Priority(0), [], None),
+            Task("/test.xit", 3, "Medium priority", "OPEN", Priority(1), [], None)
+        ]
+        
+        show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
+        show_command.task_service.load_tasks.return_value = tasks
+        show_command.task_service.filter_tasks.return_value = tasks
+        show_command.task_service.sort_tasks.return_value = [tasks[1], tasks[2], tasks[0]]  # Sorted by priority asc
+        
+        show_command.execute(sort_by='priority', sort_order='asc')
+        
+        show_command.task_service.sort_tasks.assert_called_once_with(tasks, 'priority', 'asc')
+        
+    def test_execute_with_sort_priority_desc(self, show_command):
+        """Test execution with sort by priority descending."""
+        tasks = [
+            Task("/test.xit", 1, "High priority", "OPEN", Priority(2), [], None),
+            Task("/test.xit", 2, "Low priority", "OPEN", Priority(0), [], None),
+            Task("/test.xit", 3, "Medium priority", "OPEN", Priority(1), [], None)
+        ]
+        
+        show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
+        show_command.task_service.load_tasks.return_value = tasks
+        show_command.task_service.filter_tasks.return_value = tasks
+        show_command.task_service.sort_tasks.return_value = [tasks[0], tasks[2], tasks[1]]  # Sorted by priority desc
+        
+        show_command.execute(sort_by='priority', sort_order='desc')
+        
+        show_command.task_service.sort_tasks.assert_called_once_with(tasks, 'priority', 'desc')
+        
+    def test_execute_with_sort_due_date_asc(self, show_command):
+        """Test execution with sort by due_date ascending."""
+        from xit.duedate import DueDate
+        tasks = [
+            Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
+            Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
+            Task("/test.xit", 3, "Task 3", "OPEN", Priority(0), [], None)
+        ]
+        
+        show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
+        show_command.task_service.load_tasks.return_value = tasks
+        show_command.task_service.filter_tasks.return_value = tasks
+        show_command.task_service.sort_tasks.return_value = [tasks[1], tasks[0], tasks[2]]  # Sorted by due_date asc
+        
+        show_command.execute(sort_by='due_date', sort_order='asc')
+        
+        show_command.task_service.sort_tasks.assert_called_once_with(tasks, 'due_date', 'asc')
+        
+    def test_execute_with_sort_due_date_desc(self, show_command):
+        """Test execution with sort by due_date descending."""
+        from xit.duedate import DueDate
+        tasks = [
+            Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
+            Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
+            Task("/test.xit", 3, "Task 3", "OPEN", Priority(0), [], None)
+        ]
+        
+        show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
+        show_command.task_service.load_tasks.return_value = tasks
+        show_command.task_service.filter_tasks.return_value = tasks
+        show_command.task_service.sort_tasks.return_value = [tasks[0], tasks[1], tasks[2]]  # Sorted by due_date desc
+        
+        show_command.execute(sort_by='due_date', sort_order='desc')
+        
+        show_command.task_service.sort_tasks.assert_called_once_with(tasks, 'due_date', 'desc')
+
+    def test_execute_sort_without_order_defaults_asc(self, show_command):
+        """Test that sorting without order defaults to ascending."""
+        tasks = [Task("/test.xit", 1, "Task", "OPEN", Priority(0), [], None)]
+        
+        show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
+        show_command.task_service.load_tasks.return_value = tasks
+        show_command.task_service.filter_tasks.return_value = tasks
+        show_command.task_service.sort_tasks.return_value = tasks
+        
+        show_command.execute(sort_by='priority')  # No sort_order specified
+        
+        show_command.task_service.sort_tasks.assert_called_once_with(tasks, 'priority', 'asc')
 
 
 class TestShowStatsCommand:
@@ -1302,7 +1386,7 @@ class TestCommandIntegration:
         tasks = args[0]
         
         assert len(tasks) == 3
-        assert str(tasks[0].description) == "! Open high priority task #work"
+        assert str(tasks[0].description) == "Open high priority task #work"
         assert tasks[0].priority.level == 1
         assert tasks[1].status.status_type.name == "CHECKED"
         assert tasks[2].status.status_type.name == "ONGOING"

@@ -25,6 +25,25 @@ task_file_content = """[ ] Open task
 """
 n_tasks = 11
 
+priority_tasks = """[ ] ! priority 1 task
+[ ] !! priority 2 task
+[ ] !!! priority 3 task
+[ ] !!!! priority 4 task
+[ ] !!!!! priority 5 task
+[ ] ....! priority 1 task with leading dots
+[ ] !.... priority 1 task with trailing dots
+[ ] task with no priority
+[ ] ... task with no priority but dots
+"""
+n_priority_tasks = 9
+
+due_date_tasks = """[ ] Task due 2025-10-20 -> 2025-10-20
+[ ] Task with no due date
+[ ] Task due 2025-10-21 -> 2025-10-21
+[ ] Task due 2025-10-19 -> 2025-10-19
+"""
+n_due_date_tasks = 4
+
 class CLITest():
 
     @pytest.fixture
@@ -36,6 +55,16 @@ class CLITest():
         """Helper to write sample tasks to a file."""
         with open(filename, 'w') as f:
             f.write(task_file_content)
+
+    def write_priority_tasks(self, filename='priority_tasks.xit'):
+        """Helper to write priority tasks to a file."""
+        with open(filename, 'w') as f:
+            f.write(priority_tasks)
+
+    def write_due_date_tasks(self, filename='due_date_tasks.xit'):
+        """Helper to write due date tasks to a file."""
+        with open(filename, 'w') as f:
+            f.write(due_date_tasks)
 
 class TestMainCLI(CLITest):
     """Test the command-line interface."""
@@ -230,6 +259,107 @@ class TestShowCLI(CLITest):
             assert lines[12] == '         continues here'
             assert lines[14] == '#012 [ ] Open task'  # From second file
             assert lines[26] == '         continues here'  # Last line from second file
+
+    def test_show_tasks_sorted_by_priority_asc(self, runner, sample_tasks):
+        """Test showing tasks sorted by priority in ascending order."""
+        with runner.isolated_filesystem():
+            self.write_priority_tasks('priority_tasks.xit')
+
+            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'asc', '-f', 'priority_tasks.xit'])
+            print(result.output)
+            
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == '#008 [ ] task with no priority'
+            assert lines[1] == '#009 [ ] ... task with no priority but dots'
+            assert lines[2] == '#001 [ ] ! priority 1 task'
+            assert lines[3] == '#006 [ ] ....! priority 1 task with leading dots'
+            assert lines[4] == '#007 [ ] !.... priority 1 task with trailing dots'
+            assert lines[5] == '#002 [ ] !! priority 2 task'
+            assert lines[6] == '#003 [ ] !!! priority 3 task'
+            assert lines[7] == '#004 [ ] !!!! priority 4 task'
+            assert lines[8] == '#005 [ ] !!!!! priority 5 task'
+            
+    def test_show_tasks_sorted_by_priority_desc(self, runner, sample_tasks):
+        """Test showing tasks sorted by priority in descending order."""
+        with runner.isolated_filesystem():
+            self.write_priority_tasks('priority_tasks.xit')
+
+            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'desc', '-f', 'priority_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == '#005 [ ] !!!!! priority 5 task'
+            assert lines[1] == '#004 [ ] !!!! priority 4 task'
+            assert lines[2] == '#003 [ ] !!! priority 3 task'
+            assert lines[3] == '#002 [ ] !! priority 2 task'
+            assert lines[4] == '#001 [ ] ! priority 1 task'
+            assert lines[5] == '#006 [ ] ....! priority 1 task with leading dots'
+            assert lines[6] == '#007 [ ] !.... priority 1 task with trailing dots'
+            assert lines[7] == '#008 [ ] task with no priority'
+            assert lines[8] == '#009 [ ] ... task with no priority but dots'
+            
+    def test_show_tasks_sorted_by_due_date_asc(self, runner, sample_tasks):
+        """Test showing tasks sorted by due date in ascending order."""
+        with runner.isolated_filesystem():
+            self.write_due_date_tasks('due_date_tasks.xit')
+
+            result = runner.invoke(xit, ['show', '--sort', 'due_date', '--order', 'asc', '-f', 'due_date_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            # Tasks with earliest due dates should appear first
+
+            assert lines[0] == '#004 [ ] Task due 2025-10-19 -> 2025-10-19'
+            assert lines[1] == '#001 [ ] Task due 2025-10-20 -> 2025-10-20'
+            assert lines[2] == '#003 [ ] Task due 2025-10-21 -> 2025-10-21'
+            assert lines[3] == '#002 [ ] Task with no due date'
+            
+    def test_show_tasks_sorted_by_due_date_desc(self, runner, sample_tasks):
+        """Test showing tasks sorted by due date in descending order."""
+        with runner.isolated_filesystem():
+            self.write_due_date_tasks('due_date_tasks.xit')
+
+            result = runner.invoke(xit, ['show', '--sort', 'due_date', '--order', 'desc', '-f', 'due_date_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            # Tasks with latest due dates should appear first
+            assert lines[0] == '#003 [ ] Task due 2025-10-21 -> 2025-10-21'
+            assert lines[1] == '#001 [ ] Task due 2025-10-20 -> 2025-10-20'
+            assert lines[2] == '#004 [ ] Task due 2025-10-19 -> 2025-10-19'
+            assert lines[3] == '#002 [ ] Task with no due date'
+
+            
+    def test_show_tasks_sorted_invalid_attribute(self, runner, sample_tasks):
+        """Test show with invalid sort attribute."""
+        with runner.isolated_filesystem():
+            self.write_sample_tasks('tasks.xit')
+            
+            result = runner.invoke(xit, ['show', '--sort', 'invalid_attr', '-f', 'tasks.xit'])
+            assert result.exit_code == 2  # Click validation error
+            assert 'Invalid value' in result.output
+            
+    def test_show_tasks_sorted_invalid_order(self, runner, sample_tasks):
+        """Test show with invalid sort order."""
+        with runner.isolated_filesystem():
+            self.write_sample_tasks('tasks.xit')
+            
+            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'invalid', '-f', 'tasks.xit'])
+            assert result.exit_code == 2  # Click validation error
+            assert 'Invalid value' in result.output
+
+    def test_show_tasks_sort_without_order_defaults_asc(self, runner, sample_tasks):
+        """Test that sorting without order defaults to ascending."""
+        with runner.isolated_filesystem():
+            self.write_sample_tasks('tasks.xit')
+            
+            result = runner.invoke(xit, ['show', '--sort', 'priority', '-f', 'tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            # Should default to ascending order
 
 class TestStatsCLI(CLITest):
     """Test the 'stats' command of the CLI."""

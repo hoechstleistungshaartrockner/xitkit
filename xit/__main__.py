@@ -65,8 +65,12 @@ def xit(ctx):
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--sort', type=click.Choice(['priority', 'due_date'], case_sensitive=False),
+              help='Sort tasks by the specified attribute (priority or due_date)')
+@click.option('--order', type=click.Choice(['asc', 'desc'], case_sensitive=False),
+              help='Sort order: asc (ascending) or desc (descending). Defaults to asc if not specified')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, count, directory, files):
+def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, count, directory, files, sort, order):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -87,6 +91,8 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         xit show --count                   # Show count of all tasks
         xit show --show-line               # Include line numbers
         xit show --files work.xit personal.xit --status open  # Show open tasks from multiple files
+        xit show --sort priority --order desc  # Show tasks sorted by priority (highest first)
+        xit show --sort due_date --order asc   # Show tasks sorted by due date (earliest first)
     """
     # Create filter object from CLI arguments
     from xit.status import Status, StatusType
@@ -142,7 +148,9 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         filters=filters,
         show_line=show_line,
         no_id=no_id,
-        count_only=count
+        count_only=count,
+        sort_by=sort,
+        sort_order=order or 'asc' if sort else None
     )
 
 

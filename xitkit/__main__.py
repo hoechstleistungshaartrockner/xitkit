@@ -13,10 +13,10 @@ import os
 # Add the current directory to the path to import our modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from xit.commands import CommandFactory
-from xit.services import TaskFilter
-from xit.formatter import TaskFormatter
-from xit.pomodoro import PomodoroApp
+from xitkit.commands import CommandFactory
+from xitkit.services import TaskFilter
+from xitkit.formatter import TaskFormatter
+from xitkit.pomodoro import PomodoroApp
 
 
 @click.group(invoke_without_command=True)
@@ -42,7 +42,7 @@ def xit(ctx):
         click.echo(ctx.get_help())
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('path', type=click.Path(), required=False)
 @click.option('--status', '-s', 
               type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
@@ -96,9 +96,9 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         xit show --sort due_date --order asc   # Show tasks sorted by due date (earliest first)
     """
     # Create filter object from CLI arguments
-    from xit.status import Status, StatusType
-    from xit.priority import Priority
-    from xit.tags import Tag
+    from xitkit.status import Status, StatusType
+    from xitkit.priority import Priority
+    from xitkit.tags import Tag
     
     # Convert CLI arguments to proper objects
     status_obj = None
@@ -122,7 +122,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         tag_objects = [Tag(t) for t in tag]
     
     # Convert date strings to DueDate objects
-    from xit.duedate import DueDate
+    from xitkit.duedate import DueDate
     
     due_on_obj = None
     if due_on:
@@ -155,7 +155,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('path', type=click.Path(), required=False)
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
@@ -185,7 +185,7 @@ def stats(ctx, path, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('description', type=str)
 @click.option('--file', '-f', type=click.Path(), 
               help='File to add the task to (default: todo.xit)')
@@ -214,7 +214,7 @@ def add(ctx, description, file):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.option('--open', 'status', flag_value='open', help='Mark tasks as open')
 @click.option('--done', 'status', flag_value='done', help='Mark tasks as done')  
@@ -259,7 +259,7 @@ def mark(ctx, task_ids, status, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.argument('new_date', type=str, metavar='DATE')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -301,7 +301,7 @@ def reschedule(ctx, task_ids, new_date, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
@@ -338,7 +338,7 @@ def rm(ctx, task_ids, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
 @click.option('--target', '-t', required=True, 
               help='Target file to move the tasks to')
@@ -377,7 +377,7 @@ def move(ctx, task_ids, target, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_id', type=int, metavar='ID')
 @click.option('--interval', '-i', required=True, type=str,
               help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y")')
@@ -435,7 +435,7 @@ def recur(ctx, task_id, interval, end_date, count, target_file, directory, files
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_id', type=int, metavar='ID')
 @click.argument('description', type=str, metavar='DESCRIPTION')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -467,7 +467,7 @@ def edit(ctx, task_id, description, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_id', type=int, metavar='ID')
 @click.argument('priority', type=int, metavar='PRIORITY')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -499,7 +499,7 @@ def prio(ctx, task_id, priority, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_id', type=int, metavar='ID')
 @click.argument('tag', type=str, metavar='TAG')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -531,7 +531,7 @@ def tag(ctx, task_id, tag, directory, files):
     )
 
 
-@xit.command()
+@xitkit.command()
 @click.argument('task_id', type=int, metavar='ID')
 @click.argument('tag', type=str, metavar='TAG')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
@@ -562,7 +562,7 @@ def untag(ctx, task_id, tag, directory, files):
         specified_files=list(files) if files else []
     )
 
-@xit.command()
+@xitkit.command()
 @click.argument('time_work', type=int, default=25)
 @click.argument('time_break', type=int, default=5)
 @click.pass_context

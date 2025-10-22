@@ -1,18 +1,35 @@
 [project]
-name = "xit"
+name = "xitkit"
 version = "1.1.0"
-description = ""
+description = "A powerful command-line task management tool that parses and manages tasks from .xit and .md files using the x-it! format"
 authors = [
     {name = "Christian",email = "202550520+hoechstleistungshaartrockner@users.noreply.github.com"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
 requires-python = ">=3.14,<4.0.0"
+keywords = ["task", "management", "cli", "todo", "xit", "productivity"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Utilities",
+    "Environment :: Console",
+]
 dependencies = [
     "rich>=13.0.0",
     "click>=8.0.0",
     "textual (>=6.3.0,<7.0.0)",
 ]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/xitkit"
+Repository = "https://github.com/yourusername/xitkit"
+"Bug Tracker" = "https://github.com/yourusername/xitkit/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -27,7 +44,8 @@ dev = [
 
 # add __main__ as script entry point
 [project.scripts]
-xit = "xit.__main__:xit"
+xitkit = "xitkit.__main__:xit"
+xit = "xitkit.__main__:xit"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

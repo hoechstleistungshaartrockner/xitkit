@@ -38,7 +38,7 @@ A powerful command-line task management tool that parses and manages tasks from 
 2. Create the environment:
    ```bash
    micromamba create -f micromamba.yaml
-   micromamba activate xit
+   micromamba activate xitkit
    ```
 
 3. Install dependencies:
@@ -48,8 +48,14 @@ A powerful command-line task management tool that parses and manages tasks from 
    ```
 
 ## Usage
+Two command-line entry points are provided: `xitkit` and `xit`. Both commands function identically.
 
-### Available Commands
+```bash
+xit --help
+xitkit --help
+```
+
+### Available Subcommands
 
 | Command    | Description                                               |
 |------------|-----------------------------------------------------------|

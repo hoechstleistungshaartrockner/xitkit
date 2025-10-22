@@ -1,4 +1,4 @@
-name: xit
+name: xitkit
 channels:
   - conda-forge
   - bioconda

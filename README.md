@@ -25,7 +25,7 @@ A powerful command-line task management tool that parses and manages tasks from 
 ### :warning: Prerequisites
 
 - Python 3.14+
-- Micromamba or Conda (recommended)
+- Micromamba or Conda (recommended but not necessary)
 
 ### :gear: Setup
 
@@ -39,6 +39,10 @@ A powerful command-line task management tool that parses and manages tasks from 
    ```bash
    micromamba create -f micromamba.yaml
    micromamba activate xitkit
+   ```
+   or create your own environment with Python 3.14+ and install Poetry:
+   ```bash
+   python -m pip install --user poetry
    ```
 
 3. Install dependencies:

@@ -4,17 +4,17 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from pathlib import Path
 
-from xit.commands import (
+from xitkit.commands import (
     Command, ShowTasksCommand, ShowStatsCommand, AddTaskCommand, 
     MarkTaskCommand, RescheduleTaskCommand, RemoveTaskCommand, 
     MoveTaskCommand, RecurTaskCommand, EditTaskCommand, PriorityTaskCommand,
     TagTaskCommand, UntagTaskCommand, CommandFactory
 )
-from xit.services import TaskFilter
-from xit.task import Task
-from xit.priority import Priority
-from xit.formatter import TaskFormatter
-from xit.exceptions import XitError
+from xitkit.services import TaskFilter
+from xitkit.task import Task
+from xitkit.priority import Priority
+from xitkit.formatter import TaskFormatter
+from xitkit.exceptions import XitError
 from tests.conftest import create_test_file
 
 class TestCommandBase:
@@ -237,7 +237,7 @@ class TestShowTasksCommand:
         
     def test_execute_with_sort_due_date_asc(self, show_command):
         """Test execution with sort by due_date ascending."""
-        from xit.duedate import DueDate
+        from xitkit.duedate import DueDate
         tasks = [
             Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
             Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
@@ -255,7 +255,7 @@ class TestShowTasksCommand:
         
     def test_execute_with_sort_due_date_desc(self, show_command):
         """Test execution with sort by due_date descending."""
-        from xit.duedate import DueDate
+        from xitkit.duedate import DueDate
         tasks = [
             Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
             Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
@@ -654,7 +654,7 @@ class TestRescheduleTaskCommand:
         assert isinstance(cmd, RescheduleTaskCommand)
         assert isinstance(cmd.formatter, TaskFormatter)
     
-    @patch('xit.dateutils.get_date_parser')
+    @patch('xitkit.dateutils.get_date_parser')
     def test_execute_reschedule_task_success(self, mock_get_parser, reschedule_command):
         """Test successfully rescheduling a task."""
         # Setup
@@ -682,7 +682,7 @@ class TestRescheduleTaskCommand:
         assert reschedule_command.task_service.update_task_by_id.call_count == 1
         reschedule_command.formatter.display_success.assert_called_once()
     
-    @patch('xit.dateutils.get_date_parser')
+    @patch('xitkit.dateutils.get_date_parser')
     def test_execute_reschedule_natural_language_dates(self, mock_get_parser, reschedule_command):
         """Test rescheduling with natural language dates."""
         # Setup
@@ -706,7 +706,7 @@ class TestRescheduleTaskCommand:
             reschedule_command.execute([1], expr, directory=Path("/test"))
             mock_parser.parse_date_expression.assert_called_with(expected)
     
-    @patch('xit.dateutils.get_date_parser')
+    @patch('xitkit.dateutils.get_date_parser')
     def test_execute_reschedule_invalid_date(self, mock_get_parser, reschedule_command):
         """Test rescheduling with invalid date format."""
         # Setup
@@ -733,7 +733,7 @@ class TestRescheduleTaskCommand:
         reschedule_command.file_service.resolve_file_paths.return_value = [test_file]
         reschedule_command.task_service.update_task_by_id.return_value = None
         
-        with patch('xit.dateutils.get_date_parser') as mock_get_parser:
+        with patch('xitkit.dateutils.get_date_parser') as mock_get_parser:
             mock_parser = Mock()
             mock_parser.parse_date_expression.return_value = "2025-12-31"
             mock_get_parser.return_value = mock_parser
@@ -1447,7 +1447,7 @@ class TestCommandIntegration:
         cmd.formatter.display_summary = Mock()
         
         # Test filtering by status
-        from xit.status import Status, StatusType
+        from xitkit.status import Status, StatusType
         filters = TaskFilter(status=Status(StatusType.OPEN))
         cmd.execute(
             path=str(test_file),
@@ -1462,7 +1462,7 @@ class TestCommandIntegration:
         
         # Test filtering by tags
         cmd.formatter.display_tasks.reset_mock()
-        from xit.tags import Tag
+        from xitkit.tags import Tag
         filters = TaskFilter(tags=[Tag(name="work")])
         cmd.execute(
             path=str(test_file),
@@ -1620,7 +1620,7 @@ class TestBatchProcessing:
         task_service.update_task_by_id.side_effect = [task1, task2]
         
         # Mock date parser
-        with patch('xit.dateutils.get_date_parser') as mock_get_parser:
+        with patch('xitkit.dateutils.get_date_parser') as mock_get_parser:
             mock_parser = Mock()
             mock_parser.parse_date_expression.return_value = "2025-12-31"
             mock_get_parser.return_value = mock_parser
@@ -1807,7 +1807,7 @@ class TestRecurTaskCommand:
     
     def test_recur_command_creation(self):
         """Test creating a RecurTaskCommand."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         command = RecurTaskCommand()
         
@@ -1817,17 +1817,17 @@ class TestRecurTaskCommand:
     
     def test_recur_command_with_custom_formatter(self):
         """Test RecurTaskCommand with custom formatter."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         custom_formatter = TaskFormatter()
         command = RecurTaskCommand(custom_formatter)
         
         assert command.formatter is custom_formatter
     
-    @patch('xit.commands.RecurTaskCommand._get_relative_path')
+    @patch('xitkit.commands.RecurTaskCommand._get_relative_path')
     def test_execute_recur_task_success(self, mock_relative_path):
         """Test successful task recurrence creation."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         # Setup mocks
         mock_relative_path.return_value = "test.xit"
@@ -1872,7 +1872,7 @@ class TestRecurTaskCommand:
     
     def test_execute_recur_task_no_instances_created(self):
         """Test when no recurring instances are created."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         mock_formatter = Mock()
         recur_command = RecurTaskCommand(mock_formatter)
@@ -1895,7 +1895,7 @@ class TestRecurTaskCommand:
     
     def test_execute_recur_task_with_end_date(self):
         """Test recur command with end date instead of count."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         mock_formatter = Mock()
         recur_command = RecurTaskCommand(mock_formatter)
@@ -1927,8 +1927,8 @@ class TestRecurTaskCommand:
     
     def test_execute_recur_task_xit_error(self):
         """Test handling XitError during recurrence creation."""
-        from xit.commands import RecurTaskCommand
-        from xit.exceptions import XitError
+        from xitkit.commands import RecurTaskCommand
+        from xitkit.exceptions import XitError
         
         mock_formatter = Mock()
         recur_command = RecurTaskCommand(mock_formatter)
@@ -1949,7 +1949,7 @@ class TestRecurTaskCommand:
     
     def test_execute_recur_task_unexpected_error(self):
         """Test handling unexpected errors during recurrence creation."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         mock_formatter = Mock()
         recur_command = RecurTaskCommand(mock_formatter)
@@ -1972,7 +1972,7 @@ class TestRecurTaskCommand:
     
     def test_get_relative_path(self):
         """Test _get_relative_path helper method."""
-        from xit.commands import RecurTaskCommand
+        from xitkit.commands import RecurTaskCommand
         
         command = RecurTaskCommand()
         
@@ -1992,7 +1992,7 @@ class TestEditTaskCommand:
     
     def test_edit_command_creation(self):
         """Test creating an EditTaskCommand."""
-        from xit.commands import EditTaskCommand
+        from xitkit.commands import EditTaskCommand
         
         command = EditTaskCommand()
         
@@ -2002,7 +2002,7 @@ class TestEditTaskCommand:
     
     def test_edit_command_with_custom_formatter(self):
         """Test EditTaskCommand with custom formatter."""
-        from xit.commands import EditTaskCommand
+        from xitkit.commands import EditTaskCommand
         
         custom_formatter = TaskFormatter()
         command = EditTaskCommand(custom_formatter)
@@ -2011,7 +2011,7 @@ class TestEditTaskCommand:
     
     def test_execute_edit_task_success(self):
         """Test successful task description editing."""
-        from xit.commands import EditTaskCommand
+        from xitkit.commands import EditTaskCommand
         
         mock_formatter = Mock()
         edit_command = EditTaskCommand(mock_formatter)
@@ -2044,7 +2044,7 @@ class TestEditTaskCommand:
     
     def test_execute_edit_task_not_found(self):
         """Test editing a task that doesn't exist."""
-        from xit.commands import EditTaskCommand
+        from xitkit.commands import EditTaskCommand
         
         mock_formatter = Mock()
         edit_command = EditTaskCommand(mock_formatter)
@@ -2068,7 +2068,7 @@ class TestEditTaskCommand:
     
     def test_execute_edit_task_exception(self):
         """Test edit task with exception handling."""
-        from xit.commands import EditTaskCommand
+        from xitkit.commands import EditTaskCommand
         
         mock_formatter = Mock()
         edit_command = EditTaskCommand(mock_formatter)
@@ -2094,7 +2094,7 @@ class TestPriorityTaskCommand:
     
     def test_priority_command_creation(self):
         """Test creating a PriorityTaskCommand."""
-        from xit.commands import PriorityTaskCommand
+        from xitkit.commands import PriorityTaskCommand
         
         command = PriorityTaskCommand()
         
@@ -2104,7 +2104,7 @@ class TestPriorityTaskCommand:
     
     def test_execute_priority_task_success(self):
         """Test successful task priority setting."""
-        from xit.commands import PriorityTaskCommand
+        from xitkit.commands import PriorityTaskCommand
         
         mock_formatter = Mock()
         priority_command = PriorityTaskCommand(mock_formatter)
@@ -2136,7 +2136,7 @@ class TestPriorityTaskCommand:
     
     def test_execute_priority_task_valid_integer(self):
         """Test priority setting with valid integer input."""
-        from xit.commands import PriorityTaskCommand
+        from xitkit.commands import PriorityTaskCommand
         
         mock_formatter = Mock()
         priority_command = PriorityTaskCommand(mock_formatter)
@@ -2163,7 +2163,7 @@ class TestPriorityTaskCommand:
     
     def test_execute_priority_task_invalid_format(self):
         """Test priority setting with invalid format."""
-        from xit.commands import PriorityTaskCommand
+        from xitkit.commands import PriorityTaskCommand
         
         mock_formatter = Mock()
         priority_command = PriorityTaskCommand(mock_formatter)
@@ -2185,7 +2185,7 @@ class TestPriorityTaskCommand:
     
     def test_execute_priority_task_not_found(self):
         """Test setting priority for a task that doesn't exist."""
-        from xit.commands import PriorityTaskCommand
+        from xitkit.commands import PriorityTaskCommand
         
         mock_formatter = Mock()
         priority_command = PriorityTaskCommand(mock_formatter)
@@ -2213,7 +2213,7 @@ class TestTagTaskCommand:
     
     def test_tag_command_creation(self):
         """Test creating a TagTaskCommand."""
-        from xit.commands import TagTaskCommand
+        from xitkit.commands import TagTaskCommand
         
         command = TagTaskCommand()
         
@@ -2223,7 +2223,7 @@ class TestTagTaskCommand:
     
     def test_execute_tag_task_success(self):
         """Test successful tag addition."""
-        from xit.commands import TagTaskCommand
+        from xitkit.commands import TagTaskCommand
         
         mock_formatter = Mock()
         tag_command = TagTaskCommand(mock_formatter)
@@ -2254,7 +2254,7 @@ class TestTagTaskCommand:
     
     def test_execute_tag_task_with_hash_prefix(self):
         """Test tag addition with hash prefix."""
-        from xit.commands import TagTaskCommand
+        from xitkit.commands import TagTaskCommand
         
         mock_formatter = Mock()
         tag_command = TagTaskCommand(mock_formatter)
@@ -2280,7 +2280,7 @@ class TestTagTaskCommand:
     
     def test_execute_tag_task_invalid_format(self):
         """Test tag addition with invalid format."""
-        from xit.commands import TagTaskCommand
+        from xitkit.commands import TagTaskCommand
         
         mock_formatter = Mock()
         tag_command = TagTaskCommand(mock_formatter)
@@ -2302,7 +2302,7 @@ class TestTagTaskCommand:
     
     def test_execute_tag_task_not_found(self):
         """Test adding tag to a task that doesn't exist."""
-        from xit.commands import TagTaskCommand
+        from xitkit.commands import TagTaskCommand
         
         mock_formatter = Mock()
         tag_command = TagTaskCommand(mock_formatter)
@@ -2333,7 +2333,7 @@ class TestUntagTaskCommand:
     
     def test_untag_command_creation(self):
         """Test creating an UntagTaskCommand."""
-        from xit.commands import UntagTaskCommand
+        from xitkit.commands import UntagTaskCommand
         
         command = UntagTaskCommand()
         
@@ -2343,7 +2343,7 @@ class TestUntagTaskCommand:
     
     def test_execute_untag_task_success(self):
         """Test successful tag removal."""
-        from xit.commands import UntagTaskCommand
+        from xitkit.commands import UntagTaskCommand
         
         mock_formatter = Mock()
         untag_command = UntagTaskCommand(mock_formatter)
@@ -2374,7 +2374,7 @@ class TestUntagTaskCommand:
     
     def test_execute_untag_task_with_hash_prefix(self):
         """Test tag removal with hash prefix."""
-        from xit.commands import UntagTaskCommand
+        from xitkit.commands import UntagTaskCommand
         
         mock_formatter = Mock()
         untag_command = UntagTaskCommand(mock_formatter)
@@ -2400,7 +2400,7 @@ class TestUntagTaskCommand:
     
     def test_execute_untag_task_not_found(self):
         """Test removing tag from a task that doesn't exist."""
-        from xit.commands import UntagTaskCommand
+        from xitkit.commands import UntagTaskCommand
         
         mock_formatter = Mock()
         untag_command = UntagTaskCommand(mock_formatter)
@@ -2431,7 +2431,7 @@ class TestCommandFactoryNew:
     
     def test_create_edit_command(self):
         """Test creating EditTaskCommand through factory."""
-        from xit.commands import CommandFactory, EditTaskCommand
+        from xitkit.commands import CommandFactory, EditTaskCommand
         
         command = CommandFactory.create_edit_command()
         
@@ -2440,7 +2440,7 @@ class TestCommandFactoryNew:
     
     def test_create_edit_command_with_formatter(self):
         """Test creating EditTaskCommand with custom formatter."""
-        from xit.commands import CommandFactory, EditTaskCommand
+        from xitkit.commands import CommandFactory, EditTaskCommand
         
         custom_formatter = TaskFormatter()
         command = CommandFactory.create_edit_command(custom_formatter)
@@ -2450,7 +2450,7 @@ class TestCommandFactoryNew:
     
     def test_create_priority_command(self):
         """Test creating PriorityTaskCommand through factory."""
-        from xit.commands import CommandFactory, PriorityTaskCommand
+        from xitkit.commands import CommandFactory, PriorityTaskCommand
         
         command = CommandFactory.create_priority_command()
         
@@ -2459,7 +2459,7 @@ class TestCommandFactoryNew:
     
     def test_create_tag_command(self):
         """Test creating TagTaskCommand through factory."""
-        from xit.commands import CommandFactory, TagTaskCommand
+        from xitkit.commands import CommandFactory, TagTaskCommand
         
         command = CommandFactory.create_tag_command()
         
@@ -2468,7 +2468,7 @@ class TestCommandFactoryNew:
     
     def test_create_untag_command(self):
         """Test creating UntagTaskCommand through factory."""
-        from xit.commands import CommandFactory, UntagTaskCommand
+        from xitkit.commands import CommandFactory, UntagTaskCommand
         
         command = CommandFactory.create_untag_command()
         

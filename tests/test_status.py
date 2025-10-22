@@ -1,7 +1,7 @@
 """Tests for the Status class."""
 
 import pytest
-from xit.status import Status, StatusType
+from xitkit.status import Status, StatusType
 
 
 class TestStatusBasics:

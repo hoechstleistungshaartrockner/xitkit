@@ -4,10 +4,10 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from xit.fileparser import FileParser, ParseContext
-from xit.task import Task
-from xit.status import StatusType
-from xit.patterns import *
+from xitkit.fileparser import FileParser, ParseContext
+from xitkit.task import Task
+from xitkit.status import StatusType
+from xitkit.patterns import *
 from tests.conftest import create_test_file, assert_task_equal
 
 

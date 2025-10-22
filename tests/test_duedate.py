@@ -6,7 +6,7 @@ Tests the DueDate class functionality according to syntax guide requirements.
 
 import pytest
 from datetime import datetime, timedelta
-from xit.duedate import DueDate
+from xitkit.duedate import DueDate
 
 
 class TestDueDateBasics:

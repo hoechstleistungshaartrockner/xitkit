@@ -5,7 +5,7 @@ Tests the Priority class functionality according to syntax guide requirements.
 """
 
 import pytest
-from xit.priority import Priority
+from xitkit.priority import Priority
 
 
 class TestPriorityBasics:

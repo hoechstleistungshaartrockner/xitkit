@@ -21,7 +21,7 @@ from xitkit.pomodoro import PomodoroApp
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-def xit(ctx):
+def xitkit(ctx):
     """Xit - A command line task management tool for .md and .xit files.
     
     This tool parses task files and provides various commands for viewing and managing tasks.

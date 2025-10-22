@@ -8,12 +8,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from xit.fileparser import FileParser
-from xit.services import TaskService, FileDiscoveryService, TaskFilter
-from xit.formatter import TaskFormatter
-from xit.commands import ShowTasksCommand, ShowStatsCommand
-from xit.task import Task
-from xit.dateutils import DateParser
+from xitkit.fileparser import FileParser
+from xitkit.services import TaskService, FileDiscoveryService, TaskFilter
+from xitkit.formatter import TaskFormatter
+from xitkit.commands import ShowTasksCommand, ShowStatsCommand
+from xitkit.task import Task
+from xitkit.dateutils import DateParser
 from tests.conftest import create_test_file
 
 
@@ -120,21 +120,21 @@ class TestFullWorkflow:
         tasks = service.load_tasks(files)
         
         # Filter by status
-        from xit.status import Status, StatusType
+        from xitkit.status import Status, StatusType
         open_filter = TaskFilter(status=Status(StatusType.OPEN))
         open_tasks = service.filter_tasks(tasks, open_filter)
         assert all(task.status.status_type == StatusType.OPEN for task in open_tasks)
         assert len(open_tasks) > 0
         
         # Filter by priority
-        from xit.priority import Priority
+        from xitkit.priority import Priority
         high_priority_filter = TaskFilter(priority=Priority(level=2))
         high_priority_tasks = service.filter_tasks(tasks, high_priority_filter)
         assert all(task.priority.level >= 2 for task in high_priority_tasks)
         assert len(high_priority_tasks) > 0
         
         # Filter by tags
-        from xit.tags import Tag
+        from xitkit.tags import Tag
         dev_tag_filter = TaskFilter(tags=[Tag(name="development")])
         dev_tasks = service.filter_tasks(tasks, dev_tag_filter)
         assert all(task.has_tag_by_name("development") for task in dev_tasks)
@@ -302,7 +302,7 @@ class TestDateFilteringIntegration:
         tasks = service.load_tasks([str(test_file)])
         
         # Test filtering by specific date
-        from xit.duedate import DueDate
+        from xitkit.duedate import DueDate
         date_filter = TaskFilter(due_on=DueDate.from_string("2025-11-30"))
         filtered_tasks = service.filter_tasks(tasks, date_filter)
         
@@ -333,7 +333,7 @@ class TestDateFilteringIntegration:
         test_file = create_test_file(temp_dir, "natural_dates.xit", content)
         
         # Use specific current date for consistent testing
-        with patch('xit.dateutils.datetime') as mock_datetime:
+        with patch('xitkit.dateutils.datetime') as mock_datetime:
             mock_datetime.now.return_value = current_date
             mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
             
@@ -341,7 +341,7 @@ class TestDateFilteringIntegration:
             tasks = service.load_tasks([str(test_file)])
             
             # Test "today" filter using the actual date instead of "today"
-            from xit.duedate import DueDate
+            from xitkit.duedate import DueDate
             today_filter = TaskFilter(due_on=DueDate.from_string("2025-11-15"))
             today_tasks = service.filter_tasks(tasks, today_filter)
             
@@ -393,7 +393,7 @@ Mixed Languages
         
         # Test filtering with Unicode tags
         service = TaskService()
-        from xit.tags import Tag
+        from xitkit.tags import Tag
         unicode_filter = TaskFilter(tags=[Tag(name="文档")])
         filtered = service.filter_tasks(tasks, unicode_filter)
         
@@ -542,7 +542,7 @@ class TestPerformanceIntegration:
         # Test filtering performance
         start_time = time.time()
         
-        from xit.status import Status, StatusType
+        from xitkit.status import Status, StatusType
         filters = TaskFilter(status=Status(StatusType.OPEN))
         filtered_tasks = service.filter_tasks(tasks, filters)
         

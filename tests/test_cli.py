@@ -7,7 +7,7 @@ to ensure commands work correctly without affecting real files.
 import pytest
 from click.testing import CliRunner
 from pathlib import Path
-from xit.__main__ import xit
+from xitkit.__main__ import xitkit
 
 task_file_content = """[ ] Open task
 [x] Completed task with 3 trailing spaces   
@@ -76,7 +76,7 @@ class TestMainCLI(CLITest):
 
     def test_help_command(self, runner):
         """Test that help is displayed correctly."""
-        result = runner.invoke(xit, ['--help'])
+        result = runner.invoke(xitkit, ['--help'])
         assert result.exit_code == 0
         assert 'Xit - A command line task management tool' in result.output
         assert 'show' in result.output
@@ -89,14 +89,14 @@ class TestShowCLI(CLITest):
 
     def test_show_help_subcommand(self, runner):
         """Test help for specific subcommands."""
-        result = runner.invoke(xit, ['show', '--help'])
+        result = runner.invoke(xitkit, ['show', '--help'])
         assert result.exit_code == 0
         assert 'Show tasks from .md and .xit files' in result.output
 
     def test_show_no_files(self, runner):
         """Test show command when no task files exist."""
         with runner.isolated_filesystem():
-            result = runner.invoke(xit, ['show'])
+            result = runner.invoke(xitkit, ['show'])
             assert result.exit_code == 0
             assert 'No task files found' in result.output
 
@@ -105,7 +105,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -130,7 +130,7 @@ class TestShowCLI(CLITest):
             self.write_sample_tasks('tasks.xit')
             
             # Test open tasks only
-            result = runner.invoke(xit, ['show', '--status', 'ongoing', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--status', 'ongoing', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -142,7 +142,7 @@ class TestShowCLI(CLITest):
         """Test showing only the count of tasks."""
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
-            result = runner.invoke(xit, ['show', '--count', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--count', '-f', 'tasks.xit'])
             assert result.exit_code == 0
             lines = result.output.splitlines()
             assert len(lines) > 0
@@ -153,7 +153,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--due-on', '2025-10-20', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--due-on', '2025-10-20', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -166,7 +166,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--due-on', '2025-10-21', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--due-on', '2025-10-21', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -179,7 +179,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--due-by', '2025-10-21', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--due-by', '2025-10-21', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -193,7 +193,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--tag', 'tags', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--tag', 'tags', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -207,7 +207,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--tag', 'tags', '--tag', 'multiple', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--tag', 'tags', '--tag', 'multiple', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -220,7 +220,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--priority', '2', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--priority', '2', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -233,7 +233,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--no-id', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--no-id', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -248,7 +248,7 @@ class TestShowCLI(CLITest):
             self.write_sample_tasks('tasks1.xit')
             self.write_sample_tasks('tasks2.xit')
             
-            result = runner.invoke(xit, ['show', '-f', 'tasks1.xit', '-f', 'tasks2.xit'])
+            result = runner.invoke(xitkit, ['show', '-f', 'tasks1.xit', '-f', 'tasks2.xit'])
             print(result.output)
             lines = result.output.splitlines()
             assert result.exit_code == 0
@@ -265,7 +265,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_priority_tasks('priority_tasks.xit')
 
-            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'asc', '-f', 'priority_tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'priority', '--order', 'asc', '-f', 'priority_tasks.xit'])
             print(result.output)
             
             lines = result.output.splitlines()
@@ -286,7 +286,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_priority_tasks('priority_tasks.xit')
 
-            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'desc', '-f', 'priority_tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'priority', '--order', 'desc', '-f', 'priority_tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -305,7 +305,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_due_date_tasks('due_date_tasks.xit')
 
-            result = runner.invoke(xit, ['show', '--sort', 'due_date', '--order', 'asc', '-f', 'due_date_tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'due_date', '--order', 'asc', '-f', 'due_date_tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -321,7 +321,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_due_date_tasks('due_date_tasks.xit')
 
-            result = runner.invoke(xit, ['show', '--sort', 'due_date', '--order', 'desc', '-f', 'due_date_tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'due_date', '--order', 'desc', '-f', 'due_date_tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -337,7 +337,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--sort', 'invalid_attr', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'invalid_attr', '-f', 'tasks.xit'])
             assert result.exit_code == 2  # Click validation error
             assert 'Invalid value' in result.output
             
@@ -346,7 +346,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--sort', 'priority', '--order', 'invalid', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'priority', '--order', 'invalid', '-f', 'tasks.xit'])
             assert result.exit_code == 2  # Click validation error
             assert 'Invalid value' in result.output
 
@@ -355,7 +355,7 @@ class TestShowCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['show', '--sort', 'priority', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['show', '--sort', 'priority', '-f', 'tasks.xit'])
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
@@ -369,7 +369,7 @@ class TestStatsCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xit, ['stats', '-f', 'tasks.xit'])
+            result = runner.invoke(xitkit, ['stats', '-f', 'tasks.xit'])
             assert result.exit_code == 0
             assert 'Task Statistics' in result.output
             assert f'Total tasks: {n_tasks}' in result.output
@@ -379,7 +379,7 @@ class TestStatsCLI(CLITest):
     def test_stats_no_files(self, runner):
         """Test stats command when no task files exist."""
         with runner.isolated_filesystem():
-            result = runner.invoke(xit, ['stats'])
+            result = runner.invoke(xitkit, ['stats'])
             assert result.exit_code == 0
             assert 'No task files found.' in result.output
 
@@ -390,7 +390,7 @@ class TestAddCLI(CLITest):
     def test_add_task_to_new_file(self, runner):
         """Test adding a task to a new file."""
         with runner.isolated_filesystem():
-            result = runner.invoke(xit, ['add', 'New test task', '--file', 'test.xit'])
+            result = runner.invoke(xitkit, ['add', 'New test task', '--file', 'test.xit'])
             
             assert result.exit_code == 0
             assert '✓ Added task' in result.output
@@ -407,7 +407,7 @@ class TestAddCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('existing.xit')
             
-            result = runner.invoke(xit, ['add', 'Another task', '--file', 'existing.xit'])
+            result = runner.invoke(xitkit, ['add', 'Another task', '--file', 'existing.xit'])
             
             assert result.exit_code == 0
             assert '✓ Added task' in result.output
@@ -421,7 +421,7 @@ class TestAddCLI(CLITest):
     def test_add_task_default_file(self, runner):
         """Test adding a task without specifying file (should create todo.xit)."""
         with runner.isolated_filesystem():
-            result = runner.invoke(xit, ['add', 'Default file task'])
+            result = runner.invoke(xitkit, ['add', 'Default file task'])
             
             assert result.exit_code == 0
             assert '✓ Added task' in result.output
@@ -447,7 +447,7 @@ class TestMarkCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['mark', '1', flag, '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['mark', '1', flag, '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert f'Marked task #001 as {status}' in result.output
@@ -462,7 +462,7 @@ class TestMarkCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['mark', '1', '2', '--done', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['mark', '1', '2', '--done', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Marked task #001 as done' in result.output
@@ -482,7 +482,7 @@ class TestMarkCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['mark', '999', '--done', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['mark', '999', '--done', '-f', 'test.xit'])
             
             assert result.exit_code == 0  # Command succeeds but shows error
             assert 'Task #999 not found' in result.output
@@ -491,12 +491,12 @@ class TestMarkCLI(CLITest):
         """Test mark command with missing required arguments."""
         with runner.isolated_filesystem():
             # Missing task ID
-            result = runner.invoke(xit, ['mark', '--done'])
+            result = runner.invoke(xitkit, ['mark', '--done'])
             assert result.exit_code == 1
             assert 'Must specify at least one task ID' in result.output
             
             # Missing status flag
-            result = runner.invoke(xit, ['mark', '1'])
+            result = runner.invoke(xitkit, ['mark', '1'])
             assert result.exit_code == 1
             assert 'Must specify a status flag' in result.output
 
@@ -508,7 +508,7 @@ class TestPrioCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['prio', '1', '2', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['prio', '1', '2', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Set priority (2) for task #001' in result.output
@@ -523,7 +523,7 @@ class TestPrioCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['prio', '1', '0', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['prio', '1', '0', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Set priority (none) for task #001' in result.output
@@ -539,7 +539,7 @@ class TestPrioCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['prio', '1', '-1', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['prio', '1', '-1', '-f', 'test.xit'])
             
             # Negative priorities are rejected at CLI parsing level
             assert result.exit_code == 2
@@ -553,7 +553,7 @@ class TestTagCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['tag', '1', 'urgent', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['tag', '1', 'urgent', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Added tag #urgent to task #001' in result.output
@@ -568,7 +568,7 @@ class TestTagCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['tag', '1', '#urgent', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['tag', '1', '#urgent', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Added tag #urgent to task #001' in result.output
@@ -587,7 +587,7 @@ class TestUntagCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['untag', '6', 'urgent', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['untag', '6', 'urgent', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Removed tag #urgent from task #006' in result.output
@@ -608,7 +608,7 @@ class TestEditCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['edit', '1', 'Updated task description', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['edit', '1', 'Updated task description', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Updated description for task #001' in result.output
@@ -625,7 +625,7 @@ class TestEditCLI(CLITest):
         with runner.isolated_filesystem():
             self.write_sample_tasks('test.xit')
             
-            result = runner.invoke(xit, ['edit', '999', 'New description', '-f', 'test.xit'])
+            result = runner.invoke(xitkit, ['edit', '999', 'New description', '-f', 'test.xit'])
             
             assert result.exit_code == 0
             assert 'Task #999 not found' in result.output
@@ -645,28 +645,28 @@ class TestCLIIntegration:
         """Test a complete task lifecycle: add -> show -> mark -> edit -> tag -> untag."""
         with runner.isolated_filesystem():
             # Add a task
-            result = runner.invoke(xit, ['add', 'Complete project', '--file', 'project.xit'])
+            result = runner.invoke(xitkit, ['add', 'Complete project', '--file', 'project.xit'])
             assert result.exit_code == 0
             
             # Show the task
-            result = runner.invoke(xit, ['show', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['show', '-f', 'project.xit'])
             assert result.exit_code == 0
             assert 'Complete project' in result.output
             
             # Mark as ongoing
-            result = runner.invoke(xit, ['mark', '1', '--ongoing', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['mark', '1', '--ongoing', '-f', 'project.xit'])
             assert result.exit_code == 0
             
             # Add priority
-            result = runner.invoke(xit, ['prio', '1', '2', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['prio', '1', '2', '-f', 'project.xit'])
             assert result.exit_code == 0
             
             # Add tag
-            result = runner.invoke(xit, ['tag', '1', 'urgent', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['tag', '1', 'urgent', '-f', 'project.xit'])
             assert result.exit_code == 0
             
             # Edit description
-            result = runner.invoke(xit, ['edit', '1', 'Complete important project', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['edit', '1', 'Complete important project', '-f', 'project.xit'])
             assert result.exit_code == 0
             
             # Verify final state
@@ -675,7 +675,7 @@ class TestCLIIntegration:
                 assert '[@] !! Complete important project #urgent' in content
             
             # Mark as done
-            result = runner.invoke(xit, ['mark', '1', '--done', '-f', 'project.xit'])
+            result = runner.invoke(xitkit, ['mark', '1', '--done', '-f', 'project.xit'])
             assert result.exit_code == 0
             
             # Verify final completion
@@ -688,11 +688,11 @@ class TestCLIIntegration:
         with runner.isolated_filesystem():
             # Add multiple tasks
             for i in range(1, 4):
-                result = runner.invoke(xit, ['add', f'Task {i}', '--file', 'multiple.xit'])
+                result = runner.invoke(xitkit, ['add', f'Task {i}', '--file', 'multiple.xit'])
                 assert result.exit_code == 0
             
             # Mark multiple tasks as done
-            result = runner.invoke(xit, ['mark', '1', '2', '--done', '-f', 'multiple.xit'])
+            result = runner.invoke(xitkit, ['mark', '1', '2', '--done', '-f', 'multiple.xit'])
             assert result.exit_code == 0
             assert 'Processed 2 of 2 tasks' in result.output
             
@@ -704,7 +704,7 @@ class TestCLIIntegration:
                 assert '[ ] Task 3' in lines[2]
             
             # Check stats
-            result = runner.invoke(xit, ['stats', '-f', 'multiple.xit'])
+            result = runner.invoke(xitkit, ['stats', '-f', 'multiple.xit'])
             assert result.exit_code == 0
             assert 'Total tasks: 3' in result.output
             assert 'Done: 2' in result.output

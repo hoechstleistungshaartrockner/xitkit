@@ -3,11 +3,11 @@
 import pytest
 from pathlib import Path
 
-from xit.task import Task
-from xit.tags import Tag
-from xit.status import Status, StatusType
-from xit.description import Description
-from xit.priority import Priority
+from xitkit.task import Task
+from xitkit.tags import Tag
+from xitkit.status import Status, StatusType
+from xitkit.description import Description
+from xitkit.priority import Priority
 
 
 class TestTaskCreation:

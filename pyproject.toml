@@ -44,8 +44,8 @@ dev = [
 
 # add __main__ as script entry point
 [project.scripts]
-xitkit = "xitkit.__main__:xit"
-xit = "xitkit.__main__:xit"
+xitkit = "xitkit.__main__:xitkit"
+xit = "xitkit.__main__:xitkit"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

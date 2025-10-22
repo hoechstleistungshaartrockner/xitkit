@@ -6,8 +6,8 @@ from unittest.mock import Mock, patch
 from rich.console import Console
 from rich.text import Text
 
-from xit.formatter import TaskFormatter, format_task_rich
-from xit.task import Task
+from xitkit.formatter import TaskFormatter, format_task_rich
+from xitkit.task import Task
 from tests.conftest import create_test_file
 
 

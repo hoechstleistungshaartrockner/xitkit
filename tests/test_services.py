@@ -11,13 +11,13 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 
-from xit.services import TaskService, FileDiscoveryService, TaskFilter
-from xit.task import Task
-from xit.status import Status, StatusType
-from xit.priority import Priority
-from xit.tags import Tag
-from xit.duedate import DueDate
-from xit.exceptions import FileNotSupportedError
+from xitkit.services import TaskService, FileDiscoveryService, TaskFilter
+from xitkit.task import Task
+from xitkit.status import Status, StatusType
+from xitkit.priority import Priority
+from xitkit.tags import Tag
+from xitkit.duedate import DueDate
+from xitkit.exceptions import FileNotSupportedError
 
 
 class TestTaskService:

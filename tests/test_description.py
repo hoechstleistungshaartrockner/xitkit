@@ -1,8 +1,8 @@
 import pytest
 from datetime import datetime
-from xit.description import Description
-from xit.tags import Tag
-from xit.duedate import DueDate
+from xitkit.description import Description
+from xitkit.tags import Tag
+from xitkit.duedate import DueDate
 
 class TestDescriptionBasics:
 

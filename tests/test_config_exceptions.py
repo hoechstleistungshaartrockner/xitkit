@@ -3,11 +3,11 @@
 import pytest
 from pathlib import Path
 
-from xit.config import (
+from xitkit.config import (
     ParsingConfig, DisplayConfig, DateConfig, AppConfig, 
     get_config, load_config_from_file, save_config_to_file
 )
-from xit.exceptions import (
+from xitkit.exceptions import (
     XitError, ParseError, ValidationError, FileNotSupportedError,
     TaskFilterError, DateParseError
 )

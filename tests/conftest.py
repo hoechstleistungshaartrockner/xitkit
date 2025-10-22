@@ -5,10 +5,10 @@ import tempfile
 from pathlib import Path
 from typing import Union
 
-from xit.task import Task
-from xit.services import TaskService, FileDiscoveryService
-from xit.formatter import TaskFormatter
-from xit.fileparser import FileParser
+from xitkit.task import Task
+from xitkit.services import TaskService, FileDiscoveryService
+from xitkit.formatter import TaskFormatter
+from xitkit.fileparser import FileParser
 
 
 @pytest.fixture

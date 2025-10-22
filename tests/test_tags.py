@@ -1,7 +1,7 @@
 """Tests for the Tag class."""
 
 import pytest
-from xit.tags import Tag
+from xitkit.tags import Tag
 
 
 class TestTagBasics:

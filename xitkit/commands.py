@@ -77,6 +77,16 @@ class ShowTasksCommand(Command):
             # Sort tasks if requested
             if sort_by:
                 filtered_tasks = self.task_service.sort_tasks(filtered_tasks, sort_by, sort_order or 'asc')
+
+            # put checked tasks at the end regardless of sort order (single pass)
+            non_checked_tasks = []
+            checked_tasks = []
+            for task in filtered_tasks:
+                if task.status.status_type == StatusType.CHECKED:
+                    checked_tasks.append(task)
+                else:
+                    non_checked_tasks.append(task)
+            filtered_tasks = non_checked_tasks + checked_tasks
             
             # Display results
             if count_only:

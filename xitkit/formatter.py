@@ -16,7 +16,9 @@ from rich.panel import Panel
 from .task import Task
 from .config import get_config
 from .dateutils import get_date_parser
+from itertools import pairwise
 
+id_color = "grey39"
 
 class TaskFormatter:
     """Formatter for displaying tasks in the terminal with Rich formatting.
@@ -157,11 +159,13 @@ class TaskFormatter:
             # Use at least 3 digits for padding
             total_digits = max(3, len(str(task.id)))
             padded_id = f"#{task.id:0{total_digits}d}"
-            text.append(padded_id, style="grey39")
+            text.append(padded_id, style=id_color)
             text.append(" ")
             indentation_continuation = " " * (len(padded_id) + 1 + 4) # ID + space + status 
+            len_id_part = len(padded_id) + 1
         else:
             indentation_continuation = " " * 4  # Status
+            len_id_part = 0
 
         # Add status symbol with color
         # Get status type name for color mapping
@@ -189,13 +193,54 @@ class TaskFormatter:
             # Process the line for tags, due dates, and priority
             line_text = self._format_description_line(line)
             text.append(line_text)
+
+        # strikethrough for completed tasks and 
+        if task.status.status_type.name == 'CHECKED':
+            self.strikethrough_text(text, len_id_part, len(indentation_continuation))
+            # Dim the text for completed tasks
+            text.stylize(id_color, len(indentation_continuation), len(text.plain))
         
         # Add line number if requested
         if show_line:
             text.append(f" L{task.line_number}", style="dim")
         
         return text
-    
+
+    def strikethrough_text(self, text: Text, id_part_length: int, indentation_length: int) -> None:
+        """Apply strikethrough style to the task description in the Text object.
+        
+        Args:
+            text: Rich Text object containing the formatted task
+            id_part_length: Length of the ID part (for offset)
+            indentation_length: Length of the indentation before description for the second+ lines
+        """
+        n_lines = text.plain.count("\n") + 1
+        
+        start_indices = []
+        end_indices = []
+        if n_lines == 1:
+            start_indices.append(indentation_length)
+            end_indices.append(len(text.plain))
+        else:
+            # get location of "\n" to file the end of the lines
+            line_breaks = [0] + [i for i, char in enumerate(text.plain) if char == "\n"]
+            idx = 0
+            for s, e in pairwise(line_breaks + [len(text.plain)]):
+                if idx == 0:
+                    # First line
+                    start_indices.append(indentation_length)
+                    end_indices.append(e)
+                else:
+                    # Continuation lines
+                    start_indices.append(s + 1 + indentation_length)
+                    end_indices.append(e)
+                idx += 1
+        
+        # Apply strikethrough from start_index to end of text
+        for i, j in zip(start_indices, end_indices):
+            text.stylize("strike", i, j)
+
+
     def _format_description_line(self, line: str) -> Text:
         """Format a single line of description with syntax highlighting.
         
@@ -280,38 +325,8 @@ class TaskFormatter:
         
         return text
     
-    def group_tasks_by_file(self, tasks: List[Task]) -> Dict[str, List[Task]]:
-        """Group tasks by file path.
-        
-        Args:
-            tasks: List of tasks to group
-            
-        Returns:
-            Dictionary mapping file paths to lists of tasks
-        """
-        grouped = defaultdict(list)
-        for task in tasks:
-            grouped[task.file].append(task)
-        return dict(grouped)
-    
-    def format_file_header(self, file_path: str) -> Text:
-        """Format a file path as an underlined header.
-        
-        Args:
-            file_path: Absolute or relative file path
-            
-        Returns:
-            Rich Text object with underlined file path
-        """
-        try:
-            relative_path = str(Path(file_path).relative_to(Path.cwd()))
-        except ValueError:
-            relative_path = file_path
-        
-        return Text(relative_path, style="bold underline")
-    
     def display_tasks(self, tasks: List[Task], show_line: bool = False, no_id: bool = False) -> None:
-        """Display a list of tasks grouped by file with Rich formatting.
+        """Display a list of tasks with Rich formatting.
         
         Args:
             tasks: List of tasks to display

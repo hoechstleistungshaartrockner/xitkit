@@ -19,3 +19,9 @@
 [ ] find out the history of a task (when it was created, modified, marked done, etc.) ('xit history <task_id>')
 [x] sort tasks by different attributes (due date, priority) ('xit show -f <file> --sort <attribute> --order <asc/desc>')
 [x] create test for xit show -f tests/files/examples2.xit --sort due_date
+[ ] 'xit goto <task_id>' to open the file containing the task in the default text editor at the line of the task
+[ ] pomodoro timer should be able to link to tasks ('xit pomodoro <work_time> <break_time> -t <task_id> -t <task_id> ...')
+[ ] pomodoro timer should make a sound when the work/break time is over (configurable sound)
+[ ] create sphinx documentation for xitkit
+[ ] bash completion for xitkit commands
+[ ] fix linebreak when adding a task via the 'xit add' command.

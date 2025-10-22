@@ -27,9 +27,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/xitkit"
-Repository = "https://github.com/yourusername/xitkit"
-"Bug Tracker" = "https://github.com/yourusername/xitkit/issues"
+Homepage = "https://github.com/hoechstleistungshaartrockner/xitkit"
+Repository = "https://github.com/hoechstleistungshaartrockner/xitkit.git"
+"Bug Tracker" = "https://github.com/hoechstleistungshaartrockner/xitkit/issues"
 
 [project.optional-dependencies]
 dev = [

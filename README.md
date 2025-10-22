@@ -1,38 +1,38 @@
-# XitKit
+# :clipboard: XitKit
 
 A powerful command-line task management tool that parses and manages tasks from `.xit` and `.md` files using the [x]it! format (https://xit.jotaen.net/)
 
-## Features
+## :sparkles: Features
 
-- **Multiple Task States**: Open, checked, ongoing, obsolete, and in-question tasks
-- **Priority Levels**: Support for multiple priority indicators (`!`, `!!`, `!!!`)
-- **Due Dates**: Flexible date parsing with various formats
-- **Tags**: Organize tasks with hashtags and optional values
-- **Multi-line Descriptions**: Support for continued task descriptions
-- **Groups & Headers**: Organize related tasks under headers
-- **Rich Output**: Beautiful terminal output with colors and formatting
-- **Flexible Filtering**: Filter tasks by status, priority, tags, and more
-- **Statistics**: Get insights about your task distribution
-- **🚀 Batch Processing**: Mark, reschedule, remove, or move multiple tasks at once
-- **🔄 Recurring Tasks**: Create recurring instances with flexible intervals (daily, weekly, monthly, yearly)
-- **Shell Integration**: Support for shell expansion (`{3..21}`) and sequences
-- **Status Flags**: Intuitive `--done`, `--ongoing`, `--obsolete` flags instead of cryptic symbols
-- **Smart Error Handling**: Individual task feedback with batch operation summaries
-- **Pomodoro timer**: simple, textual-based pomodoro timer
+- **:arrows_counterclockwise: Multiple Task States**: Open, checked, ongoing, obsolete, and in-question tasks
+- **:zap: Priority Levels**: Support for multiple priority indicators (`!`, `!!`, `!!!`)
+- **:calendar: Due Dates**: Flexible date parsing with various formats
+- **:label: Tags**: Organize tasks with hashtags and optional values
+- **:memo: Multi-line Descriptions**: Support for continued task descriptions
+- **:file_folder: Groups & Headers**: Organize related tasks under headers
+- **:art: Rich Output**: Beautiful terminal output with colors and formatting
+- **:mag: Flexible Filtering**: Filter tasks by status, priority, tags, and more
+- **:bar_chart: Statistics**: Get insights about your task distribution
+- **:rocket: Batch Processing**: Mark, reschedule, remove, or move multiple tasks at once
+- **:repeat: Recurring Tasks**: Create recurring instances with flexible intervals (daily, weekly, monthly, yearly)
+- **:shell: Shell Integration**: Support for shell expansion (`{3..21}`) and sequences
+- **:triangular_flag_on_post: Status Flags**: Intuitive `--done`, `--ongoing`, `--obsolete` flags instead of cryptic symbols
+- **:shield: Smart Error Handling**: Individual task feedback with batch operation summaries
+- **:tomato: Pomodoro timer**: simple, textual-based pomodoro timer
 
-## Installation
+## :package: Installation
 
-### Prerequisites
+### :warning: Prerequisites
 
 - Python 3.14+
 - Micromamba or Conda (recommended)
 
-### Setup
+### :gear: Setup
 
 1. Clone the repository:
    ```bash
-   git clone <repository-url>
-   cd todo
+   git clone https://github.com/hoechstleistungshaartrockner/xitkit.git
+   cd xitkit
    ```
 
 2. Create the environment:
@@ -47,7 +47,7 @@ A powerful command-line task management tool that parses and manages tasks from 
    poetry install --extras dev
    ```
 
-## Usage
+## :computer: Usage
 Two command-line entry points are provided: `xitkit` and `xit`. Both commands function identically.
 
 ```bash
@@ -55,7 +55,7 @@ xit --help
 xitkit --help
 ```
 
-### Available Subcommands
+### :toolbox: Available Subcommands
 
 | Command    | Description                                               |
 |------------|-----------------------------------------------------------|
@@ -74,7 +74,7 @@ xitkit --help
 | untag      | Remove a tag from a task.                                 |
 
 
-### Command Examples
+### :bulb: Command Examples
 
 ```bash
 # Show all tasks in current directory
@@ -139,9 +139,9 @@ xit untag 5 urgent                    # Remove #urgent tag from task #5
 ```
 
 
-## Development
+## :wrench: Development
 
-### Running Tests
+### :test_tube: Running Tests
 
 ```bash
 python -m pytest
@@ -156,13 +156,13 @@ python -m pytest tests/test_fileparser.py
 python -m pytest tests/test_commands.py::TestBatchProcessing -v
 ```
 
-## License
+## :page_facing_up: License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## :pray: Acknowledgments
 
-- Inspired by various todo.txt and task management formats
+- Developer of the [x]it! format: [Jotaen](https://github.com/Jotaen/xit)
 - Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
 - Uses [Click](https://click.palletsprojects.com/) for the command-line interface
 

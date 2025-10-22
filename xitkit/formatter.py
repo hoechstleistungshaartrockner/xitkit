@@ -341,6 +341,8 @@ class TaskFormatter:
         for task in tasks:
             task_text = self.format_task(task, show_line=show_line, no_id=no_id)
             self.console.print(task_text)
+        
+        self.console.print()  # Add a newline at the end
             
     
     def display_summary(self, filtered_count: int, total_count: int) -> None:

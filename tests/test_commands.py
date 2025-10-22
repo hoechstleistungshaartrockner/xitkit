@@ -1388,9 +1388,9 @@ class TestCommandIntegration:
         assert len(tasks) == 3
         assert str(tasks[0].description) == "Open high priority task #work"
         assert tasks[0].priority.level == 1
-        assert tasks[1].status.status_type.name == "CHECKED"
-        assert tasks[2].status.status_type.name == "ONGOING"
-        assert tasks[2].due_date_string == "2025-12-31"
+        assert tasks[1].status.status_type.name == "ONGOING"
+        assert tasks[2].status.status_type.name == "CHECKED" # checked task is put last
+        assert tasks[1].due_date_string == "2025-12-31"
     
     def test_stats_command_real_integration(self, temp_dir):
         """Test ShowStatsCommand with real file system and components."""
@@ -1448,7 +1448,7 @@ class TestCommandIntegration:
         
         # Test filtering by status
         from xitkit.status import Status, StatusType
-        filters = TaskFilter(status=Status(StatusType.OPEN))
+        filters = TaskFilter(status=[Status(StatusType.OPEN)])
         cmd.execute(
             path=str(test_file),
             filters=filters

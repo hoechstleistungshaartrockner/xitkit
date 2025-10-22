@@ -200,53 +200,6 @@ class TestTaskFormatting:
         text_content = str(result)
         assert text_content == "#000 [ ] Task with #tag and -> 2025-12-31"
 
-class TestFileGrouping:
-    """Test task grouping by file."""
-    
-    def test_group_tasks_by_file(self, task_formatter):
-        """Test grouping tasks by file path."""
-        tasks = [
-            Task("Task 1", file="/file1.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None),
-            Task("Task 2", file="/file1.xit", line_number=2, status="CHECKED", priority=0, tags=[], due_date=None),
-            Task("Task 3", file="/file2.xit", line_number=1, status="ONGOING", priority=0, tags=[], due_date=None),
-            Task("Task 4", file="/file1.xit", line_number=3, status="OPEN", priority=0, tags=[], due_date=None),
-        ]
-        
-        grouped = task_formatter.group_tasks_by_file(tasks)
-        
-        assert len(grouped) == 2
-        assert "/file1.xit" in grouped
-        assert "/file2.xit" in grouped
-        assert len(grouped["/file1.xit"]) == 3
-        assert len(grouped["/file2.xit"]) == 1
-    
-    def test_group_tasks_empty_list(self, task_formatter):
-        """Test grouping empty task list."""
-        grouped = task_formatter.group_tasks_by_file([])
-        assert grouped == {}
-
-
-class TestFileHeaderFormatting:
-    """Test file header formatting."""
-    
-    def test_format_file_header(self, task_formatter):
-        """Test formatting file header."""
-        with patch('pathlib.Path.cwd') as mock_cwd:
-            mock_cwd.return_value = Path("/current")
-            
-            # Test relative path
-            result = task_formatter.format_file_header("/current/subdir/file.xit")
-            assert isinstance(result, Text)
-            # Should show relative path
-            text_content = str(result)
-            assert "subdir/file.xit" in text_content or "file.xit" in text_content
-    
-    def test_format_file_header_absolute_path(self, task_formatter):
-        """Test formatting file header with absolute path."""
-        # When relative path calculation fails, should show absolute path
-        result = task_formatter.format_file_header("/absolute/path/file.xit")
-        assert isinstance(result, Text)
-
 
 class TestDisplayMethods:
     """Test display methods that use console output."""

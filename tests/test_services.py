@@ -112,7 +112,7 @@ class TestTaskService:
         ]
         
         # Filter by OPEN status
-        filter_open = TaskFilter(status=Status(StatusType.OPEN))
+        filter_open = TaskFilter(status=[Status(StatusType.OPEN)])
         filtered = self.service.filter_tasks(tasks, filter_open)
         
         assert len(filtered) == 1
@@ -422,10 +422,14 @@ class TestTaskService:
             file_path = Path(temp_dir) / "test.xit"
             file_path.write_text("[ ] Daily task\n")
             
+            # Calculate end date as tomorrow (1 day from today)
+            tomorrow = datetime.now().date() + timedelta(days=1)
+            end_date_str = tomorrow.strftime("%Y-%m-%d")
+            
             result = self.service.recur_task_by_id(
                 task_id=1,
                 interval="1d",
-                end_date="2025-10-21",  # Only 1 day from now
+                end_date=end_date_str,  # Only 1 day from now
                 count=10,  # Would create 10 but end_date limits it
                 specified_files=[str(file_path)]
             )

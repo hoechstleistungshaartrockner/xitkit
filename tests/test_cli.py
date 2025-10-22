@@ -110,18 +110,18 @@ class TestShowCLI(CLITest):
             assert result.exit_code == 0
             assert len(lines) > 0
             assert lines[0] == '#001 [ ] Open task'
-            assert lines[1] == '#002 [x] Completed task with 3 trailing spaces'
-            assert lines[2] == '#003 [@] Ongoing task'
-            assert lines[3] == '#004 [~] Obsolete task'
-            assert lines[4] == '#005 [?] Task in question'
-            assert lines[5] == '#006 [ ] !! High priority task #urgent'
-            assert lines[6] == '#007 [ ] Task due tomorrow -> 2025-10-20'
-            assert lines[7] == '#008 [ ] Task with #tags -> 2025-10-21'
-            assert lines[8] == '#009 [ ] Task with #multiple #tags'
-            assert lines[9] == '#010 [ ] Simple task'
-            assert lines[10] == '#011 [ ] multi-line'
-            assert lines[11] == '         task description'
-            assert lines[12] == '         continues here'
+            assert lines[1] == '#003 [@] Ongoing task'
+            assert lines[2] == '#004 [~] Obsolete task'
+            assert lines[3] == '#005 [?] Task in question'
+            assert lines[4] == '#006 [ ] !! High priority task #urgent'
+            assert lines[5] == '#007 [ ] Task due tomorrow -> 2025-10-20'
+            assert lines[6] == '#008 [ ] Task with #tags -> 2025-10-21'
+            assert lines[7] == '#009 [ ] Task with #multiple #tags'
+            assert lines[8] == '#010 [ ] Simple task'
+            assert lines[9] == '#011 [ ] multi-line'
+            assert lines[10] == '         task description'
+            assert lines[11] == '         continues here'
+            assert lines[12] == '#002 [x] Completed task with 3 trailing spaces'
             assert lines[13] == ''
 
     def test_show_tasks_with_status_filter(self, runner, sample_tasks):
@@ -238,8 +238,7 @@ class TestShowCLI(CLITest):
             assert result.exit_code == 0
             assert len(lines) > 0
             assert lines[0] == '[ ] Open task'
-            assert lines[1] == '[x] Completed task with 3 trailing spaces'
-            assert lines[2] == '[@] Ongoing task'
+            assert lines[1] == '[@] Ongoing task'
             # Further lines can be checked similarly
 
     def test_show_multiple_files(self, runner, sample_tasks):
@@ -254,11 +253,11 @@ class TestShowCLI(CLITest):
             assert result.exit_code == 0
             assert len(lines) > 0
             # Check that tasks from both files are present
-            assert lines[10] == '#011 [ ] multi-line'
-            assert lines[11] == '         task description'
-            assert lines[12] == '         continues here'
-            assert lines[14] == '#012 [ ] Open task'  # From second file
-            assert lines[26] == '         continues here'  # Last line from second file
+            assert lines[10] == '         task description'
+            assert lines[11] == '         continues here' # last non-checked task from first file
+            assert lines[12] == '#012 [ ] Open task'  # From second file
+            assert lines[24] == '#002 [x] Completed task with 3 trailing spaces'  # From first file
+            assert lines[25] == '#013 [x] Completed task with 3 trailing spaces'  # From second file
 
     def test_show_tasks_sorted_by_priority_asc(self, runner, sample_tasks):
         """Test showing tasks sorted by priority in ascending order."""

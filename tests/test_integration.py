@@ -121,7 +121,7 @@ class TestFullWorkflow:
         
         # Filter by status
         from xitkit.status import Status, StatusType
-        open_filter = TaskFilter(status=Status(StatusType.OPEN))
+        open_filter = TaskFilter(status=[Status(StatusType.OPEN)])
         open_tasks = service.filter_tasks(tasks, open_filter)
         assert all(task.status.status_type == StatusType.OPEN for task in open_tasks)
         assert len(open_tasks) > 0
@@ -141,7 +141,7 @@ class TestFullWorkflow:
         assert len(dev_tasks) > 0
         
         # Combined filtering
-        combined_filter = TaskFilter(status=Status(StatusType.OPEN), tags=[Tag(name="development")])
+        combined_filter = TaskFilter(status=[Status(StatusType.OPEN)], tags=[Tag(name="development")])
         combined_tasks = service.filter_tasks(tasks, combined_filter)
         assert all(
             task.status.status_type == StatusType.OPEN and task.has_tag_by_name("development") 
@@ -543,7 +543,7 @@ class TestPerformanceIntegration:
         start_time = time.time()
         
         from xitkit.status import Status, StatusType
-        filters = TaskFilter(status=Status(StatusType.OPEN))
+        filters = TaskFilter(status=[Status(StatusType.OPEN)])
         filtered_tasks = service.filter_tasks(tasks, filters)
         
         filter_time = time.time() - start_time

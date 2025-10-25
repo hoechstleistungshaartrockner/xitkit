@@ -10,11 +10,9 @@ According to syntax guide:
 - No additional spaces to the left are allowed
 """
 
-from typing import Optional
-from dataclasses import dataclass
+
 import re
 
-@dataclass
 class Priority:
     """Class representing task priority according to syntax guide.
     
@@ -22,12 +20,29 @@ class Priority:
     Examples: !, !!, !!!, .!, !!., ...!, !!!...
     Invalid: .!., !.!, mixed dot positions
     """
-    level: int = 0  # number of exclamation marks (priority level)
-    leading_dots: int = 0  # dots before exclamation marks
-    trailing_dots: int = 0  # dots after exclamation marks
+    # Updated regex pattern for parsing priority
+    regex_pattern: str = r'^(?:\[.\] | )?(?P<leading_dots>\.*)(?P<level>!*)(?P<trailing_dots>\.*)(?= |$)'
+
+    def __init__(self, level: int = 0, leading_dots: int = 0, trailing_dots: int = 0):
+        """Initialize Priority object.
+
+        Args:
+            level (int): Number of exclamation marks indicating priority level.
+            leading_dots (int): Number of leading dots before exclamation marks.
+            trailing_dots (int): Number of trailing dots after exclamation marks.
+        """
+        # Validate inputs
+        if level < 0:
+            raise ValueError("Priority level cannot be negative")
+        if leading_dots > 0 and trailing_dots > 0:
+            raise ValueError("Priority cannot have both leading and trailing dots")
+        
+        self.level = level
+        self.leading_dots = leading_dots
+        self.trailing_dots = trailing_dots
 
     @classmethod
-    def from_line(cls, line: str) -> Optional['Priority']:
+    def from_line(cls, line: str) -> Priority:
         """Parse priority from text after checkbox.
 
         Args:
@@ -35,87 +50,103 @@ class Priority:
         Returns:
             Optional[Priority]: A Priority object if valid priority found, else None.
         """
-        # Pattern for priority: space + priority_chars + space + description
-        # Priority chars: dots + exclamation marks OR exclamation marks + dots
-        pattern = re.compile(r'^ ((?:[.]*[!]+|[!]+[.]*))( .*)$')
+        if line is None or line.strip() == "":
+            return Priority()  # No priority, return level 0
+        
+        # Match the line against the regex pattern
+        pattern = re.compile(cls.regex_pattern)
         match = pattern.match(line)
         
         if not match:
-            return None
+            return Priority()  # No valid priority found, return priority level 0
             
-        priority_chars = match.group(1)
-        
-        # Check for invalid mixed patterns (dots on both sides)
-        if '.' in priority_chars and priority_chars.find('.') < priority_chars.rfind('!') and priority_chars.rfind('.') > priority_chars.find('!'):
-            return None
-            
-        level = priority_chars.count('!')
-        if level == 0:  # Must have at least one exclamation mark
-            return None
-            
-        # Determine dot positions
-        leading_dots = 0
-        trailing_dots = 0
-        
-        if priority_chars.startswith('.'):
-            # Dots before exclamation marks
-            leading_dots = len(priority_chars) - len(priority_chars.lstrip('.'))
-        elif priority_chars.endswith('.'):
-            # Dots after exclamation marks  
-            trailing_dots = len(priority_chars) - len(priority_chars.rstrip('.'))
-            
-        return cls(level=level, leading_dots=leading_dots, trailing_dots=trailing_dots)
+        leading_dots_chars = match.group("leading_dots")
+        level_chars = match.group("level")
+        trailing_dots_chars = match.group("trailing_dots")
 
-    @classmethod
-    def from_checkbox_line(cls, line: str) -> Optional['Priority']:
-        """Parse priority from a complete checkbox line.
+        leading_dots = len(leading_dots_chars) if leading_dots_chars else 0
+        level = len(level_chars) if level_chars else 0
+        trailing_dots = len(trailing_dots_chars) if trailing_dots_chars else 0
+
+        # Account for invalid cases
+        # 1. Dots on both sides
+        # 2. No dots and no exclamation marks (empty match)
+        # 3. Mixed dots (dots in the middle - detected by having both leading and trailing)
+        if leading_dots > 0 and trailing_dots > 0:
+            return Priority()  # invalid: dots on both sides
         
-        Args:
-            line (str): Complete line starting with checkbox like '[ ] ! description'
-        Returns:
-            Optional[Priority]: A Priority object if valid priority found, else None.
-        """
-        # Extract content after checkbox
-        checkbox_pattern = re.compile(r'^\[(.)\](.*)$')
-        match = checkbox_pattern.match(line)
+        # If we have neither dots nor exclamation marks, it's not a priority
+        if leading_dots == 0 and level == 0 and trailing_dots == 0:
+            return Priority()
         
-        if not match:
-            return None
-            
-        after_checkbox = match.group(2)
-        return cls.from_line(after_checkbox)
+        return cls(level=level, leading_dots=leading_dots, trailing_dots=trailing_dots)
 
     def __str__(self) -> str:
         """String representation of the priority for display."""
-        if self.level == 0:
-            return ""
+        # if self.level == 0:
+        #     return ""
         return '.' * self.leading_dots + '!' * self.level + '.' * self.trailing_dots
 
     def __eq__(self, other) -> bool:
         """Check equality with another Priority object."""
-        if not isinstance(other, Priority):
-            return False
-        return (self.level == other.level and 
-                self.leading_dots == other.leading_dots and 
-                self.trailing_dots == other.trailing_dots)
+        if isinstance(other, Priority):
+            return (self.level == other.level and 
+                    self.leading_dots == other.leading_dots and 
+                    self.trailing_dots == other.trailing_dots)
+        elif isinstance(other, str):
+            return str(self) == other
+        elif isinstance(other, int):
+            return self.level == other
+        elif isinstance(other, float):
+            return float(self.level) == other
+        elif isinstance(other, tuple) and len(other) == 3:
+            return (self.level, self.leading_dots, self.trailing_dots) == other
+        elif isinstance(other, dict):
+            return (self.level == other.get('level', 0) and
+                    self.leading_dots == other.get('leading_dots', 0) and
+                    self.trailing_dots == other.get('trailing_dots', 0))
+        else:
+            return NotImplemented
 
     def __lt__(self, other) -> bool:
         """Compare priority levels (higher level = higher priority)."""
-        if not isinstance(other, Priority):
+        if isinstance(other, Priority):
+            return self.level < other.level
+        elif isinstance(other, int):
+            return self.level < other
+        elif isinstance(other, float):
+            return float(self.level) < other
+        else:
             return NotImplemented
-        return self.level < other.level
+
+    def __gt__(self, other) -> bool:
+        """Compare priority levels (higher level = higher priority)."""
+        if isinstance(other, Priority):
+            return self.level > other.level
+        elif isinstance(other, int):
+            return self.level > other
+        elif isinstance(other, float):
+            return float(self.level) > other
+        else:
+            return NotImplemented
 
     def __hash__(self) -> int:
         """Hash function for Priority objects."""
         return hash((self.level, self.leading_dots, self.trailing_dots))
 
-    @property
-    def is_empty(self) -> bool:
-        """Check if priority is empty (no exclamation marks)."""
-        return self.level == 0
-
-    @property
-    def indicator(self) -> str:
-        """Get priority indicator string (same as __str__ but clearer intent)."""
-        return str(self)
+    def to_tuple(self) -> tuple:
+        """Convert Priority to a tuple representation."""
+        return (self.level, self.leading_dots, self.trailing_dots)
+    
+    def to_dict(self) -> dict:
+        """Convert Priority to a dictionary representation."""
+        return {
+            'level': self.level,
+            'leading_dots': self.leading_dots,
+            'trailing_dots': self.trailing_dots
+        }
+    
+    def __repr__(self) -> str:
+        """Official string representation of Priority object."""
+        return f"Priority(level={self.level}, leading_dots={self.leading_dots}, trailing_dots={self.trailing_dots})"
     

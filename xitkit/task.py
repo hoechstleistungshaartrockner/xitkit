@@ -44,7 +44,7 @@ class Task:
             description (str): Task description text.
             file (Optional[str]): File path where the task is located.
             line_number (Optional[int]): Line number of the task in the file.
-            status (Optional[Status]): Task status object.
+            status (Optional[Status]): status object, StatusType, or status string.
             priority (Optional[Priority]): Priority object or integer level.
             tags (Optional[List[Tag]]): List of Tag objects associated with the task.
             due_date (Optional[str]): Due date string if any.
@@ -83,7 +83,9 @@ class Task:
         else:
             self.status = Status(StatusType.OPEN)
         
-        # Handle priority - can be Priority object, integer, or None
+        # Handle priority
+        # will be inferred by the Description
+        # or, if provided, can be Priority object, integer, or None and will overpower the Description
         if isinstance(priority, Priority):
             self.priority = priority
         elif isinstance(priority, int):

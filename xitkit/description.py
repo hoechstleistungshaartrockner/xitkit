@@ -9,6 +9,7 @@ in the xit framework.
 from dataclasses import dataclass, field
 from .tags import Tag
 from .duedate import DueDate
+from .priority import Priority
 from copy import deepcopy
 import re
 from typing import Optional
@@ -17,17 +18,38 @@ from typing import Optional
 class Description:
     """Class representing a task description with optional due date."""
     text: str = field(default_factory=str)
+    priority: Optional[Priority] = field(init=False)
     tags: list = field(init=False)
     due_date: Optional[DueDate] = field(init=False)
 
     def __post_init__(self):
         """Post-initialization to extract tags and due date from the text."""
+        self.priority = Priority.from_line(self.text)
         self.tags = Tag.from_line(self.text)
         self.due_date = DueDate.from_line(self.text)
 
     def __str__(self) -> str:
         """String representation of the description."""
         return self.text
+
+    # Methods for manipulating and accessing the text.
+
+    def update(self, new_text=None, new_priority=None, new_due_date=None, new_tags=None) -> None:
+        """Update the description text and optionally priority, due date, and tags. Needs to be called before setting new attributes.
+
+        Args:
+            new_text (str): The new description text.
+            new_priority (Optional[Priority]): New priority to set.
+            new_due_date (Optional[DueDate]): New due date to set.
+            new_tags (Optional[list]): New list of tags to set.
+        """
+        if new_text is not None:
+            self.text = new_text
+        
+        # Update priority if provided
+        if new_priority is not None:
+            self.text.replace(str(self.priority), str(new_priority), 1)
+            self.priority = new_priority
 
     def get_clean_text(self) -> str:
         """Get description text without tags, due dates, and priority indicators.
@@ -39,13 +61,13 @@ class Description:
         
         # Remove priority indicators including dots (..!!, !!, !.., etc.)
         # This should match the same pattern as PRIORITY_PATTERN but remove it from start of text
-        text = re.sub(r'^(?:[.]*[!]+|[!]+[.]*)\s*', '', text)
+        text = re.sub(self.priority.PRIORITY_PATTERN, '', text).strip()
         
         # Remove due date patterns (-> YYYY-MM-DD)
-        text = re.sub(r'\s*->\s*\d{4}-\d{2}-\d{2}\s*', '', text)
+        text = re.sub(self.due_date.DUE_DATE_PATTERN, '', text).strip()
         
         # Remove tags (#tagname)
-        text = re.sub(r'\s*#\w+\s*', ' ', text)
+        text = text.replace('#', '')
         
         # Clean up extra whitespace
         text = re.sub(r'\s+', ' ', text).strip()
@@ -81,6 +103,8 @@ class Description:
         # Re-extract tags and due date from the new text
         self.tags = Tag.from_line(self.text)
         self.due_date = DueDate.from_line(self.text)
+
+    # Methods for manipulating tags.
 
     def add_tag(self, tag: Tag) -> None:
         """Add a tag to the description.
@@ -177,6 +201,42 @@ class Description:
             if existing_tag.compare(tag, soft=soft):
                 return True
         return False
+
+    def compare_tags(self, other: 'Description', soft: bool = False) -> bool:
+            """Compare tags of this description with another description.
+
+            Args:
+                other (Description): The other description to compare with.
+                soft (bool): If True, only compare tag names; if False, compare names and values.
+            Returns:
+                bool: True if tags are considered equal, False otherwise.
+            """
+            if len(self.tags) != len(other.tags):
+                return False
+            
+            for tag in self.tags:
+                matched = False
+                for other_tag in other.tags:
+                    if tag.compare(other_tag, soft=soft):
+                        matched = True
+                        break
+                if not matched:
+                    return False
+            return True
+            
+    @staticmethod
+    def identify_tags(text: str) -> list:
+        """Identify and extract tags from a given text.
+
+        Args:
+            text (str): The text to extract tags from.
+        Returns:
+            list: A list of Tag objects identified in the text.
+        """
+        return Tag.from_line(text)
+
+
+    # Methods for manipulating due dates.
     
     def has_due_date(self) -> bool:
         """Check if the description has a due date.
@@ -247,28 +307,62 @@ class Description:
             self.set_due_date(due_date)
             return True
         return False
-    
-    def compare_tags(self, other: 'Description', soft: bool = False) -> bool:
-        """Compare tags of this description with another description.
+
+    # Methods for Priority handling.
+
+    def get_priority(self) -> Optional[Priority]:
+        """Get the priority associated with the description.
+
+        Returns:
+            Optional[Priority]: The priority or None if no valid priority exists.
+        """
+        return self.priority
+
+    def has_priority(self) -> bool:
+        """Check if the description has a priority.
+
+        Returns:
+            bool: True if there is a valid priority, False otherwise.
+        """
+        return self.priority.level > 0
+
+    def set_priority(self, priority: Optional[Priority]) -> None:
+        """Set or clear the priority for the description.
 
         Args:
-            other (Description): The other description to compare with.
-            soft (bool): If True, only compare tag names; if False, compare names and values.
-        Returns:
-            bool: True if tags are considered equal, False otherwise.
+            priority (Optional[Priority]): The priority to set, or None to clear.
         """
-        if len(self.tags) != len(other.tags):
-            return False
+        # Remove existing priority from text if present
+        if self.priority is not None and self.priority.level > 0:
+            priority_str = str(self.priority)
+            if priority_str in self.text:
+                # Handle various spacing scenarios
+                patterns_to_try = [
+                    f"{priority_str} ",  # Priority with trailing space  
+                    f" {priority_str}",  # Priority with leading space
+                    priority_str,        # Just the priority
+                ]
+                
+                for pattern in patterns_to_try:
+                    if pattern in self.text:
+                        self.text = self.text.replace(pattern, "", 1)
+                        break
+                
+                # Clean up extra whitespace
+                self.text = re.sub(r'\s+', ' ', self.text).strip()
         
-        for tag in self.tags:
-            matched = False
-            for other_tag in other.tags:
-                if tag.compare(other_tag, soft=soft):
-                    matched = True
-                    break
-            if not matched:
-                return False
-        return True
+        # Set new priority
+        if priority is None:
+            self.priority = Priority()
+        else:
+            self.priority = priority
+        
+        # Add new priority to text if provided
+        if self.priority.level > 0:
+            if self.text:
+                self.text = f"{str(self.priority)} {self.text}"
+            else:
+                self.text = str(self.priority)
 
     def copy(self) -> 'Description':
         """Create a deep copy of the description.
@@ -278,28 +372,22 @@ class Description:
         """
         return deepcopy(self)
 
-    @staticmethod
-    def identify_tags(text: str) -> list:
-        """Identify and extract tags from a given text.
-
-        Args:
-            text (str): The text to extract tags from.
-        Returns:
-            list: A list of Tag objects identified in the text.
-        """
-        return Tag.from_line(text)
     
     def __repr__(self) -> str:
         """String representation for debugging."""
-        return f"Description(text='{self.text}', tags={self.tags}, due_date={self.due_date})"
+        return f"Description(text='{self.text}', priority={self.priority}, tags={self.tags}, due_date={self.due_date})"
     
     def __eq__(self, other) -> bool:
         """Check equality with another Description."""
-        if not isinstance(other, Description):
-            return False
-        return (self.text == other.text and 
+        if isinstance(other, Description):
+            return (self.text == other.text and 
+                self.priority == other.priority and
                 self.tags == other.tags and 
                 self.due_date == other.due_date)
+        elif isinstance(other, str):
+            return self.text == other
+        else:
+            return NotImplemented
     
     def __hash__(self) -> int:
         """Hash function for Description objects."""

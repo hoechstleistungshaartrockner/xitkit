@@ -22,6 +22,12 @@ class TestDescriptionBasics:
         assert len(desc.tags) == 2
         assert desc.tags[0] == Tag(name="work")
         assert desc.tags[1] == Tag(name="urgent")
+    
+    def test_initialization_with_priority(self):
+        desc = Description("!! Important task")
+        assert desc.text == "!! Important task"
+        assert desc.priority.level == 2
+        
 
     def test_set_text(self):
         desc = Description()
@@ -56,6 +62,7 @@ class TestDescriptionBasics:
         desc.set_text("   ")
         assert desc.text == "   "
         assert desc.tags == []
+    
 
 class TestDescriptionTagIdentification:
 

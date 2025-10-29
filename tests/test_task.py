@@ -105,7 +105,7 @@ class TestTaskCreation:
             id=123
         )
         
-        assert task.description_text == "Complex task"
+        assert str(task) == "[?] .!! Complex task #work #review=needed -> 2025-11-15"
         assert task.file == "/test/file.xit"
         assert task.line_number == 42
         assert task.status == Status(StatusType.IN_QUESTION)
@@ -199,15 +199,19 @@ class TestTaskModification:
         # Integer priority
         task.set_priority(5)
         assert task.priority.level == 5
+        assert task.description.priority.level == 5
         
         # Priority object
         priority_obj = Priority(level=3, leading_dots=2)
         task.set_priority(priority_obj)
         assert task.priority == priority_obj
-        
+        assert task.description.priority == priority_obj
+
         # Set to zero
         task.set_priority(0)
         assert not task.has_priority
+        assert task.description.priority.level == 0
+
 
     def test_priority_modification_invalid(self):
         """Test setting invalid priority raises ValueError."""
@@ -221,29 +225,36 @@ class TestTaskModification:
 
     def test_tag_management(self):
         """Test comprehensive tag management."""
-        task = Task("Test")
+        task = Task("Test #with tags")
+
+        assert task.has_tags
+        assert len(task.tags) == 1
+        assert task.has_tag_by_name("with")
+        assert task.description.tags[0] == Tag("with")
+        assert str(task) == "[ ] Test #with tags"
         
         # Add tags
         task.add_tag_by_name("work")
-        task.add_tag_by_name("#urgent")  # With # prefix
-        task.add_tag_by_name("priority", "high")  # With value
-        tag_obj = Tag("project", "website")
-        task.add_tag(tag_obj)
-        
-        assert len(task.tags) == 4
         assert task.has_tag_by_name("work")
+        assert task.description.tags[-1] == Tag("work")
+        assert str(task) == "[ ] Test #with tags #work"
+
+        task.add_tag_by_name("#urgent")  # With # prefix
         assert task.has_tag_by_name("urgent")
-        assert task.has_tag(tag_obj)
+        assert task.description.tags[-1] == Tag("urgent")
+
+        assert str(task) == "[ ] Test #with tags #work #urgent"
         
         # Remove tags
-        assert task.remove_tag_by_name("work")
+        task.remove_tag_by_name("work")
         assert not task.has_tag_by_name("work")
+        assert task.description.tags == [Tag("with"), Tag("urgent")]
+        assert str(task) == "[ ] Test #with tags #urgent"
         
-        assert task.remove_tag(tag_obj)
-        assert not task.has_tag(tag_obj)
-        
-        # Try to remove non-existent tag
-        assert not task.remove_tag_by_name("nonexistent")
+        task.remove_tag(Tag("urgent"), soft=True)
+        assert not task.has_tag_by_name("urgent")
+        assert task.description.tags == [Tag("with")]
+        assert str(task) == "[ ] Test #with tags urgent"
 
     def test_due_date_management(self):
         """Test due date setting and clearing."""
@@ -516,3 +527,27 @@ class TestTaskIntegration:
         # Filter urgent tasks
         urgent_tasks = [t for t in tasks if t.has_tag_by_name("urgent")]
         assert len(urgent_tasks) == 1
+
+class TestTaskDuplicateInformation:
+    """Test how the Initializer handles duplicate information."""
+
+    def test_priority_from_description(self):
+        """Test that priority can be taken from description if not provided."""
+        task = Task("! Important task")
+        assert task.priority.level == 1
+        assert str(task) == "[ ] ! Important task"
+    
+    def test_tags_from_description(self):
+        """Test that tags can be taken from description if not provided."""
+        task = Task("Task with #urgent #tags in description")
+        assert len(task.tags) == 2
+        assert task.has_tag_by_name("urgent")
+        assert task.has_tag_by_name("tags")
+        assert str(task) == "[ ] Task with #urgent #tags in description"
+
+    
+    def test_due_date_from_description(self):
+        """Test that due date can be taken from description if not provided."""
+        task = Task("Task due -> 2025-12-31")
+        assert task.has_due_date
+        assert str(task.due_date) == "-> 2025-12-31"

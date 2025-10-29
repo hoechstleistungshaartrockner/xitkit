@@ -195,13 +195,23 @@ class ShowStatsCommand(Command):
 class AddTaskCommand(Command):
     """Command for adding new tasks."""
     
-    def execute(self, description: str, file_path: str, directory: Path = None) -> None:
+    def execute(self, 
+                description: str, 
+                file_path: str, 
+                priority: int = None,
+                due_date: str = None,
+                tags: list = None,
+                directory: Path = None) -> None:
         """Execute the add task command.
         
         Args:
             description: The task description text
             file_path: Path to the file where task should be added
             directory: Base directory for relative paths
+            priority: Priority level of the task
+            due_date: Due date string for the task
+            tags: List of string tags for the task
+
         """
         try:
             # Resolve absolute file path
@@ -217,9 +227,9 @@ class AddTaskCommand(Command):
                 file=file_path,
                 line_number=None,  # Will be determined when added
                 status=Status(StatusType.OPEN),
-                priority=Priority(0),  # No priority by default
-                tags=[],
-                due_date=None,
+                priority=priority or 0,
+                tags=tags or [],
+                due_date=due_date,
                 id=None  # Will be assigned when loaded
             )
             
@@ -234,8 +244,8 @@ class AddTaskCommand(Command):
             
         except XitError as e:
             self.formatter.display_error(str(e))
-        except Exception as e:
-            self.formatter.display_error(f"Unexpected error: {e}")
+        # except Exception as e:
+        #     self.formatter.display_error(f"Unexpected error: {e}")
     
     def _get_relative_path(self, file_path: str) -> str:
         """Get relative path for display purposes."""

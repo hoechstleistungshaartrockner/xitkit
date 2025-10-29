@@ -430,6 +430,71 @@ class TestAddCLI(CLITest):
             with open('todo.xit', 'r') as f:
                 content = f.read()
                 assert '[ ] Default file task' in content
+        
+    def test_add_task_with_priority(self, runner):
+        """Test adding a task with priority."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Priority task', '--priority', '3', '--file', 'prio_test.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct priority
+            with open('prio_test.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] !!! Priority task' in content
+
+    def test_add_task_with_due_date(self, runner):
+        """Test adding a task with due date."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Due date task', '--due', '2025-12-31', '--file', 'due_test.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct due date
+            with open('due_test.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] Due date task -> 2025-12-31' in content
+        
+    def test_add_task_with_tags(self, runner):
+        """Test adding a task with tags."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Tagged task', '--tag', 'work', '--tag', 'urgent', '--file', 'tag_test.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct tags
+            with open('tag_test.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] Tagged task #work #urgent' in content
+
+    def test_add_task_due_date_in_description(self, runner):
+        """Test adding a task with due date specified in description."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Task with due date -> 2025-11-15', '--file', 'due_in_desc.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct due date
+            with open('due_in_desc.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] Task with due date -> 2025-11-15' in content
+    
+    def test_add_task_tags_in_description(self, runner):
+        """Test adding a task with tags specified in description."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Task with #tag1 #tag2 in description', '--file', 'tags_in_desc.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct tags
+            with open('tags_in_desc.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] Task with #tag1 #tag2 in description' in content
 
 class TestMarkCLI(CLITest):
     """Test the 'mark' command of the CLI."""

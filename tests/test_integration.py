@@ -215,7 +215,7 @@ class TestCommandIntegration:
         
         # Verify task content
         descriptions = [str(task.description) for task in displayed_tasks]
-        assert "Complete quarterly review #work #urgent -> 2025-11-30" in descriptions
+        assert "! Complete quarterly review #work #urgent -> 2025-11-30" in descriptions
         assert "Schedule dentist appointment #personal #health" in descriptions
         
         # Test with filtering (skip this test part since filtering needs more work in commands)

@@ -11,7 +11,6 @@ from typing import Optional, Union
 from datetime import datetime, timedelta
 import re
 from .dateutils import DateParser, get_date_parser
-from .patterns import DUE_DATE_PATTERN
 
 
 @dataclass
@@ -30,6 +29,7 @@ class DueDate:
     expression: str  # Original expression like "-> 2025-12-31", "-> 2025-Q3"
     implied_date: Optional[str] = field(init=False)  # Normalized to YYYY-MM-DD
     normalized_date: Optional[str] = field(init=False)  # Same as implied_date for compatibility
+    regex_pattern: str = r'(?:^|(?<=[\s\(\)\[\]:;,.!?]))-> (\d{4}(?:[-/](?:W\d{2}|Q[1-4]|\d{1,2}(?:[-/]\d{1,2})?))?)(?=\s|[^\w/-]|$)'
 
     
     def __post_init__(self):
@@ -166,7 +166,8 @@ class DueDate:
         expression = f"-> {date_str.strip()}"
         
         # Validate using the pattern
-        if not DUE_DATE_PATTERN.search(expression):
+        pattern = re.compile(cls.regex_pattern)
+        if not pattern.search(expression):
             return None
         
         # Create the object and check if it parsed successfully
@@ -186,7 +187,8 @@ class DueDate:
         Returns:
             DueDate object or None if no valid due date found
         """
-        match = DUE_DATE_PATTERN.search(line)
+        pattern = re.compile(cls.regex_pattern)
+        match = pattern.search(line)
         if not match:
             return None
             

@@ -50,7 +50,6 @@ class Task:
             due_date (Optional[str]): Due date string if any.
             id (Optional[int]): Unique ID for the task.
         """
-        
         self.description = Description(description)
         self.file = file
         self.line_number = line_number
@@ -86,31 +85,39 @@ class Task:
         # Handle priority
         # will be inferred by the Description
         # or, if provided, can be Priority object, integer, or None and will overpower the Description
+
+        self.priority = self.description.priority
         if isinstance(priority, Priority):
-            self.priority = priority
+            self.set_priority(priority)
         elif isinstance(priority, int):
-            self.priority = Priority(level=priority)
+            self.set_priority(Priority(level=priority))
+        elif priority is None:
+            pass  # keep from description
         else:
-            self.priority = Priority()
-            
+            raise ValueError(f"Invalid priority type: {type(priority)}")
+        
+        # Handle ID
         self.id = id if id is not None else 0
         
         # Handle tags - can be Tag objects or strings
         # Keep a separate list for easier management
-        self.tags = []
+        self.tags = self.description.tags
         tags = tags if tags is not None else []
         for tag in tags:
             if isinstance(tag, Tag):
-                self.tags.append(tag)
+                self.add_tag(tag)
             else:
                 # Assume it's a string, create Tag object
-                self.tags.append(Tag(name=str(tag)))
+                self.add_tag_by_name(tag)
         
         # Handle due date
+        self.due_date = self.description.due_date
         if due_date is not None:
-            self.due_date = DueDate.from_string(due_date)
-        else:
-            self.due_date = None
+            if isinstance(due_date, str) or isinstance(due_date, DueDate):
+                self.set_due_date(due_date)
+            else:
+                # Unsupported type, ignore
+                pass
 
 
     @property
@@ -264,13 +271,16 @@ class Task:
             ValueError: If priority is invalid
         """
         if isinstance(priority, Priority):
-            self.priority = priority
+            self.description.set_priority(priority)
         elif isinstance(priority, int):
             if priority < 0:
                 raise ValueError("Priority must be >= 0")
-            self.priority = Priority(level=priority)
+            self.description.set_priority(Priority(level=priority))
         else:
             raise ValueError(f"Invalid priority type: {type(priority)}")
+        
+        # Update the task's priority reference to point to the description's priority
+        self.priority = self.description.priority
 
     def add_tag(self, tag: Tag) -> None:
         """Add a tag to the task.
@@ -278,8 +288,7 @@ class Task:
         Args:
             tag: Tag to add
         """
-        if tag not in self.tags:
-            self.tags.append(tag)
+        self.description.add_tag(tag)
 
     def add_tag_by_name(self, name: str, value: Optional[str] = None) -> None:
         """Add a tag by name and optional value.
@@ -293,7 +302,7 @@ class Task:
         tag = Tag(name=name, value=value)
         self.add_tag(tag)
 
-    def remove_tag(self, tag: Tag) -> bool:
+    def remove_tag(self, tag: Tag, soft: bool =False) -> bool:
         """Remove a tag from the task.
         
         Args:
@@ -302,12 +311,10 @@ class Task:
         Returns:
             True if tag was removed, False if not found
         """
-        if tag in self.tags:
-            self.tags.remove(tag)
-            return True
-        return False
+        return self.description.remove_tag(tag, soft=soft)
+        
 
-    def remove_tag_by_name(self, name: str, soft: bool = True) -> bool:
+    def remove_tag_by_name(self, name: str, soft: bool = False) -> bool:
         """Remove a tag by name.
         
         Args:
@@ -321,11 +328,7 @@ class Task:
         name = name.lstrip('#')
         search_tag = Tag(name=name)
         
-        for existing_tag in self.tags[:]:  # Create a copy to iterate over
-            if existing_tag.compare(search_tag, soft=soft):
-                self.tags.remove(existing_tag)
-                return True
-        return False
+        return self.remove_tag(search_tag, soft=soft)
 
     def has_tag(self, tag: Tag, soft: bool = False) -> bool:
         """Check if the task has a specific tag.
@@ -382,14 +385,19 @@ class Task:
         Args:
             due_date: Due date string or None to clear
         """
-        if due_date is not None:
-            self.due_date = DueDate.from_string(due_date)
-        else:
-            self.due_date = None
+        if isinstance(due_date, str):
+            self.description.set_due_date(DueDate.from_string(due_date))
+        elif isinstance(due_date, DueDate):
+            self.description.set_due_date(due_date)
+        elif due_date is None:
+            self.description.set_due_date(None)
+        
+        self.due_date = self.description.due_date
 
     def clear_due_date(self) -> None:
         """Clear the due date for the task."""
-        self.due_date = None
+        self.description.clear_due_date()
+        self.due_date = self.description.due_date
 
     def is_overdue(self, current_date: str = "2025-10-15") -> bool:
         """Check if the task is overdue based on the current date.
@@ -441,7 +449,10 @@ class Task:
         """
         return deepcopy(self)
 
-    def to_terminal_line(self, show_file: bool = True, show_line: bool = True, show_id: bool = False) -> str:
+    def to_terminal_line(self, 
+                         show_file: bool = True, 
+                         show_line: bool = True, 
+                         show_id: bool = False) -> str:
         """Convert task to terminal line format for display.
         
         Args:
@@ -454,10 +465,6 @@ class Task:
         """
         # Start with status symbol
         line_parts = [self.status_symbol]
-        
-        # Add priority if present
-        if self.has_priority:
-            line_parts.append(self.priority_indicator)
         
         # Add description, handling multi-line descriptions
         description_lines = str(self.description).split('\n')
@@ -495,15 +502,5 @@ class Task:
         Returns:
             String in checkbox format that can be written to file
         """
-        # Start with status symbol
-        line_parts = [self.status_symbol]
-        
-        # Add priority if present
-        if self.has_priority:
-            line_parts.append(self.priority_indicator)
-        
-        # Add description with tags and due date
-        line_parts.append(self.get_description_with_tags())
-        
-        return ' '.join(line_parts)
+        return f"{self.status_symbol} {self.description}"
 

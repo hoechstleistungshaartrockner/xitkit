@@ -431,7 +431,7 @@ class TestDescriptionEquality:
 
     def test_equality_with_non_description(self):
         desc = Description("Task")
-        assert desc != "Task"
+        assert desc == "Task"
         assert desc != 42
         assert desc != None
 

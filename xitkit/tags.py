@@ -14,6 +14,7 @@ class Tag:
     """Class representing a task tag."""
     name: str
     value: Optional[str] = None
+    regex_pattern: str = TAG_PATTERN
 
     def __str__(self) -> str:
         """String representation of the tag."""

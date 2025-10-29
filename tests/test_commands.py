@@ -1386,7 +1386,7 @@ class TestCommandIntegration:
         tasks = args[0]
         
         assert len(tasks) == 3
-        assert str(tasks[0].description) == "Open high priority task #work"
+        assert str(tasks[0].description) == "! Open high priority task #work"
         assert tasks[0].priority.level == 1
         assert tasks[1].status.status_type.name == "ONGOING"
         assert tasks[2].status.status_type.name == "CHECKED" # checked task is put last

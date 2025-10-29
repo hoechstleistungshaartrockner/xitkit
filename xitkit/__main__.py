@@ -17,6 +17,10 @@ from xitkit.commands import CommandFactory
 from xitkit.services import TaskFilter
 from xitkit.formatter import TaskFormatter
 from xitkit.pomodoro import PomodoroApp
+from xitkit.priority import Priority
+from xitkit.tags import Tag
+from xitkit.duedate import DueDate
+from xitkit.description import Description
 
 
 @click.group(invoke_without_command=True)
@@ -191,8 +195,14 @@ def stats(ctx, path, directory, files):
 @click.argument('description', type=str)
 @click.option('--file', '-f', type=click.Path(), 
               help='File to add the task to (default: todo.xit)')
+@click.option('--priority', '-p', type=int, default=0,
+              help='Priority level of the new task, default is 0 (no priority)')
+@click.option('--due', '-d', type=str,
+              help='Due date for the new task in one of the supported formats (e.g., "2025-12-31", "today", "tomorrow", "1d", "2w", "3m", "1y")')
+@click.option('--tag', '-t', multiple=True,
+              help='Tags to add to the new task (can be used multiple times)')
 @click.pass_context
-def add(ctx, description, file):
+def add(ctx, description, file, priority, due, tag):
     """Add a new task.
     
     Creates a new task with the specified description and appends it to the target file.
@@ -212,7 +222,10 @@ def add(ctx, description, file):
     command.execute(
         description=description,
         file_path=file or "todo.xit",
-        directory=Path.cwd()
+        directory=Path.cwd(),
+        priority=priority,
+        due_date=due,
+        tags=list(tag)
     )
 
 

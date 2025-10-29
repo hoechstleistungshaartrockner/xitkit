@@ -61,13 +61,13 @@ class Description:
         
         # Remove priority indicators including dots (..!!, !!, !.., etc.)
         # This should match the same pattern as PRIORITY_PATTERN but remove it from start of text
-        text = re.sub(self.priority.PRIORITY_PATTERN, '', text).strip()
+        text = re.sub(Priority.regex_pattern, '', text).strip()
         
         # Remove due date patterns (-> YYYY-MM-DD)
-        text = re.sub(self.due_date.DUE_DATE_PATTERN, '', text).strip()
+        text = re.sub(DueDate.regex_pattern, '', text).strip()
         
         # Remove tags (#tagname)
-        text = text.replace('#', '')
+        text = re.sub(Tag.regex_pattern, "", text).strip()
         
         # Clean up extra whitespace
         text = re.sub(r'\s+', ' ', text).strip()
@@ -82,12 +82,15 @@ class Description:
         """
         text = self.text
         
-        # Remove priority indicators (!! or !) but keep tags and due dates
-        # Handle both single line and multiline cases
+        # Remove priority indicators using a pattern that only matches when exclamation marks are present
+        # This handles patterns like !, !!, ....!, !!!, etc.
         lines = text.split('\n')
         if lines:
-            # Remove priority from the first line only
-            lines[0] = re.sub(r'^\s*!+\s*', '', lines[0])
+            # Remove priority from the first line only, but only if there are actual exclamation marks
+            match = re.search(Priority.regex_pattern, lines[0])
+            if match and match.groupdict().get('level', ''):
+                # Only remove if the match contains exclamation marks
+                lines[0] = re.sub(Priority.regex_pattern, '', lines[0]).lstrip()
         
         return '\n'.join(lines)
 

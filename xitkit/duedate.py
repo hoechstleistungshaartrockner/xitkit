@@ -151,19 +151,27 @@ class DueDate:
 
     @classmethod
     def from_string(cls, date_str: str) -> Optional['DueDate']:
-        """Create a DueDate from a date string like '2025-12-31'.
+        """Create a DueDate from a date string like '2025-12-31' or natural language like 'tomorrow'.
         
         Args:
-            date_str: Date string in various formats
+            date_str: Date string in various formats including natural language
             
         Returns:
             DueDate object or None if invalid
         """
         if not date_str or not isinstance(date_str, str):
             return None
-            
-        # Create expression with proper prefix
-        expression = f"-> {date_str.strip()}"
+        
+        # First try to parse with natural language / date parser
+        date_parser = get_date_parser()
+        parsed_date = date_parser.parse_date_expression(date_str.strip())
+        
+        if parsed_date:
+            # Use the parsed date
+            expression = f"-> {parsed_date}"
+        else:
+            # Fall back to direct usage (for already formatted dates)
+            expression = f"-> {date_str.strip()}"
         
         # Validate using the pattern
         pattern = re.compile(cls.regex_pattern)

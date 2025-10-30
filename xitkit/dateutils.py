@@ -37,7 +37,7 @@ class DateParser:
         }
         
         # Regex patterns for relative dates
-        self.relative_pattern = re.compile(r'^([+-]?\d+)([dwmy])$', re.IGNORECASE)
+        self.relative_pattern = re.compile(r'(?P<years>\d+y)?(?P<months>\d+m)?(?P<weeks>\d+w)?(?P<days>\d+d)?', re.IGNORECASE)
         
         # Standard date patterns (from syntax guide)
         self.date_patterns = [
@@ -79,11 +79,19 @@ class DateParser:
         # Handle relative dates (1d, 2w, 3m, 1y)
         relative_match = self.relative_pattern.match(expression.lower())
         if relative_match:
-            amount = int(relative_match.group(1))
-            unit = relative_match.group(2).lower()
+            amount = {'years': relative_match.group('years'),
+                      'months': relative_match.group('months'),
+                      'weeks': relative_match.group('weeks'),
+                      'days': relative_match.group('days')}
+            # strip the unit letters and convert to int or None
+            for key in amount:
+                if amount[key]:
+                    amount[key] = int(amount[key][:-1])  # remove last char (unit)
+                else:
+                    amount[key] = 0
             
-            target_date = self._calculate_relative_date(amount, unit)
-            if target_date:
+            if not relative_match.span() == (0, 0):
+                target_date = self._calculate_relative_date(**amount)
                 return target_date.strftime('%Y-%m-%d')
         
         # Handle standard date formats (return as-is if valid)
@@ -91,27 +99,27 @@ class DateParser:
             return expression
         
         return None
-    
-    def _calculate_relative_date(self, amount: int, unit: str) -> Optional[datetime]:
+
+    def _calculate_relative_date(self, years: int = 0, months: int = 0, weeks: int = 0, days: int = 0) -> Optional[datetime]:
         """Calculate a date relative to the current date.
         
         Args:
-            amount: Number of units
-            unit: Time unit ('d', 'w', 'm', 'y')
+            years: Number of years
+            months: Number of months
+            weeks: Number of weeks
+            days: Number of days
             
         Returns:
             Calculated datetime or None if invalid unit
         """
-        if unit == 'd':  # days
-            return self.current_date + timedelta(days=amount)
-        elif unit == 'w':  # weeks
-            return self.current_date + timedelta(weeks=amount)
-        elif unit == 'm':  # months (approximate as 30 days)
-            return self.current_date + timedelta(days=amount * 30)
-        elif unit == 'y':  # years (approximate as 365 days)
-            return self.current_date + timedelta(days=amount * 365)
+        # resolve None values
+        resolve_options = {None: 0,}
+        intervals = [resolve_options.get(i, i) for i in [years, months, weeks, days]]
+        factors = [365, 30, 7, 1]
+        total_days = sum(f * int(v) for f, v in zip(factors, intervals))
+        return self.current_date + timedelta(days=total_days)
         
-        return None
+
     
     def _is_valid_standard_date(self, date_str: str) -> bool:
         """Check if a string matches any of the standard date formats.
@@ -366,9 +374,10 @@ def parse_interval_expression(interval: str) -> timedelta:
     - 1w, 2w (weeks)
     - 1m, 3m (months - approximated as 30 days)
     - 1y (years - approximated as 365 days)
+    - 1w2d, 2m3w4d (composite intervals)
     
     Args:
-        interval: Interval expression (e.g., "1w", "30d", "3m")
+        interval: Interval expression (e.g., "1w", "30d", "3m", "1w2d")
         
     Returns:
         timedelta object representing the interval
@@ -382,30 +391,40 @@ def parse_interval_expression(interval: str) -> timedelta:
     # Remove whitespace and make lowercase
     interval = interval.strip().lower()
     
-    # Pattern for interval parsing (allow optional negative sign)
-    pattern = re.compile(r'^([+-]?\d+)([dwmy])$')
-    match = pattern.match(interval)
+    # Pattern for finding all interval components (e.g., "1w", "2d" from "1w2d")
+    pattern = re.compile(r'([+-]?\d+)([dwmy])')
+    matches = pattern.findall(interval)
     
-    if not match:
-        raise ValueError(f"Invalid interval format: '{interval}'. Use format like '1d', '2w', '3m', '1y'")
+    if not matches:
+        raise ValueError(f"Invalid interval format: '{interval}'. Use format like '1d', '2w', '3m', '1y', or composites like '1w2d'")
     
-    amount = int(match.group(1))
-    unit = match.group(2)
+    # Check that the entire string was consumed by matches
+    # Reconstruct what the matches would produce and compare
+    reconstructed = ''.join(f"{amount}{unit}" for amount, unit in matches)
+    if reconstructed != interval:
+        raise ValueError(f"Invalid interval format: '{interval}'. Use format like '1d', '2w', '3m', '1y', or composites like '1w2d'")
     
-    if amount <= 0:
-        raise ValueError("Interval amount must be positive")
+    total_delta = timedelta()
     
-    # Convert to timedelta
-    if unit == 'd':  # days
-        return timedelta(days=amount)
-    elif unit == 'w':  # weeks
-        return timedelta(weeks=amount)
-    elif unit == 'm':  # months (approximate as 30 days)
-        return timedelta(days=amount * 30)
-    elif unit == 'y':  # years (approximate as 365 days)
-        return timedelta(days=amount * 365)
+    for amount_str, unit in matches:
+        amount = int(amount_str)
+        
+        if amount <= 0:
+            raise ValueError("Interval amount must be positive")
+        
+        # Convert to timedelta and add to total
+        if unit == 'd':  # days
+            total_delta += timedelta(days=amount)
+        elif unit == 'w':  # weeks
+            total_delta += timedelta(weeks=amount)
+        elif unit == 'm':  # months (approximate as 30 days)
+            total_delta += timedelta(days=amount * 30)
+        elif unit == 'y':  # years (approximate as 365 days)
+            total_delta += timedelta(days=amount * 365)
+        else:
+            raise ValueError(f"Unsupported interval unit: '{unit}'. Use d, w, m, or y")
     
-    raise ValueError(f"Unsupported interval unit: '{unit}'. Use d, w, m, or y")
+    return total_delta
 
 
 def generate_recurring_dates(start_date: str, interval: str, end_date: str = None, 

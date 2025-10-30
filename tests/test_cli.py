@@ -8,14 +8,21 @@ import pytest
 from click.testing import CliRunner
 from pathlib import Path
 from xitkit.__main__ import xitkit
+from datetime import datetime, timedelta
 
-task_file_content = """[ ] Open task
+# Define date variables before they're used in f-strings
+yesterday_date = (datetime.now() - timedelta(days=1)).date()
+today_date = datetime.now().date()
+tomorrow_date = (datetime.now() + timedelta(days=1)).date()
+one_week_date = (datetime.now() + timedelta(weeks=1)).date()
+
+task_file_content = f"""[ ] Open task
 [x] Completed task with 3 trailing spaces   
 [@] Ongoing task
 [~] Obsolete task
 [?] Task in question
 [ ] !! High priority task #urgent
-[ ] Task due tomorrow -> 2025-10-20
+[ ] Task due tomorrow -> {tomorrow_date}
 [ ] Task with #tags -> 2025-10-21
 [ ] Task with #multiple #tags
 [ ] Simple task
@@ -44,6 +51,13 @@ due_date_tasks = """[ ] Task due 2025-10-20 -> 2025-10-20
 """
 n_due_date_tasks = 4
 
+due_date_nl_tasks = f"""[ ] Task due yesterday -> {yesterday_date}
+[ ] Task due today -> {today_date}
+[ ] Task due tomorrow -> {tomorrow_date}
+[ ] Task due next week -> {one_week_date}
+"""
+n_due_date_nl_tasks = 4
+
 class CLITest():
 
     @pytest.fixture
@@ -65,6 +79,11 @@ class CLITest():
         """Helper to write due date tasks to a file."""
         with open(filename, 'w') as f:
             f.write(due_date_tasks)
+    
+    def write_due_date_nl_tasks(self, filename='due_date_nl_tasks.xit'):
+        """Helper to write due date natural language tasks to a file."""
+        with open(filename, 'w') as f:
+            f.write(due_date_nl_tasks)
 
 class TestMainCLI(CLITest):
     """Test the command-line interface."""
@@ -114,7 +133,7 @@ class TestShowCLI(CLITest):
             assert lines[2] == '#004 [~] Obsolete task'
             assert lines[3] == '#005 [?] Task in question'
             assert lines[4] == '#006 [ ] !! High priority task #urgent'
-            assert lines[5] == '#007 [ ] Task due tomorrow -> 2025-10-20'
+            assert lines[5] == f'#007 [ ] Task due tomorrow -> {tomorrow_date}'
             assert lines[6] == '#008 [ ] Task with #tags -> 2025-10-21'
             assert lines[7] == '#009 [ ] Task with #multiple #tags'
             assert lines[8] == '#010 [ ] Simple task'
@@ -147,21 +166,8 @@ class TestShowCLI(CLITest):
             lines = result.output.splitlines()
             assert len(lines) > 0
             assert lines[0]  == f'{n_tasks} tasks found.'
-        
-    def test_show_tasks_due_on_date(self, runner, sample_tasks):
-        """Test showing tasks due on 2025-10-20."""
-        with runner.isolated_filesystem():
-            self.write_sample_tasks('tasks.xit')
             
-            result = runner.invoke(xitkit, ['show', '--due-on', '2025-10-20', '-f', 'tasks.xit'])
-            lines = result.output.splitlines()
-            assert result.exit_code == 0
-            assert len(lines) > 0
-            assert lines[0] == '#007 [ ] Task due tomorrow -> 2025-10-20'
-            assert lines[1] == ''
-            assert lines[2] == f'Showing 1 of {n_tasks} total tasks.'
-    
-    def test_show_tasks_due_on_date2(self, runner, sample_tasks):
+    def test_show_tasks_due_on_date(self, runner, sample_tasks):
         """Test showing tasks due on 2025-10-21."""
         with runner.isolated_filesystem():
             self.write_sample_tasks('tasks.xit')
@@ -173,6 +179,30 @@ class TestShowCLI(CLITest):
             assert lines[0] == '#008 [ ] Task with #tags -> 2025-10-21'
             assert lines[1] == ''
             assert lines[2] == f'Showing 1 of {n_tasks} total tasks.'
+    
+    def test_show_tasks_due_on_date_natural_language1(self, runner, sample_tasks):
+        """Test showing tasks due on tomorrow using natural language."""
+        with runner.isolated_filesystem():
+            self.write_due_date_nl_tasks('due_date_nl_tasks.xit')
+            result = runner.invoke(xitkit, ['show', '--due-on', 'tomorrow', '-f', 'due_date_nl_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == f'#003 [ ] Task due tomorrow -> {tomorrow_date}'
+            assert lines[1] == ''
+            assert lines[2] == f'Showing 1 of {n_due_date_nl_tasks} total tasks.'
+        
+    def test_show_tasks_due_on_date_natural_language2(self, runner, sample_tasks):
+        """Test showing tasks due on next week using natural language."""
+        with runner.isolated_filesystem():
+            self.write_due_date_nl_tasks('due_date_nl_tasks.xit')
+            result = runner.invoke(xitkit, ['show', '--due-on', '1w', '-f', 'due_date_nl_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == f'#004 [ ] Task due next week -> {one_week_date}'
+            assert lines[1] == ''
+            assert lines[2] == f'Showing 1 of {n_due_date_nl_tasks} total tasks.'
 
     def test_show_tasks_due_by_date(self, runner, sample_tasks):
         """Test showing tasks due by 2025-10-21."""
@@ -183,10 +213,37 @@ class TestShowCLI(CLITest):
             lines = result.output.splitlines()
             assert result.exit_code == 0
             assert len(lines) > 0
-            assert lines[0] == '#007 [ ] Task due tomorrow -> 2025-10-20'
-            assert lines[1] == '#008 [ ] Task with #tags -> 2025-10-21'
-            assert lines[2] == ''
-            assert lines[3] == f'Showing 2 of {n_tasks} total tasks.'
+            assert lines[0] == '#008 [ ] Task with #tags -> 2025-10-21'
+            assert lines[1] == ''
+            assert lines[2] == f'Showing 1 of {n_tasks} total tasks.'
+
+    def test_show_tasks_due_by_date_natural_language(self, runner, sample_tasks):
+        """Test showing tasks due by tomorrow using natural language."""
+        with runner.isolated_filesystem():
+            self.write_due_date_nl_tasks('due_date_nl_tasks.xit')
+            result = runner.invoke(xitkit, ['show', '--due-by', 'tomorrow', '-f', 'due_date_nl_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == f'#001 [ ] Task due yesterday -> {yesterday_date}'
+            assert lines[1] == f'#002 [ ] Task due today -> {today_date}'
+            assert lines[2] == f'#003 [ ] Task due tomorrow -> {tomorrow_date}'
+            assert lines[3] == ''
+            assert lines[4] == f'Showing 3 of {n_due_date_nl_tasks} total tasks.'
+
+    def test_show_tasks_due_by_date_natural_language2(self, runner, sample_tasks):
+        """Test showing tasks due by next week using natural language."""
+        with runner.isolated_filesystem():
+            self.write_due_date_nl_tasks('due_date_nl_tasks.xit')
+            result = runner.invoke(xitkit, ['show', '--due-by', '1w', '-f', 'due_date_nl_tasks.xit'])
+            lines = result.output.splitlines()
+            assert result.exit_code == 0
+            assert len(lines) > 0
+            assert lines[0] == f'#001 [ ] Task due yesterday -> {yesterday_date}'
+            assert lines[1] == f'#002 [ ] Task due today -> {today_date}'
+            assert lines[2] == f'#003 [ ] Task due tomorrow -> {tomorrow_date}'
+            assert lines[3] == f'#004 [ ] Task due next week -> {one_week_date}'
+            assert lines[4] == ''
     
     def test_show_tasks_singular_tag(self, runner, sample_tasks):
         """Test showing tasks with a singular tag filter."""
@@ -482,7 +539,49 @@ class TestAddCLI(CLITest):
             with open('due_in_desc.xit', 'r') as f:
                 content = f.read()
                 assert '[ ] Task with due date -> 2025-11-15' in content
+
+    def test_add_task_due_date_natural_language1(self, runner):
+        """Test adding a task with natural language due date 'tomorrow'."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Task due tomorrow', '--due', 'tomorrow', '--file', 'due_nl1.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            tomorrow_date = datetime.now().date() + timedelta(days=1)
+            
+            # Verify task was added with correct due date
+            with open('due_nl1.xit', 'r') as f:
+                content = f.read()
+                assert f'[ ] Task due tomorrow -> {tomorrow_date}' in content
     
+    def test_add_task_due_date_natural_language2(self, runner):
+        """Test adding a task with natural language due date."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Task due in 9 days', '--due', '1w2d', '--file', 'due_nl2.xit'])
+
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            next_week_date = datetime.now().date() + timedelta(weeks=1) + timedelta(days=2)
+
+            # Verify task was added with correct due date
+            with open('due_nl2.xit', 'r') as f:
+                content = f.read()
+                assert f'[ ] Task due in 9 days -> {next_week_date}' in content
+    
+    def test_add_task_due_date_natural_language3(self, runner):
+        """Test adding a task with natural language due date yesterday."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Task due yesterday', '--due', 'yesterday', '--file', 'due_nl3.xit'])
+
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            yesterday_date = datetime.now().date() - timedelta(days=1)
+
+            # Verify task was added with correct due date
+            with open('due_nl3.xit', 'r') as f:
+                content = f.read()
+                assert f'[ ] Task due yesterday -> {yesterday_date}' in content
+
     def test_add_task_tags_in_description(self, runner):
         """Test adding a task with tags specified in description."""
         with runner.isolated_filesystem():
@@ -495,6 +594,21 @@ class TestAddCLI(CLITest):
             with open('tags_in_desc.xit', 'r') as f:
                 content = f.read()
                 assert '[ ] Task with #tag1 #tag2 in description' in content
+
+    def test_add_task_line_breaks_in_description(self, runner):
+        """Test adding a task with line breaks in description."""
+        with runner.isolated_filesystem():
+            result = runner.invoke(xitkit, ['add', 'Multi-line task description\\nContinues here\\nAnd here', '--file', 'multiline_desc.xit'])
+            
+            assert result.exit_code == 0
+            assert '✓ Added task' in result.output
+            
+            # Verify task was added with correct multi-line description
+            with open('multiline_desc.xit', 'r') as f:
+                content = f.read()
+                assert '[ ] Multi-line task description' in content
+                assert '    Continues here' in content
+                assert '    And here' in content
 
 class TestMarkCLI(CLITest):
     """Test the 'mark' command of the CLI."""

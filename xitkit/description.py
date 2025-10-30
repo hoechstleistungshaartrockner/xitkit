@@ -24,6 +24,7 @@ class Description:
 
     def __post_init__(self):
         """Post-initialization to extract tags and due date from the text."""
+        self.text = self.text.replace('\\n', '\n')  # Convert escaped newlines to actual newlines
         self.priority = Priority.from_line(self.text)
         self.tags = Tag.from_line(self.text)
         self.due_date = DueDate.from_line(self.text)

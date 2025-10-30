@@ -24,4 +24,4 @@
 [ ] pomodoro timer should make a sound when the work/break time is over (configurable sound)
 [ ] create sphinx documentation for xitkit
 [ ] bash completion for xitkit commands
-[ ] fix linebreak when adding a task via the 'xit add' command.
+[x] fix linebreak when adding a task via the 'xit add' command.

@@ -239,7 +239,7 @@ class AddTaskCommand(Command):
             # Display confirmation message
             relative_path = self._get_relative_path(file_path)
             self.formatter.display_success(
-                f"✓ Added task to {relative_path}: \"{description}\""
+                f"✓ Added task to {relative_path}: \"{task.description.text}\""
             )
             
         except XitError as e:

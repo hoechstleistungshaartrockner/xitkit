@@ -8,6 +8,9 @@ import pytest
 from datetime import datetime, timedelta
 from xitkit.duedate import DueDate
 
+date_tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+date_next_week = (datetime.now() + timedelta(weeks=1)).strftime("%Y-%m-%d")
+date_9_days = (datetime.now() + timedelta(days=9)).strftime("%Y-%m-%d")
 
 class TestDueDateBasics:
     """Test basic DueDate class functionality."""
@@ -97,6 +100,18 @@ class TestDueDateFromString:
             result = DueDate.from_string(invalid_date)
             assert result is None, f"Should be None for: {invalid_date}"
 
+    @pytest.mark.parametrize("input_str, implied_date", [
+        ("tomorrow", date_tomorrow),
+        ("1d", date_tomorrow),
+        ("1w", date_next_week),
+        ("9d", date_9_days),
+        ("1w2d", date_9_days),
+    ])
+    def test_natural_language_dates(self, input_str, implied_date):
+        """Test natural language date parsing."""
+        due_date = DueDate.from_string(input_str)
+        assert due_date is not None
+        assert due_date.implied_date == implied_date
 
 class TestDueDateFromLine:
     """Test parsing due dates from complete task lines."""

@@ -501,6 +501,19 @@ class TestIntervalParsing:
         result = parse_interval_expression("2y")
         assert result == timedelta(days=730)
     
+    def test_parse_composite_intervals(self):
+        """Test parsing composite interval expressions."""
+        from xitkit.dateutils import parse_interval_expression
+        
+        result = parse_interval_expression("1w2d")
+        assert result == timedelta(weeks=1, days=2)
+        
+        result = parse_interval_expression("2m3w4d")
+        assert result == timedelta(days=60 + 21 + 4)  # 2 months + 3 weeks + 4 days
+        
+        result = parse_interval_expression("1y6m")
+        assert result == timedelta(days=365 + 180)  # 1 year + 6 months
+    
     def test_parse_interval_expression_case_insensitive(self):
         """Test that interval parsing is case insensitive."""
         from xitkit.dateutils import parse_interval_expression

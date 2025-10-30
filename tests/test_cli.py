@@ -598,7 +598,7 @@ class TestAddCLI(CLITest):
     def test_add_task_line_breaks_in_description(self, runner):
         """Test adding a task with line breaks in description."""
         with runner.isolated_filesystem():
-            result = runner.invoke(xitkit, ['add', 'Multi-line task description\nContinues here\nAnd here', '--file', 'multiline_desc.xit'])
+            result = runner.invoke(xitkit, ['add', 'Multi-line task description\\nContinues here\\nAnd here', '--file', 'multiline_desc.xit'])
             
             assert result.exit_code == 0
             assert '✓ Added task' in result.output

@@ -502,5 +502,13 @@ class Task:
         Returns:
             String in checkbox format that can be written to file
         """
-        return f"{self.status_symbol} {self.description}"
+        # Handle multi-line descriptions by indenting continuation lines
+        description_text = str(self.description)
+        lines = description_text.split('\n')
+
+        prefix = {0: self.status_symbol + ' '}
+        
+        # Multi-line - indent continuation lines with 4 spaces
+        formatted_lines = [prefix.get(idx, "    ") + line for idx, line in enumerate(lines)]
+        return '\n'.join(formatted_lines)
 

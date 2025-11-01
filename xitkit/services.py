@@ -19,6 +19,7 @@ from .status import *
 from .tags import Tag
 from .duedate import DueDate
 from .priority import Priority
+from .location import Location
 
 @dataclass
 class TaskFilter:
@@ -166,7 +167,7 @@ class TaskService:
         # File counts
         file_counts = {}
         for task in tasks:
-            file_name = task.filename if task.file else 'unknown'
+            file_name = str(task.location.file_path) if task.location.file_path else 'unknown'
             file_counts[file_name] = file_counts.get(file_name, 0) + 1
         
         # Count tasks with tags and due dates
@@ -225,41 +226,6 @@ class TaskService:
             
             return sorted(tasks, key=due_date_key, reverse=reverse)
 
-        
-    
-    def add_task_to_file(self, task: Task, file_path: str) -> None:
-        """Add a new task to the specified file.
-        
-        Args:
-            task: Task object to add
-            file_path: Path to the file where task should be added
-            
-        Raises:
-            FileNotSupportedError: If file extension is not supported
-        """
-        path = Path(file_path)
-        
-        # Validate file extension
-        if path.suffix not in ['.md', '.xit']:
-            raise FileNotSupportedError(str(path), {'.md', '.xit'})
-        
-        # Create directory if it doesn't exist
-        path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Convert task to checkbox format
-        task_line = task.to_checkbox_format()
-        
-        # Append task to file
-        with open(file_path, 'a', encoding='utf-8') as f:
-            # Add newline if file doesn't end with one
-            if path.exists() and path.stat().st_size > 0:
-                with open(file_path, 'r', encoding='utf-8') as read_f:
-                    content = read_f.read()
-                    if content and not content.endswith('\n'):
-                        f.write('\n')
-            f.write(task_line + '\n')
-
-    
     def update_task_by_id(self, task_id: int,
         file_paths: List[str], 
         new_status: Status=None, 
@@ -302,7 +268,7 @@ class TaskService:
             target_task.set_due_date(new_due_date.implied_date if new_due_date else None)
         
         # Update the task in the file using the new method
-        target_task.update_in_file()
+        target_task.save_to_location(target_task.location, mode='update')
         
         return target_task
 
@@ -334,7 +300,7 @@ class TaskService:
         target_task.description = Description(new_description)
         
         # Update the task in the file using the new method
-        target_task.update_in_file()
+        target_task.save_to_location(target_task.location, mode='update')
         
         return target_task
 
@@ -361,31 +327,8 @@ class TaskService:
         if not target_task:
             return None
         
-        # Read the file content
-        with open(target_task.file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Remove the specific line (accounting for 1-based line numbers)
-        if target_task.line_number <= len(lines):
-            # Check if we need to handle multi-line tasks by looking for continuation lines
-            lines_to_remove = [target_task.line_number - 1]  # Convert to 0-based
-            
-            # Check for continuation lines (lines starting with 4 spaces)
-            for i in range(target_task.line_number, len(lines)):
-                if lines[i].startswith('    ') and lines[i].strip():
-                    lines_to_remove.append(i)
-                else:
-                    break
-            
-            # Remove lines in reverse order to maintain indices
-            for line_idx in reversed(lines_to_remove):
-                del lines[line_idx]
-            
-            # Write back to file
-            with open(target_task.file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
-        
-        return target_task
+        # Remove the task from the file using the new method
+        return target_task.remove_from_file()
 
     def move_task_by_id(self, task_id: int, source_files: List[str], target_file: str) -> Optional[Task]:
         """Move a task by its ID from source files to a target file.
@@ -413,11 +356,10 @@ class TaskService:
             return None
         
         # Update task's file reference
-        removed_task.file = target_file
-        removed_task.line_number = None  # Will be set when added to new file
+        removed_task.set_location(Location(file_path=target_file))
         
         # Add task to target file
-        self.add_task_to_file(removed_task, target_file)
+        removed_task.save_to_location(removed_task.location, mode='append')
         
         return removed_task
     
@@ -450,7 +392,7 @@ class TaskService:
         target_task.add_tag_by_name(clean_tag)
         
         # Update the task in the file using the new method
-        target_task.update_in_file()
+        target_task.save_to_location(target_task.location, mode='update')
         
         return True
 
@@ -484,7 +426,7 @@ class TaskService:
         target_task.remove_tag_by_name(clean_tag)
         
         # Update the task in the file using the new method
-        target_task.update_in_file()
+        target_task.save_to_location(target_task.location, mode='update')
         
         return True
     
@@ -528,7 +470,7 @@ class TaskService:
             raise ValueError(f"Task with ID {task_id} not found")
         
         # Use target file or original task's file
-        output_file = target_file or original_task.file
+        output_file = target_file or original_task.location.file_path
         
         # Parse interval to calculate days
         interval_days = self._parse_interval(interval)
@@ -554,8 +496,7 @@ class TaskService:
             # Create new task based on original
             new_task = original_task.copy()
             new_task.id = None  # Will be assigned when saved
-            new_task.file = output_file
-            new_task.line_number = None
+            new_task.set_location(Location(file_path=output_file))
             
             # Update due date to the new occurrence
             new_task.set_due_date(next_date_str)
@@ -565,7 +506,7 @@ class TaskService:
             new_task.status = Status(StatusType.OPEN)
             
             # Add the task to file
-            self.add_task_to_file(new_task, output_file)
+            new_task.save_to_location(new_task.location, mode='append')
             recurring_tasks.append(new_task)
         
         return recurring_tasks

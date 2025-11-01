@@ -16,6 +16,7 @@ from .description import Description
 from .priority import Priority
 from .task import Task
 from .duedate import DueDate
+from .location import Location
 
 
 class Command(ABC):
@@ -38,7 +39,7 @@ class ShowTasksCommand(Command):
     
     def execute(self, path: str = None, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
-                show_line: bool = False, no_id: bool = False, count_only: bool = False,
+                show_location: bool = False, no_id: bool = False, count_only: bool = False,
                 sort_by: str = None, sort_order: str = None) -> None:
         """Execute the show tasks command.
         
@@ -47,7 +48,7 @@ class ShowTasksCommand(Command):
             directory: Default directory to search
             specified_files: Explicitly specified files
             filters: Task filters to apply
-            show_line: Whether to show line numbers
+            show_location: Whether to show location information
             no_id: Whether to hide task IDs
             count_only: Whether to show only count
             sort_by: Sort attribute (priority, due_date)
@@ -94,7 +95,7 @@ class ShowTasksCommand(Command):
             elif not filtered_tasks:
                 self.formatter.display_warning("No tasks match the specified criteria.")
             else:
-                self.formatter.display_tasks(filtered_tasks, show_line=show_line, no_id=no_id)
+                self.formatter.display_tasks(filtered_tasks, show_location=show_location, no_id=no_id)
                 self.formatter.display_summary(len(filtered_tasks), len(all_tasks))
                 
         except XitError as e:
@@ -224,8 +225,7 @@ class AddTaskCommand(Command):
             # Create a task object
             task = Task(
                 description=description,
-                file=file_path,
-                line_number=None,  # Will be determined when added
+                location=Location(file_path=file_path, line_numbers=None),
                 status=Status(StatusType.OPEN),
                 priority=priority or 0,
                 tags=tags or [],
@@ -234,7 +234,7 @@ class AddTaskCommand(Command):
             )
             
             # Add the task to the file
-            self.task_service.add_task_to_file(task, file_path)
+            task.save_to_location(task.location, mode='append')
             
             # Display confirmation message
             relative_path = self._get_relative_path(file_path)
@@ -304,7 +304,7 @@ class MarkTaskCommand(Command):
                     
                     if updated_task:
                         # Display confirmation message
-                        relative_path = self._get_relative_path(updated_task.file)
+                        relative_path = updated_task.location.file_path
                         status_display = status.lower()
                         self.formatter.display_success(
                             f"✓ Marked task #{task_id:03d} as {status_display} in {relative_path}: \"{updated_task.description.text}\""
@@ -389,7 +389,7 @@ class RescheduleTaskCommand(Command):
                     
                     if updated_task:
                         # Display confirmation message
-                        relative_path = self._get_relative_path(updated_task.file)
+                        relative_path = updated_task.location.file_path
                         self.formatter.display_success(
                             f"✓ Rescheduled task #{task_id} to {parsed_date} in {relative_path}: \"{updated_task.description}\""
                         )
@@ -455,7 +455,7 @@ class RemoveTaskCommand(Command):
                     task_found = task_by_id[task_id]
                     target_tasks.append(task_found)
                     # Show the task and ask for confirmation
-                    relative_path = self._get_relative_path(task_found.file)
+                    relative_path = task_found.location.file_path
                     self.formatter.display_warning(
                         f"Task #{task_id} in {relative_path}: \"{task_found.description}\""
                     )
@@ -476,15 +476,15 @@ class RemoveTaskCommand(Command):
             for task in target_tasks:
                 try:
                     task_id = task.id
-                    relative_path = self._get_relative_path(task.file)
+                    relative_path = task.location.file_path
                     
                     # Find current task by content since ID may have changed
                     current_tasks = self.task_service.load_tasks(file_paths)
                     current_task = None
                     
                     for curr_task in current_tasks:
-                        if (curr_task.description == task.description and 
-                            curr_task.file == task.file and 
+                        if (curr_task.description == task.description and
+                            curr_task.location.file_path == task.location.file_path and
                             curr_task.status == task.status and
                             curr_task.priority == task.priority and
                             curr_task.due_date == task.due_date):
@@ -600,7 +600,7 @@ class MoveTaskCommand(Command):
                     # Find the task by matching content and file (since ID may have changed)
                     for curr_task in current_tasks:
                         if (curr_task.description == task.description and 
-                            curr_task.file == task.file and 
+                            curr_task.location.file_path == task.location.file_path and
                             curr_task.status == task.status and
                             curr_task.priority == task.priority and
                             curr_task.due_date == task.due_date):
@@ -745,7 +745,7 @@ class EditTaskCommand(Command):
             )
             
             if updated_task:
-                relative_path = self._get_relative_path(updated_task.file)
+                relative_path = updated_task.location.file_path
                 self.formatter.display_success(
                     f"✓ Updated description for task #{task_id:03d} in {relative_path}: \"{updated_task.description.text}\""
                 )

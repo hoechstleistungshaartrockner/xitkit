@@ -18,6 +18,7 @@ from xitkit.priority import Priority
 from xitkit.tags import Tag
 from xitkit.duedate import DueDate
 from xitkit.exceptions import FileNotSupportedError
+from xitkit.location import Location
 
 
 class TestTaskService:
@@ -181,9 +182,9 @@ class TestTaskService:
     def test_get_task_statistics_with_tasks(self):
         """Test statistics for task list with various tasks."""
         tasks = [
-            Task("Open task", file="test.xit", status=Status(StatusType.OPEN)),
-            Task("Checked task", file="test.xit", status=Status(StatusType.CHECKED)),
-            Task("Tagged task", file="other.xit", tags=[Tag(name="work")], status=Status(StatusType.OPEN)),
+            Task("Open task", location=Location(file_path="test.xit"), status=Status(StatusType.OPEN)),
+            Task("Checked task", location=Location(file_path="test.xit"), status=Status(StatusType.CHECKED)),
+            Task("Tagged task", location=Location(file_path="other.xit"), tags=[Tag(name="work")], status=Status(StatusType.OPEN)),
             Task("Due task", due_date="2025-10-15", status=Status(StatusType.OPEN)),  # Overdue
             Task("Priority task", priority=Priority(level=2), status=Status(StatusType.OPEN)),
         ]
@@ -195,46 +196,10 @@ class TestTaskService:
         assert stats['by_status']['CHECKED'] == 1
         assert stats['by_file']['test.xit'] == 2
         assert stats['by_file']['other.xit'] == 1
-        assert stats['by_file']['unknown'] == 2  # Tasks without file set
+        assert stats['by_file']['todo.xit'] == 2  # Tasks without file set
         assert stats['with_tags'] == 1
         assert stats['with_due_date'] == 1
         assert stats['overdue'] == 1
-        
-    def test_add_task_to_file_new_file(self):
-        """Test adding task to a new file."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = Path(temp_dir) / "new_tasks.xit"
-            task = Task("New task", priority=Priority(level=2), tags=[Tag(name="test")])
-            
-            self.service.add_task_to_file(task, str(file_path))
-            
-            assert file_path.exists()
-            content = file_path.read_text()
-            assert "[ ] !! New task #test" in content
-            
-    def test_add_task_to_file_existing_file(self):
-        """Test adding task to an existing file."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = Path(temp_dir) / "existing.xit"
-            file_path.write_text("[ ] Existing task\n")
-            
-            task = Task("New task")
-            self.service.add_task_to_file(task, str(file_path))
-            
-            content = file_path.read_text()
-            lines = content.strip().split('\n')
-            assert len(lines) == 2
-            assert "Existing task" in lines[0]
-            assert "New task" in lines[1]
-            
-    def test_add_task_to_file_unsupported_extension(self):
-        """Test adding task to file with unsupported extension."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            file_path = Path(temp_dir) / "test.txt"
-            task = Task("Test task")
-            
-            with pytest.raises(FileNotSupportedError):
-                self.service.add_task_to_file(task, str(file_path))
                 
     def test_update_task_by_id_success(self):
         """Test successfully updating a task by ID."""
@@ -280,7 +245,7 @@ class TestTaskService:
             file_path = Path(temp_dir) / "test.xit"
             file_path.write_text("[ ] First task\n[ ] Second task\n[ ] Third task\n")
             
-            result = self.service.remove_task_by_id(2, [str(file_path)])
+            result = self.service.remove_task_by_id(2, [str(file_path)]) # remove second task
             
             assert result is not None
             assert "Second task" in result.description_text

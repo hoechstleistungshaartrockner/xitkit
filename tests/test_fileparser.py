@@ -497,24 +497,32 @@ class TestComplexScenarios:
     
     def test_line_number_tracking(self, temp_dir, file_parser):
         """Test that line numbers are correctly tracked."""
-        content = """[ ] Task on line 1
-   
-[ ] Task on line 3
+        content = """[ ] Task 1 on line 1
+
+[ ] Task 2 on line 3
 Invalid line
-[ ] Task on line 5
-[ ] Multi-line task on line 6 ...
+[ ] Task 3 on line 5
+[ ] Task 4 is Multi-line on line 6 ...
     continuation on line 7
-[ ] Task on line 8"""
+[ ] Task 5 on line 8
+[ ] Task 6 is on line 9 with a full line of whitespace following ...
+                                                                        
+[ ] Task 7 on line 11 with a line of whitespace in between
+    
+    this is still part of task 7 in line 13
+"""
         
         test_file = create_test_file(temp_dir, "lines.xit", content)
         tasks = file_parser.parse_file(str(test_file))
         
-        assert len(tasks) == 5
-        assert tasks[0].line_number == 1
-        assert tasks[1].line_number == 3
-        assert tasks[2].line_number == 5
-        assert tasks[3].line_number == 6  # Multi-line starts at line 6
-        assert tasks[4].line_number == 8
+        assert len(tasks) == 7
+        assert tasks[0].location.line_numbers == range(1, 2)
+        assert tasks[1].location.line_numbers == range(3, 4)
+        assert tasks[2].location.line_numbers == range(5, 6)
+        assert tasks[3].location.line_numbers == range(6, 8)  # Multi-line task
+        assert tasks[4].location.line_numbers == range(8, 9)
+        assert tasks[5].location.line_numbers == range(9, 11)
+        assert tasks[6].location.line_numbers == range(11, 14)
     
     def test_file_path_tracking(self, temp_dir, file_parser):
         """Test that file paths are correctly tracked."""
@@ -524,7 +532,8 @@ Invalid line
         tasks = file_parser.parse_file(str(test_file))
         
         assert len(tasks) == 1
-        assert tasks[0].file == str(test_file)
+        assert tasks[0].location.file_path == Path(str(test_file))
+        assert tasks[0].location.line_numbers == range(1, 2)
 
 
 class TestRegexPatterns:

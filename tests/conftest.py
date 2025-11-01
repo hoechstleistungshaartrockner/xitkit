@@ -80,12 +80,11 @@ def complex_xit_content():
 def sample_tasks():
     """Create a list of sample tasks for testing."""
     return [
-        Task("Open task", file="/test1.xit", 
-             line_number=1, status="OPEN", priority=0, tags=["#work"], due_date=None),
-        Task("High priority task", file="/test1.xit", line_number=2, status="OPEN", priority=2, tags=["#work", "#urgent"], due_date="2025-12-31"),
-        Task("Done task", file="/test1.xit", line_number=3, status="DONE", priority=1, tags=["#personal"], due_date=None),
-        Task("Ongoing task", file="/test2.xit", line_number=1, status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
-        Task("Obsolete task", file="/test2.xit", line_number=2, status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
+        Task("Open task", location=("/test1.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
+        Task("High priority task", location=("/test1.xit", 2), status="OPEN", priority=2, tags=["#work", "#urgent"], due_date="2025-12-31"),
+        Task("Done task", location=("/test1.xit", 3), status="DONE", priority=1, tags=["#personal"], due_date=None),
+        Task("Ongoing task", location=("/test2.xit", 1), status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
+        Task("Obsolete task", location=("/test2.xit", 2), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
     ]
 
 
@@ -93,13 +92,13 @@ def sample_tasks():
 def stats_sample_tasks():
     """Create a diverse list of tasks for statistics testing."""
     return [
-        Task("Open task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=["#work"], due_date=None),
-        Task("High priority", file="/test.xit", line_number=2, status="OPEN", priority=2, tags=["#urgent"], due_date="2025-12-31"), 
-        Task("Medium priority", file="/test.xit", line_number=3, status="OPEN", priority=1, tags=["#work"], due_date=None),
-        Task("Done task", file="/test.xit", line_number=4, status="DONE", priority=0, tags=["#personal"], due_date=None),
-        Task("Done priority", file="/test.xit", line_number=5, status="DONE", priority=1, tags=["#work"], due_date=None),
-        Task("Ongoing task", file="/test.xit", line_number=6, status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
-        Task("Obsolete task", file="/test.xit", line_number=7, status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
+        Task("Open task", location=("/test.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
+        Task("High priority", location=("/test.xit", 2), status="OPEN", priority=2, tags=["#urgent"], due_date="2025-12-31"),
+        Task("Medium priority", location=("/test.xit", 3), status="OPEN", priority=1, tags=["#work"], due_date=None),
+        Task("Done task", location=("/test.xit", 4), status="DONE", priority=0, tags=["#personal"], due_date=None),
+        Task("Done priority", location=("/test.xit", 5), status="DONE", priority=1, tags=["#work"], due_date=None),
+        Task("Ongoing task", location=("/test.xit", 6), status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
+        Task("Obsolete task", location=("/test.xit", 7), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
     ]
 
 

@@ -61,8 +61,8 @@ def xitkit(ctx):
               help='Filter tasks due exactly on the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
 @click.option('--due-by', type=str,
               help='Filter tasks due on or before the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
-@click.option('--show-line', '-l', is_flag=True,
-              help='Show line numbers for each task')
+@click.option('--show-location', '-l', is_flag=True,
+              help='Show location information for each task')
 @click.option('--no-id', is_flag=True,
               help='Hide task IDs')
 @click.option('--count', '-c', is_flag=True,
@@ -76,7 +76,7 @@ def xitkit(ctx):
 @click.option('--order', type=click.Choice(['asc', 'desc'], case_sensitive=False),
               help='Sort order: asc (ascending) or desc (descending). Defaults to asc if not specified')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, count, directory, files, sort, order):
+def show(ctx, path, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -95,7 +95,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         xit show --due-by 2025             # Show tasks due on or before 2025
         xit show --due-on today            # Show tasks due exactly today
         xit show --count                   # Show count of all tasks
-        xit show --show-line               # Include line numbers
+        xit show --show-location               # Include location information
         xit show --files work.xit personal.xit --status open  # Show open tasks from multiple files
         xit show --sort priority --order desc  # Show tasks sorted by priority (highest first)
         xit show --sort due_date --order asc   # Show tasks sorted by due date (earliest first)
@@ -153,7 +153,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         filters=filters,
-        show_line=show_line,
+        show_location=show_location,
         no_id=no_id,
         count_only=count,
         sort_by=sort,

@@ -138,13 +138,12 @@ class TaskFormatter:
         # Return as-is if we can't normalize it
         return date_str
 
-    def format_task(self, task: Task, show_file: bool = False, show_line: bool = False, no_id: bool = False) -> Text:
+    def format_task(self, task: Task, show_location: bool = False, no_id: bool = False) -> Text:
         """Format a single task using Rich for colored terminal output.
         
         Args:
             task: Task object to format
-            show_file: Whether to include file name in output
-            show_line: Whether to include line number in output
+            show_location: Whether to include file path and line number in output
             no_id: Whether to include task ID in output
             
         Returns:
@@ -201,8 +200,8 @@ class TaskFormatter:
             text.stylize(id_color, len(indentation_continuation), len(text.plain))
         
         # Add line number if requested
-        if show_line:
-            text.append(f" L{task.line_number}", style="dim")
+        if show_location:
+            text.append(f"    ({str(task.location)})", style="dim")
         
         return text
 
@@ -324,13 +323,13 @@ class TaskFormatter:
             i += 1
         
         return text
-    
-    def display_tasks(self, tasks: List[Task], show_line: bool = False, no_id: bool = False) -> None:
+
+    def display_tasks(self, tasks: List[Task], show_location: bool = False, no_id: bool = False) -> None:
         """Display a list of tasks with Rich formatting.
         
         Args:
             tasks: List of tasks to display
-            show_line: Whether to show line numbers
+            show_location: Whether to show file path and line number
             no_id: Whether to hide task IDs
         """
         if not tasks:
@@ -339,7 +338,7 @@ class TaskFormatter:
         
         
         for task in tasks:
-            task_text = self.format_task(task, show_line=show_line, no_id=no_id)
+            task_text = self.format_task(task, show_location=show_location, no_id=no_id)
             self.console.print(task_text)
         
         self.console.print()  # Add a newline at the end
@@ -389,18 +388,18 @@ class TaskFormatter:
 
 
 # Convenience function for backward compatibility
-def format_task_rich(task: Task, show_line: bool = False, no_id: bool = False) -> Text:
+def format_task_rich(task: Task, show_location: bool = False, no_id: bool = False) -> Text:
     """Format a task using Rich for colored terminal output.
     
     This is a convenience function that creates a formatter and formats a single task.
     
     Args:
         task: Task object to format
-        show_line: Whether to include line number in output
+        show_location: Whether to include file path and line number in output
         no_id: Whether to include task ID in output
         
     Returns:
         Rich Text object with colored formatting
     """
     formatter = TaskFormatter()
-    return formatter.format_task(task, show_file=False, show_line=show_line, no_id=no_id)
+    return formatter.format_task(task, show_location=show_location, no_id=no_id)

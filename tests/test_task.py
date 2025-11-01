@@ -8,6 +8,7 @@ from xitkit.tags import Tag
 from xitkit.status import Status, StatusType
 from xitkit.description import Description
 from xitkit.priority import Priority
+from xitkit.location import Location
 
 
 class TestTaskCreation:
@@ -22,8 +23,8 @@ class TestTaskCreation:
         """Test creating a task with minimal parameters."""
         task = Task("Empty task")
         
-        assert task.file is None
-        assert task.line_number is None
+        assert task.location.file_path == Path("todo.xit")
+        assert task.location.line_numbers is None
         assert task.description_text == "Empty task"
         assert task.status == Status(StatusType.OPEN)
         assert task.priority == Priority()
@@ -96,8 +97,7 @@ class TestTaskCreation:
         """Test creating a task with all parameters."""
         task = Task(
             "Complex task",
-            file="/test/file.xit",
-            line_number=42,
+            location=("/test/file.xit", 42),
             status=StatusType.IN_QUESTION,
             priority=Priority(level=2, leading_dots=1),
             tags=[Tag("work"), Tag("review", "needed")],
@@ -106,8 +106,8 @@ class TestTaskCreation:
         )
         
         assert str(task) == "[?] .!! Complex task #work #review=needed -> 2025-11-15"
-        assert task.file == "/test/file.xit"
-        assert task.line_number == 42
+        assert task.location.file_path == Path("/test/file.xit")
+        assert task.location.line_numbers == range(42, 43)
         assert task.status == Status(StatusType.IN_QUESTION)
         assert task.priority.level == 2
         assert len(task.tags) == 2
@@ -120,24 +120,15 @@ class TestTaskProperties:
 
     def test_location_property(self):
         """Test location getter and setter."""
-        task = Task("Test", file="/test/file.xit", line_number=5)
+        task = Task("Test", location=("/test/file.xit", 5))
         
         # Test getter
-        assert task.location == ("/test/file.xit", 5)
+        assert task.location == Location("/test/file.xit", 5)
         
         # Test setter
-        task.location = ("/new/file.xit", 10)
-        assert task.file == "/new/file.xit"
-        assert task.line_number == 10
-
-    def test_filename_property(self):
-        """Test filename extraction from file path."""
-        task = Task("Test", file="/path/to/file.xit")
-        assert task.filename == "file.xit"
-        
-        # Test with None file
-        task_no_file = Task("Test", file=None)
-        assert task_no_file.filename is None
+        task.set_location(("/new/file.xit", 10))
+        assert task.location.file_path == Path("/new/file.xit")
+        assert task.location.line_numbers == range(10, 11)
 
     def test_has_properties(self):
         """Test boolean properties for detecting features."""
@@ -312,22 +303,18 @@ class TestTaskFormatting:
 
     def test_repr_representation(self):
         """Test __repr__ method for debugging."""
-        task = Task("Test task", file="/test.xit", line_number=1, priority=1, tags=[Tag("work")])
+        task = Task("Test task", priority=1, tags=[Tag("work")])
         repr_str = repr(task)
         
-        assert "Task(" in repr_str
-        assert "file='/test.xit'" in repr_str
-        assert "line=1" in repr_str
-        assert "priority=!" in repr_str
+        assert repr_str == ("Task(status='OPEN', priority=1, description='! Test task #work', tags=['#work'], due_date='None', location=todo.xit:)")
 
     def test_terminal_line_formatting(self):
         """Test terminal line formatting with options."""
-        task = Task("Test task", file="/test.xit", line_number=10, priority=2)
+        task = Task("Test task", location=Location("test.xit", 10), priority=2)
         
         # With location info
         with_location = task.to_terminal_line(show_file=True, show_line=True)
-        assert "[ ] !! Test task" in with_location
-        assert "[/test.xit:L10]" in with_location
+        assert "[ ] !! Test task    (test.xit:10)" == with_location
         
         # Without location info
         without_location = task.to_terminal_line(show_file=False, show_line=False)
@@ -365,8 +352,7 @@ class TestTaskCopyAndEquality:
         """Test that copied tasks are independent."""
         original = Task(
             "Original",
-            file="/test.xit",
-            line_number=5,
+            location=Location("/test.xit", 5),
             status=StatusType.ONGOING,
             priority=Priority(level=2, leading_dots=1),
             tags=[Tag("work"), Tag("urgent", "high")],
@@ -450,13 +436,9 @@ class TestTaskEdgeCases:
 
     def test_none_file_handling(self):
         """Test handling of None file paths."""
-        task = Task("Test", file=None)
-        assert task.filename is None
-        assert task.location == (None, None)
-        
-        # Should not crash when formatting
-        terminal_output = task.to_terminal_line()
-        assert "Test" in terminal_output
+        task = Task("Test")
+        assert task.location.file_path == Path("todo.xit")
+        assert task.location.line_numbers is None
 
     def test_repr_with_long_description(self):
         """Test repr method with very long descriptions."""
@@ -501,16 +483,11 @@ class TestTaskIntegration:
     def test_file_location_workflow(self):
         """Test workflow with file locations."""
         # Create task with location
-        task = Task("Fix bug", file="/project/todo.xit", line_number=15)
+        task = Task("Fix bug", location=Location("/project/todo.xit", 15))
         
         # Move to different file
-        task.location = ("/project/backlog.xit", 5)
-        assert task.filename == "backlog.xit"
-        
-        # Format for display
-        display = task.to_terminal_line()
-        assert "backlog.xit" in display
-        assert "L5" in display
+        task.set_location(("/project/backlog.xit", 5))
+        assert task.location.filename == "backlog.xit"
 
     def test_tag_filtering_workflow(self):
         """Test tag-based filtering workflow."""
@@ -551,3 +528,85 @@ class TestTaskDuplicateInformation:
         task = Task("Task due -> 2025-12-31")
         assert task.has_due_date
         assert str(task.due_date) == "-> 2025-12-31"
+
+
+class TestTaskFileOperations:
+    """Test file operations related to tasks."""
+
+    def test_append_to_empty_location(self, tmp_path):
+        """Test writing a task to an empty file."""
+        file_path = tmp_path / "tasks.xit"
+        task = Task("New task", location=(file_path, None))
+        task.save_to_location(task.location, mode='append')
+        with open(file_path, 'r') as f:
+            content = f.read()
+        assert content.strip() == str(task)
+    
+    def test_append_to_existing_file(self, tmp_path):
+        """Test writing a task to an existing file."""
+        file_path = tmp_path / "tasks.xit"
+        with open(file_path, 'w') as f:
+            f.write("[ ] Existing task\n")
+        
+        task = Task("New task", location=(file_path, None))
+        task.save_to_location(task.location, mode='append')
+        
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+        
+        assert lines[0].strip() == "[ ] Existing task"
+        assert lines[1].strip() == str(task)
+
+    def test_insert_at_location(self, tmp_path):
+        """Test inserting a task at a specific location in a file."""
+        file_path = tmp_path / "tasks.xit"
+        with open(file_path, 'w') as f:
+            f.write("[ ] Task 1\n")
+            f.write("[ ] Task 2\n")
+
+        task = Task("New task", location=(file_path, 2))
+        task.save_to_location(task.location, mode='insert')
+
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+        print(lines)
+
+        assert lines[0].strip() == "[ ] Task 1"
+        assert lines[1].strip() == "[ ] New task"
+        assert lines[2].strip() == "[ ] Task 2"
+    
+    def update_task_in_file(self, tmp_path):
+        """Test updating an existing task in a file."""
+        file_path = tmp_path / "tasks.xit"
+        with open(file_path, 'w') as f:
+            f.write("[ ] Old task\n")
+
+        task = Task("Old task", location=(file_path, 1))
+        task.set_status(StatusType.CHECKED)
+        task.save_to_location(task.location, mode='update')
+
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        assert lines[0].strip() == "[x] Old task"
+    
+    def update_multiline_task_in_file(self, tmp_path):
+        """Test updating a multi-line task in a file."""
+        file_path = tmp_path / "tasks.xit"
+        with open(file_path, 'w') as f:
+            f.write("[ ] Some task\n")
+            f.write("[ ] Multi-line task line 1\n")
+            f.write("    Multi-line task line 2\n")
+            f.write("[ ] Another task\n")
+        
+        task = Task("Multi-line task line 1\nMulti-line task line 2", location=(file_path, 2))
+        task.set_status(StatusType.CHECKED)
+        task.save_to_location(task.location, mode='update')
+
+        with open(file_path, 'r') as f:
+            lines = f.readlines()
+
+        assert lines[0].strip() == "[ ] Some task"
+        assert lines[1].strip() == "[x] Multi-line task line 1"
+        assert lines[2].strip() == "    Multi-line task line 2"
+        assert lines[3].strip() == "[ ] Another task"

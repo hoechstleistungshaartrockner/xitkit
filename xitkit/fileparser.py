@@ -189,7 +189,7 @@ class FileParser:
             self.tasks.append(context.current_task)
     
     def _parse_checkbox_line(self, match: re.Match, context: ParseContext) -> None:
-        """Parse a line containing a checkbox.
+        """Parse a the first line of a checkbox task.
         
         This method handles the core parsing logic for checkbox lines,
         extracting the status, priority, description, due date, and tags.
@@ -232,8 +232,7 @@ class FileParser:
         # Create task object with all parsed information
         task = Task(
             description=content.strip(),  # Clean up whitespace
-            file=context.file_path,
-            line_number=context.line_number,
+            location=(context.file_path, context.line_number),
             status=status,
             priority=priority_obj,
             tags=tag_objects,
@@ -270,7 +269,7 @@ class FileParser:
             return  # No current task to continue
             
         # Add current line number to the task's line numbers
-        context.current_task.line_numbers.append(context.line_number)
+        context.current_task.location.extend_line_numbers(context.line_number)
             
         match = CONTINUATION_PATTERN.match(line)
         if match:

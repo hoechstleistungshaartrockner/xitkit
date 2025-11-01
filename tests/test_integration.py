@@ -92,7 +92,7 @@ class TestFullWorkflow:
         assert len(tasks) > 10
         
         # Verify we have tasks from different files
-        file_paths = {task.file for task in tasks}
+        file_paths = {task.location.file_path for task in tasks}
         assert len(file_paths) >= 3
         
         # Verify different types of tasks were parsed

@@ -8,6 +8,7 @@ from .status import *
 from .duedate import *
 from .priority import *
 from .description import *
+from .location import Location
 
 
 class Task:
@@ -19,8 +20,7 @@ class Task:
     for display purposes.
     
     Attributes:
-        file: Path to the file containing this task
-        line_numbers: List of line numbers where the task appears (1-based)
+        location: Location object representing file and line numbers
         description: The task description text
         status: Task status (OPEN, ONGOING, DONE, OBSOLETE, INQUESTION)
         priority: Priority level (0 = no priority, 1+ = number of exclamation marks)
@@ -31,9 +31,7 @@ class Task:
 
     def __init__(self,
                  description: str,
-                 file=None,
-                 line_number=None,
-                 line_numbers=None,
+                 location=None,
                  status=None,
                  priority=None,
                  tags=None,
@@ -43,9 +41,7 @@ class Task:
 
         Args:
             description (str): Task description text.
-            file (Optional[str]): File path where the task is located.
-            line_number (Optional[int]): Single line number (for backward compatibility).
-            line_numbers (Optional[List[int]]): List of line numbers for multi-line tasks.
+            location (Optional[Location]): Location object representing file and line numbers.
             status (Optional[Status]): status object, StatusType, or status string.
             priority (Optional[Priority]): Priority object or integer level.
             tags (Optional[List[Tag]]): List of Tag objects associated with the task.
@@ -53,15 +49,10 @@ class Task:
             id (Optional[int]): Unique ID for the task.
         """
         self.description = Description(description)
-        self.file = file
-        
-        # Handle line numbers - support both old line_number and new line_numbers
-        if line_numbers is not None:
-            self.line_numbers = line_numbers if isinstance(line_numbers, list) else [line_numbers]
-        elif line_number is not None:
-            self.line_numbers = [line_number]
-        else:
-            self.line_numbers = []
+
+        # Handle location
+        self.set_location(location)
+
         
         # Handle status - can be Status object, StatusType, string, or None
         if isinstance(status, Status):
@@ -128,67 +119,20 @@ class Task:
                 # Unsupported type, ignore
                 pass
 
-    @property
-    def line_number(self) -> Optional[int]:
-        """Get the first line number for backward compatibility.
-        
-        Returns:
-            The first line number if any line numbers exist, None otherwise
-        """
-        return self.line_numbers[0] if self.line_numbers else None
+    def set_location(self, location) -> None:
+        """Set the task's location.
 
-    @line_number.setter  
-    def line_number(self, value: Optional[int]) -> None:
-        """Set a single line number for backward compatibility.
-        
         Args:
-            value: Line number to set, or None to clear
+            location: Location object or tuple (file_path, line_number) or None for default
         """
-        if value is None:
-            self.line_numbers = []
+        if isinstance(location, Location):
+            self.location = location
+        elif isinstance(location, tuple) and len(location) == 2:
+            file_path, line_number = location
+            self.location = Location(file_path=file_path, line_numbers=line_number)
         else:
-            self.line_numbers = [value]
-
-    @property
-    def location(self) -> Tuple[str, Optional[int]]:
-        """Get the location of this task as a (filename, line_number) tuple.
-        
-        Returns:
-            Tuple containing the file path and first line number
-        """
-        return (self.file, self.line_number)
-
-    @location.setter
-    def location(self, value: Tuple[str, int]) -> None:
-        """Set the location of this task.
-        
-        Args:
-            value: Tuple containing (filename, line_number)
-        """
-        self.file, self.line_number = value
-
-    @property
-    def filename(self) -> str:
-        """Get just the filename without the full path.
-        
-        Returns:
-            The filename portion of the file path, or None if no file is set
-        """
-        if self.file is None:
-            return None
-        return Path(self.file).name
-
-    @property
-    def relative_path(self) -> str:
-        """Get the relative path from current working directory.
-        
-        Returns:
-            Relative path if possible, otherwise absolute path
-        """
-        try:
-            return str(Path(self.file).relative_to(Path.cwd()))
-        except ValueError:
-            return self.file
+            # Default location
+            self.location = Location()
 
     @property
     def status_symbol(self) -> str:
@@ -465,10 +409,10 @@ class Task:
         """
         desc_text = str(self.description)
         desc_preview = desc_text[:30] + "..." if len(desc_text) > 30 else desc_text
-        return (f"Task(file='{self.file}', line={self.line_number}, "
-                f"status='{self.status}', priority={self.priority}, "
+        return (f"Task(status='{self.status.status_type.name}', priority={self.priority.level}, "
                 f"description='{desc_preview}', "
-                f"tags={self.tags}, due_date='{self.due_date}')")
+                f"tags={[str(tag) for tag in self.tags]}, due_date='{self.due_date}', "
+                f"location={self.location})")
 
     def copy(self) -> 'Task':
         """Create a copy of this task.
@@ -507,21 +451,12 @@ class Task:
             result += '\n    ' + continuation_line
         
         # Add location info if requested
-        if (show_file or show_line) and (self.file is not None or self.line_number is not None):
-            location_parts = []
-            if show_file and self.file is not None:
-                try:
-                    relative_path = str(Path(self.file).relative_to(Path.cwd()))
-                except ValueError:
-                    relative_path = self.file
-                location_parts.append(relative_path)
-            
-            if show_line and self.line_number is not None:
-                location_parts.append(f"L{self.line_number}")
-            
-            if location_parts:
-                location_str = ':'.join(location_parts)
-                result += f" [{location_str}]"
+        if (show_file and not show_line):
+            result += f"    ({self.location.relative_path})"
+        elif (show_file and show_line):
+            result += f"    ({str(self.location)})"
+        elif (not show_file and show_line):
+            result += f"    ({self.location.resolve_line_numbers()})"
         
         return result
 
@@ -541,82 +476,144 @@ class Task:
         formatted_lines = [prefix.get(idx, "    ") + line for idx, line in enumerate(lines)]
         return '\n'.join(formatted_lines)
 
-    def write_to_file(self, filename: str, line_number: int) -> None:
-        """Insert the task at a specific line in a file.
+    def append_to_file(self, file_path: Path) -> None:
+        """Append the task to the specified file in checkbox format.
         
         Args:
-            filename: Path to the file to write to
-            line_number: Line number where to insert the task (1-based)
+            file_path: Path to the file to append the task to
         """
-        # Read existing file content
-        try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-        except FileNotFoundError:
-            lines = []
+        # Ensure the file exists and create parent directories if needed
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Get the task content
-        task_content = self.to_checkbox_format()
-        task_lines = task_content.split('\n')
+        with open(file_path, 'a', encoding='utf-8') as f:
+            f.write(self.to_checkbox_format() + '\n')
+    
+    def insert_at_location(self, location: Location) -> None:
+        """Insert the task at the specified location.
         
-        # Convert line_number to 0-based index
-        insert_index = line_number - 1
-        
-        # Insert the task lines at the specified position
-        for i, task_line in enumerate(task_lines):
-            lines.insert(insert_index + i, task_line + '\n')
-        
-        # Update the task's line numbers to reflect the new position
-        self.file = filename
-        self.line_numbers = list(range(line_number, line_number + len(task_lines)))
-        
-        # Write back to file
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-
-    def update_in_file(self) -> None:
-        """Update the task in its current file location.
-        
-        Uses the task's current file and line numbers to update the task in place.
-        Replaces the existing task lines with the current task content.
-        
+        Args:
+            location: Location object specifying file and line number for insertion
+            
         Raises:
-            ValueError: If the task doesn't have a file or line numbers set
+            FileNotFoundError: If the target file doesn't exist
+            ValueError: If line number is invalid
         """
-        if not self.file:
-            raise ValueError("Task has no file specified")
-        if not self.line_numbers:
-            raise ValueError("Task has no line numbers specified")
-        
-        # Read the current file content
-        with open(self.file, 'r', encoding='utf-8') as f:
+        file_path = Path(location.file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File does not exist: {file_path}")
+            
+        with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # Get the updated task content
-        task_content = self.to_checkbox_format()
-        task_lines = task_content.split('\n')
+        # Validate line number
+        insert_line = location.line_numbers.start if hasattr(location.line_numbers, 'start') else location.line_numbers
+        if insert_line < 1 or insert_line > len(lines) + 1:
+            raise ValueError(f"Invalid line number {insert_line}. File has {len(lines)} lines.")
         
-        # Calculate the range of lines to replace
-        start_line = min(self.line_numbers) - 1  # Convert to 0-based
-        end_line = max(self.line_numbers)  # This is already exclusive
+        # Insert at specified line (1-based index)
+        insert_index = insert_line - 1
+        task_content = self.to_checkbox_format() + '\n'
+        lines.insert(insert_index, task_content)
         
-        # Remove the old task lines
-        del lines[start_line:end_line]
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+    
+    def replace_at_location(self, location: Location) -> None:
+        """Replace the content at the specified location with this task.
         
-        # Insert the new task lines
-        for i, task_line in enumerate(task_lines):
-            lines.insert(start_line + i, task_line + '\n')
+        Args:
+            location: Location object specifying file and line range to replace
+            
+        Raises:
+            FileNotFoundError: If the target file doesn't exist
+            ValueError: If line numbers are invalid
+        """
+        file_path = Path(location.file_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"File does not exist: {file_path}")
+            
+        with open(file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
         
-        # Update line numbers if the number of lines changed
-        new_line_count = len(task_lines)
-        original_line_count = len(self.line_numbers)
+        # Validate line numbers
+        # account for line number offsets
+        offset_line_numbers = range(location.line_numbers.start-1, location.line_numbers.stop-1)
+        if offset_line_numbers.start < 0 or offset_line_numbers.stop > len(lines):
+            raise ValueError(f"Invalid line range {location.line_numbers.start}-{location.line_numbers.stop}. File has {len(lines)} lines.")
+
+        # Replace lines (convert to 0-based indexing)
+        task_content = self.to_checkbox_format() + '\n'
+        lines[offset_line_numbers.start:offset_line_numbers.stop] = [task_content]
         
-        if new_line_count != original_line_count:
-            # Update line numbers to reflect the new span
-            start_line_number = min(self.line_numbers)
-            self.line_numbers = list(range(start_line_number, start_line_number + new_line_count))
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+    
+    def save_to_location(self, location: Location = None, mode: str = 'update') -> None:
+        """Save the task to a location with flexible behavior.
         
-        # Write back to file
-        with open(self.file, 'w', encoding='utf-8') as f:
+        Args:
+            location: Target location. If None, uses self.location
+            mode: Save mode - 'update', 'insert', 'append', or 'create'
+                - 'update': Replace existing content at location (default)
+                - 'insert': Insert at location without replacing
+                - 'append': Append to end of file
+                - 'create': Create new file or overwrite existing
+                
+        Raises:
+            ValueError: If mode is invalid or location is required but not provided
+        """
+        if location is None:
+            location = self.location
+            
+        if location is None:
+            raise ValueError("Location must be provided either as argument or set on task")
+        
+        file_path = Path(location.file_path)
+        
+        if mode == 'create':
+            # Create new file or overwrite existing
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(self.to_checkbox_format() + '\n')
+        elif mode == 'append':
+            self.append_to_file(file_path)
+        elif mode == 'insert':
+            self.insert_at_location(location)
+        elif mode == 'update':
+            if file_path.exists():
+                self.replace_at_location(location)
+            else:
+                # File doesn't exist, create it
+                self.save_to_location(location, mode='create')
+        else:
+            raise ValueError(f"Invalid mode: {mode}. Must be one of: 'update', 'insert', 'append', 'create'")
+        
+        # Update task's location to reflect where it was saved
+        self.location = location
+
+    def remove_from_file(self) -> 'Task':
+        """Remove the task from its file based on its location.
+        
+        Returns:
+            The Task instance that was removed.
+        """
+        if not self.location.file_path.exists():
+            raise FileNotFoundError(f"File does not exist: {self.location.file_path}")
+
+        with open(self.location.file_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # Remove the specific line (accounting for 1-based line numbers)
+        if self.location.line_numbers is None:
+            return None
+        
+        for line_idx in reversed(self.location.line_numbers):
+            line_idx -= 1  # Convert to 0-based index
+            if line_idx < 0 or line_idx >= len(lines):
+                continue
+            lines.pop(line_idx)
+
+        with open(self.location.file_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
 
+        return self

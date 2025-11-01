@@ -269,6 +269,9 @@ class FileParser:
         if not context.current_task:
             return  # No current task to continue
             
+        # Add current line number to the task's line numbers
+        context.current_task.line_numbers.append(context.line_number)
+            
         match = CONTINUATION_PATTERN.match(line)
         if match:
             continuation_content = match.group(1)  # Content after the 4 spaces

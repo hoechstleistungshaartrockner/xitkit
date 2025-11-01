@@ -77,10 +77,10 @@ class TestShowTasksCommand:
         # Setup mocks
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
         show_command.task_service.load_tasks.return_value = [
-            Task("/test.xit", 1, "Test task", "OPEN", 0, [], None)
+            Task("Test task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
         ]
         show_command.task_service.filter_tasks.return_value = [
-            Task("/test.xit", 1, "Test task", "OPEN", 0, [], None)
+            Task("Test task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
         ]
         
         # Execute command
@@ -123,8 +123,8 @@ class TestShowTasksCommand:
     def test_execute_with_filters(self, show_command):
         """Test execution with task filters."""
         tasks = [
-            Task("/test.xit", 1, "Open task", "OPEN", 0, [], None),
-            Task("/test.xit", 2, "Done task", "DONE", 0, [], None)
+            Task("Open task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None),
+            Task("Done task", file="/test.xit", line_number=2, status="DONE", priority=0, tags=[], due_date=None)
         ]
         filtered_tasks = [tasks[0]]  # Only open task
         
@@ -143,7 +143,7 @@ class TestShowTasksCommand:
     
     def test_execute_no_filtered_matches(self, show_command):
         """Test execution when filters match no tasks."""
-        tasks = [Task("/test.xit", 1, "Task", "OPEN", 0, [], None)]
+        tasks = [Task("Task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
         show_command.task_service.load_tasks.return_value = tasks
@@ -158,7 +158,7 @@ class TestShowTasksCommand:
     
     def test_execute_count_only(self, show_command):
         """Test execution with count_only=True."""
-        tasks = [Task("/test.xit", 1, "Task", "OPEN", 0, [], None)]
+        tasks = [Task("Task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
         show_command.task_service.load_tasks.return_value = tasks
@@ -171,7 +171,7 @@ class TestShowTasksCommand:
     
     def test_execute_with_line_numbers(self, show_command):
         """Test execution with show_line=True."""
-        tasks = [Task("/test.xit", 1, "Task", "OPEN", 0, [], None)]
+        tasks = [Task("Task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
         show_command.task_service.load_tasks.return_value = tasks
@@ -204,9 +204,9 @@ class TestShowTasksCommand:
     def test_execute_with_sort_priority_asc(self, show_command):
         """Test execution with sort by priority ascending."""
         tasks = [
-            Task("/test.xit", 1, "High priority", "OPEN", Priority(2), [], None),
-            Task("/test.xit", 2, "Low priority", "OPEN", Priority(0), [], None),
-            Task("/test.xit", 3, "Medium priority", "OPEN", Priority(1), [], None)
+            Task("High priority", file="/test.xit", line_number=1, status="OPEN", priority=Priority(2), tags=[], due_date=None),
+            Task("Low priority", file="/test.xit", line_number=2, status="OPEN", priority=Priority(0), tags=[], due_date=None),
+            Task("Medium priority", file="/test.xit", line_number=3, status="OPEN", priority=Priority(1), tags=[], due_date=None)
         ]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
@@ -221,9 +221,9 @@ class TestShowTasksCommand:
     def test_execute_with_sort_priority_desc(self, show_command):
         """Test execution with sort by priority descending."""
         tasks = [
-            Task("/test.xit", 1, "High priority", "OPEN", Priority(2), [], None),
-            Task("/test.xit", 2, "Low priority", "OPEN", Priority(0), [], None),
-            Task("/test.xit", 3, "Medium priority", "OPEN", Priority(1), [], None)
+            Task("High priority", file="/test.xit", line_number=1, status="OPEN", priority=Priority(2), tags=[], due_date=None),
+            Task("Low priority", file="/test.xit", line_number=2, status="OPEN", priority=Priority(0), tags=[], due_date=None),
+            Task("Medium priority", file="/test.xit", line_number=3, status="OPEN", priority=Priority(1), tags=[], due_date=None)
         ]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
@@ -239,9 +239,9 @@ class TestShowTasksCommand:
         """Test execution with sort by due_date ascending."""
         from xitkit.duedate import DueDate
         tasks = [
-            Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
-            Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
-            Task("/test.xit", 3, "Task 3", "OPEN", Priority(0), [], None)
+            Task("Task 1", file="/test.xit", line_number=1, status="OPEN", priority=Priority(0), tags=[], due_date=DueDate.from_string("2025-10-22")),
+            Task("Task 2", file="/test.xit", line_number=2, status="OPEN", priority=Priority(0), tags=[], due_date=DueDate.from_string("2025-10-20")),
+            Task("Task 3", file="/test.xit", line_number=3, status="OPEN", priority=Priority(0), tags=[], due_date=None)
         ]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
@@ -257,9 +257,9 @@ class TestShowTasksCommand:
         """Test execution with sort by due_date descending."""
         from xitkit.duedate import DueDate
         tasks = [
-            Task("/test.xit", 1, "Task 1", "OPEN", Priority(0), [], DueDate.from_string("2025-10-22")),
-            Task("/test.xit", 2, "Task 2", "OPEN", Priority(0), [], DueDate.from_string("2025-10-20")),
-            Task("/test.xit", 3, "Task 3", "OPEN", Priority(0), [], None)
+            Task("Task 1", file="/test.xit", line_number=1, status="OPEN", priority=Priority(0), tags=[], due_date=DueDate.from_string("2025-10-22")),
+            Task("Task 2", file="/test.xit", line_number=2, status="OPEN", priority=Priority(0), tags=[], due_date=DueDate.from_string("2025-10-20")),
+            Task("Task 3", file="/test.xit", line_number=3, status="OPEN", priority=Priority(0), tags=[], due_date=None)
         ]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
@@ -273,7 +273,7 @@ class TestShowTasksCommand:
 
     def test_execute_sort_without_order_defaults_asc(self, show_command):
         """Test that sorting without order defaults to ascending."""
-        tasks = [Task("/test.xit", 1, "Task", "OPEN", Priority(0), [], None)]
+        tasks = [Task("Task", file="/test.xit", line_number=1, status="OPEN", priority=Priority(0), tags=[], due_date=None)]
         
         show_command.file_service.resolve_file_paths.return_value = ["/test.xit"]
         show_command.task_service.load_tasks.return_value = tasks
@@ -309,8 +309,8 @@ class TestShowStatsCommand:
     def test_execute_basic_success(self, stats_command):
         """Test successful execution of stats command."""
         tasks = [
-            Task("/test.xit", 1, "Open task", "OPEN", 1, ["#work"], "2025-12-31"),
-            Task("/test.xit", 2, "Done task", "DONE", 0, [], None)
+            Task("Open task", file="/test.xit", line_number=1, status="OPEN", priority=1, tags=["#work"], due_date="2025-12-31"),
+            Task("Done task", file="/test.xit", line_number=2, status="DONE", priority=0, tags=[], due_date=None)
         ]
         
         stats = {
@@ -355,7 +355,7 @@ class TestShowStatsCommand:
     
     def test_execute_with_path(self, stats_command):
         """Test stats execution with specific path."""
-        tasks = [Task("/test.xit", 1, "Task", "OPEN", 0, [], None)]
+        tasks = [Task("Task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)]
         stats = {'total_tasks': 1, 'status_counts': {}, 'priority_counts': {}, 
                 'files_with_tasks': set(), 'tasks_with_due_dates': 0, 'tasks_with_tags': 0}
         

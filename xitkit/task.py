@@ -20,7 +20,7 @@ class Task:
     
     Attributes:
         file: Path to the file containing this task
-        line_number: Line number where the task appears (1-based)
+        line_numbers: List of line numbers where the task appears (1-based)
         description: The task description text
         status: Task status (OPEN, ONGOING, DONE, OBSOLETE, INQUESTION)
         priority: Priority level (0 = no priority, 1+ = number of exclamation marks)
@@ -33,6 +33,7 @@ class Task:
                  description: str,
                  file=None,
                  line_number=None,
+                 line_numbers=None,
                  status=None,
                  priority=None,
                  tags=None,
@@ -43,7 +44,8 @@ class Task:
         Args:
             description (str): Task description text.
             file (Optional[str]): File path where the task is located.
-            line_number (Optional[int]): Line number of the task in the file.
+            line_number (Optional[int]): Single line number (for backward compatibility).
+            line_numbers (Optional[List[int]]): List of line numbers for multi-line tasks.
             status (Optional[Status]): status object, StatusType, or status string.
             priority (Optional[Priority]): Priority object or integer level.
             tags (Optional[List[Tag]]): List of Tag objects associated with the task.
@@ -52,7 +54,14 @@ class Task:
         """
         self.description = Description(description)
         self.file = file
-        self.line_number = line_number
+        
+        # Handle line numbers - support both old line_number and new line_numbers
+        if line_numbers is not None:
+            self.line_numbers = line_numbers if isinstance(line_numbers, list) else [line_numbers]
+        elif line_number is not None:
+            self.line_numbers = [line_number]
+        else:
+            self.line_numbers = []
         
         # Handle status - can be Status object, StatusType, string, or None
         if isinstance(status, Status):
@@ -119,13 +128,33 @@ class Task:
                 # Unsupported type, ignore
                 pass
 
+    @property
+    def line_number(self) -> Optional[int]:
+        """Get the first line number for backward compatibility.
+        
+        Returns:
+            The first line number if any line numbers exist, None otherwise
+        """
+        return self.line_numbers[0] if self.line_numbers else None
+
+    @line_number.setter  
+    def line_number(self, value: Optional[int]) -> None:
+        """Set a single line number for backward compatibility.
+        
+        Args:
+            value: Line number to set, or None to clear
+        """
+        if value is None:
+            self.line_numbers = []
+        else:
+            self.line_numbers = [value]
 
     @property
-    def location(self) -> Tuple[str, int]:
+    def location(self) -> Tuple[str, Optional[int]]:
         """Get the location of this task as a (filename, line_number) tuple.
         
         Returns:
-            Tuple containing the file path and line number
+            Tuple containing the file path and first line number
         """
         return (self.file, self.line_number)
 
@@ -511,4 +540,83 @@ class Task:
         # Multi-line - indent continuation lines with 4 spaces
         formatted_lines = [prefix.get(idx, "    ") + line for idx, line in enumerate(lines)]
         return '\n'.join(formatted_lines)
+
+    def write_to_file(self, filename: str, line_number: int) -> None:
+        """Insert the task at a specific line in a file.
+        
+        Args:
+            filename: Path to the file to write to
+            line_number: Line number where to insert the task (1-based)
+        """
+        # Read existing file content
+        try:
+            with open(filename, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            lines = []
+        
+        # Get the task content
+        task_content = self.to_checkbox_format()
+        task_lines = task_content.split('\n')
+        
+        # Convert line_number to 0-based index
+        insert_index = line_number - 1
+        
+        # Insert the task lines at the specified position
+        for i, task_line in enumerate(task_lines):
+            lines.insert(insert_index + i, task_line + '\n')
+        
+        # Update the task's line numbers to reflect the new position
+        self.file = filename
+        self.line_numbers = list(range(line_number, line_number + len(task_lines)))
+        
+        # Write back to file
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+
+    def update_in_file(self) -> None:
+        """Update the task in its current file location.
+        
+        Uses the task's current file and line numbers to update the task in place.
+        Replaces the existing task lines with the current task content.
+        
+        Raises:
+            ValueError: If the task doesn't have a file or line numbers set
+        """
+        if not self.file:
+            raise ValueError("Task has no file specified")
+        if not self.line_numbers:
+            raise ValueError("Task has no line numbers specified")
+        
+        # Read the current file content
+        with open(self.file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        # Get the updated task content
+        task_content = self.to_checkbox_format()
+        task_lines = task_content.split('\n')
+        
+        # Calculate the range of lines to replace
+        start_line = min(self.line_numbers) - 1  # Convert to 0-based
+        end_line = max(self.line_numbers)  # This is already exclusive
+        
+        # Remove the old task lines
+        del lines[start_line:end_line]
+        
+        # Insert the new task lines
+        for i, task_line in enumerate(task_lines):
+            lines.insert(start_line + i, task_line + '\n')
+        
+        # Update line numbers if the number of lines changed
+        new_line_count = len(task_lines)
+        original_line_count = len(self.line_numbers)
+        
+        if new_line_count != original_line_count:
+            # Update line numbers to reflect the new span
+            start_line_number = min(self.line_numbers)
+            self.line_numbers = list(range(start_line_number, start_line_number + new_line_count))
+        
+        # Write back to file
+        with open(self.file, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
 

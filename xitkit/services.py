@@ -18,6 +18,7 @@ from .exceptions import FileNotSupportedError, TaskFilterError
 from .status import *
 from .tags import Tag
 from .duedate import DueDate
+from .priority import Priority
 
 @dataclass
 class TaskFilter:
@@ -300,17 +301,8 @@ class TaskService:
         if new_due_date:
             target_task.set_due_date(new_due_date.implied_date if new_due_date else None)
         
-        # Read the file content
-        with open(target_task.file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Update the specific line
-        if target_task.line_number <= len(lines):
-            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
-            
-            # Write back to file
-            with open(target_task.file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
+        # Update the task in the file using the new method
+        target_task.update_in_file()
         
         return target_task
 
@@ -341,17 +333,8 @@ class TaskService:
         # Update task description
         target_task.description = Description(new_description)
         
-        # Read the file content
-        with open(target_task.file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Update the specific line
-        if target_task.line_number <= len(lines):
-            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
-            
-            # Write back to file
-            with open(target_task.file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
+        # Update the task in the file using the new method
+        target_task.update_in_file()
         
         return target_task
 
@@ -466,17 +449,8 @@ class TaskService:
         clean_tag = tag.lstrip('#')
         target_task.add_tag_by_name(clean_tag)
         
-        # Read the file content
-        with open(target_task.file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Update the specific line
-        if target_task.line_number <= len(lines):
-            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
-            
-            # Write back to file
-            with open(target_task.file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
+        # Update the task in the file using the new method
+        target_task.update_in_file()
         
         return True
 
@@ -509,17 +483,8 @@ class TaskService:
         clean_tag = tag.lstrip('#')
         target_task.remove_tag_by_name(clean_tag)
         
-        # Read the file content
-        with open(target_task.file, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Update the specific line
-        if target_task.line_number <= len(lines):
-            lines[target_task.line_number - 1] = target_task.to_checkbox_format() + '\n'
-            
-            # Write back to file
-            with open(target_task.file, 'w', encoding='utf-8') as f:
-                f.writelines(lines)
+        # Update the task in the file using the new method
+        target_task.update_in_file()
         
         return True
     

@@ -120,6 +120,7 @@ class Description:
         if tag not in self.tags:
             self.tags.append(tag)
             # Add tag to text
+            print(self.text)
             if self.text:
                 self.text += f" {str(tag)}"
             else:

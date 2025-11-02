@@ -74,9 +74,10 @@ def xitkit(ctx):
               help='Sort tasks by the specified attribute (priority or due_date)')
 @click.option('--order', type=click.Choice(['asc', 'desc'], case_sensitive=False),
               help='Sort order: asc (ascending) or desc (descending). Defaults to asc if not specified')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to show tasks from')
 @click.pass_context
-def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order):
-    # , interactive):
+def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order, interactive):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
@@ -153,7 +154,8 @@ def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count
         no_id=no_id,
         count_only=count,
         sort_by=sort,
-        sort_order=order or 'asc' if sort else None
+        sort_order=order or 'asc' if sort else None,
+        interactive=interactive
     )
 
 
@@ -192,8 +194,10 @@ def stats(ctx, directory, files):
               help='Due date for the new task in one of the supported formats (e.g., "2025-12-31", "today", "tomorrow", "1d", "2w", "3m", "1y")')
 @click.option('--tag', '-t', multiple=True,
               help='Tags to add to the new task (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select file and section to add the task to')
 @click.pass_context
-def add(ctx, description, file, priority, due, tag):
+def add(ctx, description, file, priority, due, tag, interactive):
     """Add a new task.
     
     Creates a new task with the specified description and appends it to the target file.
@@ -212,11 +216,12 @@ def add(ctx, description, file, priority, due, tag):
     command = CommandFactory.create_add_command()
     command.execute(
         description=description,
-        file_path=file or "todo.xit",
+        file_path=file,
         directory=Path.cwd(),
         priority=priority,
         due_date=due,
-        tags=list(tag)
+        tags=list(tag),
+        interactive=interactive
     )
 
 

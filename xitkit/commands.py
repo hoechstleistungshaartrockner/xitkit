@@ -17,6 +17,8 @@ from .priority import Priority
 from .task import Task
 from .duedate import DueDate
 from .location import Location
+import questionary as ques
+from .fileparser import FileParser
 
 
 class Command(ABC):
@@ -33,6 +35,21 @@ class Command(ABC):
         """Execute the command with given arguments."""
         pass
 
+    def ask_for_files(self, file_paths: list):
+        """Interactively ask the user to select files."""
+        selection = ques.checkbox(
+            "Select relevant files:",
+            choices=file_paths
+        ).ask()
+        return selection
+
+    def ask_for_sections(self, sections: list):
+        """Interactively ask the user to select sections."""
+        selection = ques.checkbox(
+            "Select relevant sections:",
+            choices=sections
+        ).ask()
+        return selection
 
 class ShowTasksCommand(Command):
     """Command for showing tasks with filtering options."""
@@ -40,7 +57,7 @@ class ShowTasksCommand(Command):
     def execute(self, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
                 show_location: bool = False, no_id: bool = False, count_only: bool = False,
-                sort_by: str = None, sort_order: str = None) -> None:
+                sort_by: str = None, sort_order: str = None, interactive: bool = False) -> None:
         """Execute the show tasks command.
         
         Args:
@@ -52,6 +69,7 @@ class ShowTasksCommand(Command):
             count_only: Whether to show only count
             sort_by: Sort attribute (priority, due_date)
             sort_order: Sort order (asc, desc)
+            interactive: Whether to interactively select files and sections
         """
 
         try:
@@ -65,8 +83,38 @@ class ShowTasksCommand(Command):
                 self.formatter.display_warning("No task files found.")
                 return
             
+            if interactive and specified_files == [] and directory == Path.cwd():
+                # Ask user to select files
+                selected_files = self.ask_for_files(file_paths)
+                if not selected_files:
+                    self.formatter.display_warning("No files selected.")
+                    return
+                file_paths = selected_files
+            else:
+                selected_files = file_paths
+            
             # Load and filter tasks
             all_tasks = self.task_service.load_tasks(file_paths)
+
+            if interactive:
+                # Determine available sections
+                available_sections = set()
+                for task in all_tasks:
+                    if task.location.section:
+                        available_sections.add(task.location.section)
+                available_sections = sorted(list(available_sections))
+                
+                if available_sections:
+                    # Ask user to select sections
+                    selected_sections = self.ask_for_sections(available_sections)
+                    if not selected_sections:
+                        self.formatter.display_warning("No sections selected.")
+                        return
+                    # Filter tasks by selected sections
+                    all_tasks = [
+                        task for task in all_tasks 
+                        if task.location.section in selected_sections
+                    ]
             
             if not all_tasks:
                 self.formatter.display_warning("No tasks found in the specified files.")
@@ -207,7 +255,8 @@ class AddTaskCommand(Command):
                 priority: int = None,
                 due_date: str = None,
                 tags: list = None,
-                directory: Path = None) -> None:
+                directory: Path = None,
+                interactive: bool = False) -> None:
         """Execute the add task command.
         
         Args:
@@ -217,20 +266,50 @@ class AddTaskCommand(Command):
             priority: Priority level of the task
             due_date: Due date string for the task
             tags: List of string tags for the task
+            interactive: Whether to prompt for missing information
 
         """
         try:
-            # Resolve absolute file path
-            if not Path(file_path).is_absolute():
-                if directory:
-                    file_path = str(directory / file_path)
-                else:
-                    file_path = str(Path.cwd() / file_path)
+            
+
+            if interactive:
+                # Prompt for file to add task to if not specified
+                if not file_path:
+                    all_files = self.file_service.resolve_file_paths(
+                        directory, None
+                    )
+                    if not all_files:
+                        self.formatter.display_warning("No task files found to add the task.")
+                        return
+                    file_path = ques.select(
+                        "Select file to add the task to:",
+                        choices=all_files
+                    ).ask()
+                # Prompt for section if applicable
+                if file_path.endswith('.xit'):
+                    sections = FileParser().get_sections(file_path)
+                    print(sections)
+                    if sections:
+                        section = ques.select(
+                            "Select section to add the task to:",
+                            choices=sections + ["(no section)"]
+                        ).ask()
+                    else:
+                        section = None
+            else:# Resolve absolute file path
+                if file_path is None:
+                    file_path = "todo.xit"
+                if not Path(file_path).is_absolute():
+                    if directory:
+                        file_path = str(directory / file_path)
+                    else:
+                        file_path = str(Path.cwd() / file_path)
+                section = None
             
             # Create a task object
             task = Task(
                 description=description,
-                location=Location(file_path=file_path, line_numbers=None),
+                location=Location(file_path=file_path, line_numbers=None, section=section),
                 status=Status(StatusType.OPEN),
                 priority=priority or 0,
                 tags=tags or [],

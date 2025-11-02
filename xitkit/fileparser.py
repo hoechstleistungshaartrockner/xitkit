@@ -13,6 +13,65 @@ from .patterns import *
 
 
 @dataclass
+class Section:
+    """Represents a section header in the file.
+    
+    Attributes:
+        name: The name of the section
+        line_number: The line number where the section appears (1-based)
+    """
+    title: str
+    line_numbers: range = None
+    tasks: Optional[List[Task]] = None
+
+    def __post_init__(self):
+        if self.tasks is None:
+            self.tasks = []
+    
+    def extend_line_numbers(self, line_number: int):
+        """Extend the line numbers to include a new line number."""
+        if self.line_numbers is None:
+            self.line_numbers = range(line_number, line_number + 1)
+            return
+        if line_number == self.line_numbers.stop:
+            self.line_numbers = range(self.line_numbers.start, line_number + 1)
+            return
+        raise ValueError(f"line_number is not consecutive to the current line_numbers range. Current line numbers: {self.line_numbers}, line_number: {line_number}")
+    
+    def add_task(self, task: Task):
+        """Add a task to this section."""
+        self.tasks.append(task)
+
+
+@dataclass
+class File:
+    """Represents a parsed file with its tasks and sections.
+    
+    Attributes:
+        tasks: A list of tasks found in the file
+        sections: A list of sections found in the file
+    """
+    path: str
+    tasks: List[Task] = None
+    sections: List[Section] = None
+
+    def __post_init__(self):
+        if self.tasks is None:
+            self.tasks = []
+        if self.sections is None:
+            self.sections = []
+    
+    def add_task(self, task: Task):
+        """Add a task to this file."""
+        self.tasks.append(task)
+    
+    def add_section(self, section: Section):
+        """Add a section to this file."""
+        self.sections.append(section)
+
+
+
+@dataclass
 class ParseContext:
     """Context for tracking parsing state across lines.
     

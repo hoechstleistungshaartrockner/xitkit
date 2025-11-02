@@ -124,7 +124,7 @@ Second Section with 3 Tasks
         yield file_path
 
 files_dict = {"valid_status.xit": """Tasks with valid statuses
-[ ] Open Task 
+[ ] Open Task
 [@] Ongoing Task
 [~] Obsolete Task
 [x] Done Task

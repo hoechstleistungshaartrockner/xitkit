@@ -81,7 +81,8 @@ class TaskService:
         sorted_paths = sorted(file_paths)
         
         # Parse all tasks from all files
-        all_tasks = self.parser.parse_files(sorted_paths)
+        files = self.parser.parse_files(sorted_paths)
+        all_tasks = [t for f in files for t in f.get_tasks()]
         
         # Assign sequential IDs starting from 1
         for i, task in enumerate(all_tasks, start=1):

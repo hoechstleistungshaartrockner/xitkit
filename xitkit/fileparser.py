@@ -48,26 +48,32 @@ class File:
     """Represents a parsed file with its tasks and sections.
     
     Attributes:
-        tasks: A list of tasks found in the file
-        sections: A list of sections found in the file
+        path: The file path
+        sections: A dictionary mapping section titles to Section objects
     """
     path: str
-    tasks: List[Task] = None
-    sections: List[Section] = None
+    sections: dict[str, Section] = None
 
     def __post_init__(self):
-        if self.tasks is None:
-            self.tasks = []
         if self.sections is None:
-            self.sections = []
-    
-    def add_task(self, task: Task):
-        """Add a task to this file."""
-        self.tasks.append(task)
+            self.sections = {}
     
     def add_section(self, section: Section):
         """Add a section to this file."""
-        self.sections.append(section)
+        self.sections[section.title] = section
+    
+    def get_tasks(self) -> List[Task]:
+        """Get all tasks in the file across all sections."""
+        tasks = []
+        for section in self.sections.values():
+            tasks.extend(section.tasks)
+        return tasks
+    
+    def ensure_default_section(self):
+        """Ensure there's at least a default 'To Do' section if no sections exist."""
+        if not self.sections:
+            default_section = Section(title="To Do")
+            self.sections["To Do"] = default_section
 
 
 
@@ -83,11 +89,15 @@ class ParseContext:
         line_number: Current line number being processed (1-based)
         file_path: Path to the file being parsed
         current_section: The name of the current section header
+        in_code_block: Whether we're inside a code block (for markdown files)
+        last_markdown_header: The last markdown header encountered (for section inheritance)
     """
     current_task: Optional[Task] = None
     line_number: int = 0
     file_path: str = ""
     current_section: Optional[str] = None
+    in_code_block: bool = False
+    last_markdown_header: Optional[str] = None
 
 
 class FileParser:
@@ -120,20 +130,17 @@ class FileParser:
     }
         
     def __init__(self):
-        """Initialize the file parser.
+        """Initialize the file parser."""
+        pass
         
-        Creates an empty task list that will be populated during parsing.
-        """
-        self.tasks: List[Task] = []
-        
-    def parse_file(self, file_path: str) -> List[Task]:
-        """Parse a single file and return list of tasks.
+    def parse_file(self, file_path: str) -> File:
+        """Parse a single file and return a File object with sections and tasks.
         
         Args:
             file_path: Path to the .md or .xit file to parse
             
         Returns:
-            List of Task objects found in the file
+            File object containing sections and tasks found in the file
             
         Raises:
             FileNotFoundError: If the specified file doesn't exist
@@ -141,9 +148,8 @@ class FileParser:
             
         Example:
             >>> parser = FileParser()
-            >>> tasks = parser.parse_file("todo.xit")
-            >>> for task in tasks:
-            ...     print(f"[{task.status}] {task.description}")
+            >>> file_obj = parser.parse_file("todo.xit")
+            >>> print(f"Found {len(file_obj.get_tasks())} tasks in {len(file_obj.sections)} sections")
         """
         # Validate file existence and type
         path = Path(file_path)
@@ -153,9 +159,14 @@ class FileParser:
         if path.suffix not in ['.md', '.xit']:
             raise ValueError(f"Unsupported file type: {path.suffix}")
             
-        # Reset task list for this parsing session
-        self.tasks = []
+        # Create File object
+        file_obj = File(path=file_path)
         context = ParseContext(file_path=file_path)
+        
+        # For markdown files, we need to track code blocks
+        is_markdown = path.suffix == '.md'
+        if is_markdown:
+            context.in_code_block = False
         
         # Read all lines at once for efficiency
         # Using UTF-8 encoding to support international characters
@@ -163,17 +174,21 @@ class FileParser:
             lines = f.readlines()
             
         # Process all lines in the file
-        self._parse_lines(lines, context)
-        return self.tasks
+        self._parse_lines(lines, context, file_obj)
+        
+        # Ensure there's at least a default section if no sections were found
+        file_obj.ensure_default_section()
+        
+        return file_obj
     
-    def parse_files(self, file_paths: List[str]) -> List[Task]:
-        """Parse multiple files and return combined list of tasks.
+    def parse_files(self, file_paths: List[str]) -> List[File]:
+        """Parse multiple files and return list of File objects.
         
         Args:
             file_paths: List of file paths to parse
             
         Returns:
-            Combined list of Task objects from all valid files
+            List of File objects from all valid files
             
         Note:
             Invalid files are skipped with a warning message.
@@ -181,21 +196,22 @@ class FileParser:
             
         Example:
             >>> parser = FileParser()
-            >>> tasks = parser.parse_files(["todo.xit", "notes.md", "tasks.xit"])
-            >>> print(f"Found {len(tasks)} total tasks across all files")
+            >>> files = parser.parse_files(["todo.xit", "notes.md", "tasks.xit"])
+            >>> total_tasks = sum(len(f.get_tasks()) for f in files)
+            >>> print(f"Found {total_tasks} total tasks across {len(files)} files")
         """
-        all_tasks = []
+        all_files = []
         for file_path in file_paths:
             try:
-                tasks = self.parse_file(file_path)
-                all_tasks.extend(tasks)
+                file_obj = self.parse_file(file_path)
+                all_files.append(file_obj)
             except (FileNotFoundError, ValueError) as e:
                 # Continue processing other files even if one fails
                 print(f"Warning: Skipping file {file_path}: {e}")
-        return all_tasks
+        return all_files
     
-    def _parse_lines(self, lines: List[str], context: ParseContext) -> None:
-        """Parse all lines in a file.
+    def _parse_lines(self, lines: List[str], context: ParseContext, file_obj: File) -> None:
+        """Parse all lines in a file and organize tasks into sections.
         
         This is the main parsing loop that processes each line according to
         the task format specification. It maintains state for multi-line tasks
@@ -204,17 +220,56 @@ class FileParser:
         Args:
             lines: List of all lines from the file
             context: Parsing context to maintain state
+            file_obj: File object to populate with sections and tasks
         """
         i = 0
         context.current_section = None
+        current_section_obj = None
+        
         while i < len(lines):
             context.line_number = i + 1  # Convert to 1-based line numbering
             line = lines[i].rstrip('\n\r')  # Remove line endings
 
+            # Handle markdown files - track code blocks and headers
+            if context.file_path.endswith('.md'):
+                # Check for code block markers
+                if line.strip().startswith('```'):
+                    if not context.in_code_block:
+                        context.in_code_block = True
+                    else:
+                        context.in_code_block = False
+                    i += 1
+                    continue
+                
+                # Track markdown headers when outside code blocks
+                if not context.in_code_block and line.strip().startswith('#'):
+                    context.last_markdown_header = line.strip()
+                    i += 1
+                    continue
+                
+                # Skip parsing tasks outside code blocks in markdown files
+                if not context.in_code_block:
+                    i += 1
+                    continue
+
             # Check if this is a section header
             if SECTION_HEADER_PATTERN.match(line):
-                context.current_section = line.strip()
-                context.current_task = None  # Reset current task on new section
+                # Finalize current task before switching sections
+                if context.current_task and current_section_obj:
+                    current_section_obj.add_task(context.current_task)
+                    context.current_task = None
+                
+                section_title = line.strip()
+                context.current_section = section_title
+                
+                # Create or get existing section
+                if section_title not in file_obj.sections:
+                    current_section_obj = Section(title=section_title, line_numbers=range(context.line_number, context.line_number + 1))
+                    file_obj.add_section(current_section_obj)
+                else:
+                    current_section_obj = file_obj.sections[section_title]
+                    current_section_obj.extend_line_numbers(context.line_number)
+                
                 i += 1
                 continue
 
@@ -228,12 +283,21 @@ class FileParser:
             # Finalize current task if we have one and we're not continuing it
             # This happens when we encounter a non-continuation line
             if context.current_task:
-                self.tasks.append(context.current_task)
+                # Add task to current section or create default section
+                if current_section_obj is None:
+                    # No section header found yet, create default section
+                    if "To Do" not in file_obj.sections:
+                        current_section_obj = Section(title="To Do")
+                        file_obj.add_section(current_section_obj)
+                        context.current_section = "To Do"
+                    else:
+                        current_section_obj = file_obj.sections["To Do"]
+                
+                current_section_obj.add_task(context.current_task)
                 context.current_task = None
             
-            # Check if this is a blank line (resets section context)
+            # Check if this is a blank line (resets section context but not the current section object)
             if BLANK_LINE_PATTERN.match(line):
-                context.current_section = None
                 i += 1
                 continue
                 
@@ -248,7 +312,15 @@ class FileParser:
             
         # Don't forget to add the last task if the file doesn't end with a non-task line
         if context.current_task:
-            self.tasks.append(context.current_task)
+            # Add task to current section or create default section
+            if current_section_obj is None:
+                if "To Do" not in file_obj.sections:
+                    current_section_obj = Section(title="To Do")
+                    file_obj.add_section(current_section_obj)
+                else:
+                    current_section_obj = file_obj.sections["To Do"]
+            
+            current_section_obj.add_task(context.current_task)
     
     def _parse_checkbox_line(self, match: re.Match, context: ParseContext) -> None:
         """Parse a the first line of a checkbox task.
@@ -291,10 +363,16 @@ class FileParser:
         # tags are already Tag objects from _parse_tags method
         tag_objects = tags if tags else []
         
+        # Determine the section for this task
+        task_section = context.current_section
+        if context.file_path.endswith('.md') and task_section is None:
+            # In markdown files, if no section is set in code block, inherit from last markdown header
+            task_section = context.last_markdown_header
+        
         # Create task object with all parsed information
         task = Task(
-            description=content.strip(),  # Clean up whitespace
-            location=(context.file_path, context.line_number, context.current_section),
+            description=content,  # Preserve whitespace in descriptions
+            location=(context.file_path, context.line_number, task_section),
             status=status,
             priority=priority_obj,
             tags=tag_objects,
@@ -308,6 +386,8 @@ class FileParser:
         """Check if line is a continuation of previous task description.
         
         Continuation lines must start with exactly 4 spaces according to the spec.
+        However, lines that look like checkboxes (even with leading spaces) should
+        not be treated as continuations.
         
         Args:
             line: Line to check
@@ -315,7 +395,15 @@ class FileParser:
         Returns:
             True if this is a valid continuation line
         """
-        return bool(CONTINUATION_PATTERN.match(line))
+        if not CONTINUATION_PATTERN.match(line):
+            return False
+            
+        # If the content after 4 spaces looks like a checkbox, it's not a continuation
+        content = line[4:]  # Remove the 4 spaces
+        if re.match(r'^\[.\]', content):
+            return False
+            
+        return True
     
     def _handle_continuation_line(self, line: str, context: ParseContext) -> None:
         """Handle a continuation line for the current task.
@@ -412,8 +500,47 @@ class FileParser:
         return sections
 
 
-def parse_file(file_path: str) -> List[Task]:
+def parse_file(file_path: str) -> File:
     """Convenience function to parse a single file.
+    
+    Args:
+        file_path: Path to the file to parse
+        
+    Returns:
+        File object containing sections and tasks found in the file
+        
+    Example:
+        >>> from xitkit.fileparser import parse_file
+        >>> file_obj = parse_file("tasks.xit")
+        >>> print(f"Found {len(file_obj.get_tasks())} tasks in {len(file_obj.sections)} sections")
+    """
+    parser = FileParser()
+    return parser.parse_file(file_path)
+
+
+def parse_files(file_paths: List[str]) -> List[File]:
+    """Convenience function to parse multiple files.
+    
+    Args:
+        file_paths: List of file paths to parse
+        
+    Returns:
+        List of File objects from all files
+        
+    Example:
+        >>> from xitkit.fileparser import parse_files
+        >>> files = parse_files(["todo.xit", "notes.md"])
+        >>> total_tasks = sum(len(f.get_tasks()) for f in files)
+        >>> print(f"Found {total_tasks} total tasks across {len(files)} files")
+    """
+    parser = FileParser()
+    return parser.parse_files(file_paths)
+
+
+def parse_file_tasks(file_path: str) -> List[Task]:
+    """Convenience function to parse a single file and return just the tasks.
+    
+    This function maintains backward compatibility for code that expects a list of tasks.
     
     Args:
         file_path: Path to the file to parse
@@ -422,27 +549,9 @@ def parse_file(file_path: str) -> List[Task]:
         List of Task objects found in the file
         
     Example:
-        >>> from xitkit.fileparser import parse_file
-        >>> tasks = parse_file("tasks.xit")
+        >>> from xitkit.fileparser import parse_file_tasks
+        >>> tasks = parse_file_tasks("tasks.xit")
         >>> print(f"Found {len(tasks)} tasks")
     """
-    parser = FileParser()
-    return parser.parse_file(file_path)
-
-
-def parse_files(file_paths: List[str]) -> List[Task]:
-    """Convenience function to parse multiple files.
-    
-    Args:
-        file_paths: List of file paths to parse
-        
-    Returns:
-        Combined list of Task objects from all files
-        
-    Example:
-        >>> from xitkit.fileparser import parse_files
-        >>> tasks = parse_files(["todo.xit", "notes.md"])
-        >>> print(f"Found {len(tasks)} total tasks")
-    """
-    parser = FileParser()
-    return parser.parse_files(file_paths)
+    file_obj = parse_file(file_path)
+    return file_obj.get_tasks()

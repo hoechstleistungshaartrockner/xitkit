@@ -280,19 +280,22 @@ class DateParser:
         if re.match(r'^\d{4}$', date_str):
             return f"{date_str}-12-31"
         
-        # Handle week format YYYY-W## (approximate to middle of week)
+        # Handle week format YYYY-W## (return Sunday of that week)
         week_match = re.match(r'^(\d{4})-W(\d{2})$', date_str)
         if week_match:
             year = int(week_match.group(1))
             week = int(week_match.group(2))
-            # Approximate: assume week 1 starts on Jan 1, each week is 7 days
-            # This is a simplification but good enough for comparison
-            day_of_year = (week - 1) * 7 + 4  # Middle of the week
             try:
-                from datetime import datetime, timedelta
-                jan_1 = datetime(year, 1, 1)
-                target_date = jan_1 + timedelta(days=day_of_year - 1)
-                return target_date.strftime('%Y-%m-%d')
+                # Use proper ISO week calculation
+                # January 4th is always in week 1
+                jan_4 = datetime(year, 1, 4).date()
+                # Find Monday of week 1 (ISO weeks start on Monday)
+                monday_week_1 = jan_4 - timedelta(days=jan_4.weekday())
+                # Calculate Monday of target week
+                monday_target = monday_week_1 + timedelta(weeks=week-1)
+                # Sunday is 6 days later (end of week)
+                sunday_target = monday_target + timedelta(days=6)
+                return sunday_target.strftime('%Y-%m-%d')
             except:
                 return f"{year}-{week:02d}-15"  # Fallback
         

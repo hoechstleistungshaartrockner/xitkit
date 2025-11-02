@@ -71,12 +71,12 @@ class TestFullWorkflow:
         
         return temp_dir
     
-    def test_complete_discovery_and_parsing(self, project_structure):
+    def test_complete_discovery_and_parsing(self, isolated_test_files):
         """Test complete file discovery and task parsing."""
         service = TaskService()
         
         # Discover all task files
-        files = service.find_task_files(project_structure)
+        files = service.find_task_files(isolated_test_files)
         
         # Should find .xit and .md files but not .txt
         assert len(files) >= 3
@@ -149,11 +149,11 @@ class TestFullWorkflow:
         )
         assert len(combined_tasks) > 0
     
-    def test_statistics_integration(self, project_structure):
+    def test_statistics_integration(self, isolated_test_files):
         """Test statistics calculation across multiple files."""
         service = TaskService()
         
-        files = service.find_task_files(project_structure)
+        files = service.find_task_files(isolated_test_files)
         tasks = service.load_tasks(files)
         stats = service.get_task_statistics(tasks)
         
@@ -352,36 +352,19 @@ class TestDateFilteringIntegration:
 @pytest.mark.integration
 class TestUnicodeAndSpecialContent:
     """Test handling of Unicode content and special characters."""
+
+    def parse_and_unpack(self, file_path):
+        """Helper to parse a file and return its tasks."""
+        file_parser = FileParser()
+        file = file_parser.parse_file(str(file_path))
+        return file.get_tasks()
     
-    def test_unicode_content_integration(self, temp_dir):
-        """Test complete workflow with Unicode content."""
-        unicode_content = """国际化任务
-[ ] ! 完成项目文档 #文档 #重要 -> 2025-12-31
-[x] 安装开发环境 #设置
-[@] 学习新技术 #学习 #持续
-
-Ελληνικά εργασίες
-[ ] Δημιουργία διαγράμματος #σχεδιασμός
-[ ] !! Επείγουσα εργασία #επείγον #εργασία -> 2025-11-30
-
-Русские задачи
-[ ] Написать тесты #тестирование #разработка
-[x] ! Завершить ревью кода #ревью #важное
-[?] Добавить новую функцию? #вопрос #функция
-
-Mixed Languages
-[ ] 📋 Create todo app with 🚀 #development #emoji #fun
-[ ] Task with "quotes" and 'apostrophes' #punctuation
-[ ] Task with symbols: @#$%^&*()_+-={}[]|\\:";'<>?,./ #symbols"""
-        
-        test_file = create_test_file(temp_dir, "unicode.xit", unicode_content)
-        
-        # Test parsing
-        parser = FileParser()
-        tasks = parser.parse_file(str(test_file))
+    def test_unicode_content_integration(self, isolated_test_files):
+        """Test parsing and handling of Unicode content in tasks."""
+        tasks = self.parse_and_unpack(isolated_test_files / 'unicode_file.xit')
         
         # Should successfully parse all tasks
-        assert len(tasks) > 10
+        assert len(tasks) == 4
         
         # Verify Unicode content is preserved
         descriptions = [str(task.description) for task in tasks]
@@ -403,7 +386,7 @@ Mixed Languages
         
         # Test statistics with Unicode content
         stats = service.get_task_statistics(tasks)
-        assert stats['total'] > 10
+        assert stats['total'] == 4
         assert stats['with_tags'] > 0
 
 
@@ -636,7 +619,8 @@ class TestFormatRecreation:
         try:
             # Parse the original task
             parser = FileParser()
-            original_tasks = parser.parse_files([temp_file_path])
+            files = parser.parse_files([temp_file_path])
+            original_tasks = [t for f in files for t in f.get_tasks()]
             
             assert len(original_tasks) == 1
             original_task = original_tasks[0]
@@ -651,7 +635,8 @@ class TestFormatRecreation:
             
             try:
                 # Parse the recreated task
-                recreated_tasks = parser.parse_files([temp_file2_path])
+                files = parser.parse_files([temp_file2_path])
+                recreated_tasks = [t for f in files for t in f.get_tasks()]
                 
                 assert len(recreated_tasks) == 1
                 recreated_task = recreated_tasks[0]

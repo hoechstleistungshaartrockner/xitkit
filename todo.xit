@@ -33,7 +33,7 @@ Developer experience
 
 User experience
 [ ] bash completion for xitkit commands #userexperience
-[@] interactive task showing that asks for file and section #userexperience
+[x] interactive task showing that asks for file and section #ux
 [ ] interactive task adding #ux
 [ ] interactive task marking #ux
 [ ] interactive task priority changing #ux

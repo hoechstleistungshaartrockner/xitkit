@@ -181,8 +181,8 @@ class TestValidFormats(ParserTestBase):
 
     def test_sectioned_file(self, isolated_test_files):
         """Test parsing tasks under different sections."""
-        FileParser = FileParser()
-        file_obj = FileParser.parse_file(str(isolated_test_files / "sectioned_file.xit"))
+        parser = FileParser()
+        file_obj = parser.parse_file(str(isolated_test_files / "sectioned_file.xit"))
         tasks = file_obj.get_tasks()
 
         assert len(file_obj.sections) == 3
@@ -235,9 +235,9 @@ class TestInvalidFormats(ParserTestBase):
         assert tasks[3].priority.level == 0  # No space after dot
         assert tasks[3].description.text == ".This is also description"
         assert tasks[4].priority.level == 0  # Spaces before priority
-        assert tasks[4].description.text == "    ! Spaces before priority (invalid)"
+        assert tasks[4].description.text == "   ! Spaces before priority (invalid)"
         assert tasks[5].priority.level == 0  # Spaces before dots
-        assert tasks[5].description.text == "    . Spaces before dots (invalid)"
+        assert tasks[5].description.text == "   . Spaces before dots (invalid)"
         assert tasks[6].priority.level == 0  # Missing space after
         assert tasks[6].description.text == "!Missing space after (description)"
  

@@ -1,3 +1,4 @@
+New commands and features
 [x] add a new task
 [x] change the status of a task
 [x] move tasks between files
@@ -19,13 +20,29 @@
 [ ] find out the history of a task (when it was created, modified, marked done, etc.) ('xit history <task_id>') #new-subcommand
 [x] sort tasks by different attributes (due date, priority) ('xit show -f <file> --sort <attribute> --order <asc/desc>')
 [x] create test for xit show -f tests/files/examples2.xit --sort due_date
-[ ] 'xit goto <task_id>' to open the file containing the task in the default text editor at the line of the task
+[ ] 'xit goto <task_id>' to open the file containing the task in the default text editor at the line of the task #new-subcommand
+[ ] adjust tag command to allow batch processing #enhancement
+
+Pomodoro timer updates
 [ ] pomodoro timer should be able to link to tasks ('xit pomodoro <work_time> <break_time> -t <task_id> -t <task_id> ...') #pomodoro
 [ ] pomodoro timer should make a sound when the work/break time is over (configurable sound) #pomodoro
+
+Developer experience
 [ ] create sphinx documentation for xitkit
+[@] sections and FileWriter #structure
+
+User experience
 [ ] bash completion for xitkit commands #userexperience
+[@] interactive task showing that asks for file and section #userexperience
+[ ] interactive task adding #ux
+[ ] interactive task marking #ux
+[ ] interactive task priority changing #ux
+[ ] interactive task due date changing #ux
+[ ] interactive task description changing #ux
+[ ] interactive task tagging/untagging #ux
+[ ] interactive task removing #ux
+[ ] create a gif showing how to use xitkit to put on the github readme #ux
+
+Bug fixes
 [x] fix linebreak when adding a task via the 'xit add' command.
-[ ] sections and FileWriter #structure
-[ ] interactive task adding that asks for file and section #userexperience
-[ ] adjust tag command to allow batch processing #enhancement
-[@] fix 'xit tag' multi-line issue #bugfix
+[x] fix 'xit tag' multi-line issue #bugfix

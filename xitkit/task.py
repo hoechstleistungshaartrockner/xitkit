@@ -18,15 +18,7 @@ class Task:
     content, status, priority, tags, and due date. It provides methods for
     accessing and modifying task properties as well as string representations
     for display purposes.
-    
-    Attributes:
-        location: Location object representing file and line numbers
-        description: The task description text
-        status: Task status (OPEN, ONGOING, DONE, OBSOLETE, INQUESTION)
-        priority: Priority level (0 = no priority, 1+ = number of exclamation marks)
-        tags: List of tags associated with the task
-        due_date: Due date string if present, None otherwise
-        id: Unique sequential ID assigned when reading files
+
     """
 
     def __init__(self,
@@ -130,6 +122,9 @@ class Task:
         elif isinstance(location, tuple) and len(location) == 2:
             file_path, line_number = location
             self.location = Location(file_path=file_path, line_numbers=line_number)
+        elif isinstance(location, tuple) and len(location) == 3:
+            file_path, line_number, section = location
+            self.location = Location(file_path=file_path, line_numbers=line_number, section=section)
         else:
             # Default location
             self.location = Location()

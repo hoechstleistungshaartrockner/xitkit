@@ -132,3 +132,27 @@ def assert_task_equal(task1: Task, task2: Task) -> None:
     assert task1.priority == task2.priority
     assert task1.tags == task2.tags
     assert task1.due_date == task2.due_date
+
+@pytest.fixture
+def sectionized_file():
+    """Create a temporary file with sections for testing."""
+    content = """
+First Section with 5 Tasks
+[ ] Open Task 1 in Section 1 #section1
+[@] Task in Progress in Section 1 #section1
+[~] Obsolete Task in Section 1 #section1
+[x] Done Task in Section 1 #section1
+[?] Task in Question in Section 1 #section1
+
+Second Section with 3 Tasks
+[ ] Multi-line Task in Section 2
+    Continuation line 1
+    Continuation line 2
+[x] Completed Task in Section 2 #section2
+[ ] !! High Priority Task in Section 2 #section2 #priority
+
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        file_path = Path(tmpdir) / "todo.xit"
+        file_path.write_text(content, encoding='utf-8')
+        yield file_path

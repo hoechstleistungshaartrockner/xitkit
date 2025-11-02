@@ -618,3 +618,21 @@ class TestRegexPatterns:
         assert not pattern.match("content")      # No indentation
         # Note: "     content" (5 spaces) matches because the pattern is ^    (.*)$
         # and the extra space becomes part of the captured content
+
+
+class TestSectionizedFile:
+    """Test parsing files with sections."""
+    
+    def test_section_tracking(self, sectionized_file):
+        """Test that sections are correctly tracked in task locations."""
+        file_parser = FileParser()
+        tasks = file_parser.parse_file(str(sectionized_file))
+        
+        first_section_name = "First Section with 5 Tasks"
+        second_section_name = "Second Section with 3 Tasks"
+        assert len(tasks) == 8
+        for i in range(5):
+            assert tasks[i].location.section == first_section_name
+        for i in range(5, 8):
+            assert tasks[i].location.section == second_section_name
+

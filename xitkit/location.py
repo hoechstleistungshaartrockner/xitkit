@@ -14,7 +14,7 @@ from itertools import pairwise
 class Location:
     """Represents a specific location within a file."""
     
-    def __init__(self, file_path=None, line_numbers=None):
+    def __init__(self, file_path=None, line_numbers=None, section=None):
         """
         Initialize a Location instance.
 
@@ -29,6 +29,7 @@ class Location:
             self.file_path = Path(file_path)
 
         self.set_line_numbers(line_numbers)
+        self.set_section(section)
 
     def __repr__(self):
         return f"Location(file_path={self.file_path}, line_numbers={list(self.line_numbers) if self.line_numbers is not None else None})"
@@ -96,3 +97,9 @@ class Location:
             self.line_numbers = range(self.line_numbers.start, new_line_number + 1)
             return
         raise ValueError(f"new_line_number is not consecutive to the current line_numbers range. Current line numbers: {self.line_numbers}, new_line_number: {new_line_number}")
+    
+    def set_section(self, section):
+        """Set the section for the location."""
+        self.section = section
+
+    

@@ -21,14 +21,14 @@ class ParseContext:
     
     Attributes:
         current_task: The task currently being parsed (may span multiple lines)
-        current_group: The name of the current group/section header
         line_number: Current line number being processed (1-based)
         file_path: Path to the file being parsed
+        current_section: The name of the current section header
     """
     current_task: Optional[Task] = None
-    current_group: Optional[str] = None
     line_number: int = 0
     file_path: str = ""
+    current_section: Optional[str] = None
 
 
 class FileParser:
@@ -147,10 +147,18 @@ class FileParser:
             context: Parsing context to maintain state
         """
         i = 0
+        context.current_section = None
         while i < len(lines):
             context.line_number = i + 1  # Convert to 1-based line numbering
             line = lines[i].rstrip('\n\r')  # Remove line endings
-            
+
+            # Check if this is a section header
+            if SECTION_HEADER_PATTERN.match(line):
+                context.current_section = line.strip()
+                context.current_task = None  # Reset current task on new section
+                i += 1
+                continue
+
             # Check if this is a continuation line for the current task
             # Continuation lines must be exactly 4 spaces + content
             if context.current_task and self._is_continuation_line(line):
@@ -164,9 +172,9 @@ class FileParser:
                 self.tasks.append(context.current_task)
                 context.current_task = None
             
-            # Check if this is a blank line (resets group context)
+            # Check if this is a blank line (resets section context)
             if BLANK_LINE_PATTERN.match(line):
-                context.current_group = None
+                context.current_section = None
                 i += 1
                 continue
                 
@@ -176,11 +184,6 @@ class FileParser:
                 self._parse_checkbox_line(checkbox_match, context)
                 i += 1
                 continue
-                
-            # Check if this is a group header (not starting with whitespace or '[')
-            # Group headers are lines that don't start with whitespace or brackets
-            if line and not line.startswith((' ', '\t', '[')):
-                context.current_group = line.strip()
                 
             i += 1
             
@@ -232,7 +235,7 @@ class FileParser:
         # Create task object with all parsed information
         task = Task(
             description=content.strip(),  # Clean up whitespace
-            location=(context.file_path, context.line_number),
+            location=(context.file_path, context.line_number, context.current_section),
             status=status,
             priority=priority_obj,
             tags=tag_objects,
@@ -331,6 +334,23 @@ class FileParser:
             [Tag(name="work"), Tag(name="priority", value="high"), Tag(name="tag", value="quoted value")]
         """
         return Tag.from_line(content)
+    
+    def get_sections(self, file_path: str) -> List[str]:
+        """Extract all section headers from a file.
+        
+        Args:
+            file_path: Path to the file to parse
+
+        Returns:
+            List of section header strings
+        """
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+        sections = []
+        for line in lines:
+            if SECTION_HEADER_PATTERN.match(line):
+                sections.append(line.strip())
+        return sections
 
 
 def parse_file(file_path: str) -> List[Task]:

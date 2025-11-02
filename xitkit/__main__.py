@@ -47,7 +47,6 @@ def xitkit(ctx):
 
 
 @xitkit.command()
-@click.argument('path', type=click.Path(), required=False)
 @click.option('--status', '-s', 
               type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
                                case_sensitive=False),
@@ -76,14 +75,12 @@ def xitkit(ctx):
 @click.option('--order', type=click.Choice(['asc', 'desc'], case_sensitive=False),
               help='Sort order: asc (ascending) or desc (descending). Defaults to asc if not specified')
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order):
+def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order):
+    # , interactive):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
     Tasks are grouped by file with colored syntax highlighting.
-    
-    PATH: Optional file or directory path to parse. If not provided, uses current directory
-          or files specified with --files option.
     
     Examples:
         xit show                           # Show all tasks from current directory
@@ -149,7 +146,6 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_location, no_id,
     # Create and execute command
     command = CommandFactory.create_show_command()
     command.execute(
-        path=path,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         filters=filters,

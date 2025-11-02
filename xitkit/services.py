@@ -593,12 +593,11 @@ class FileDiscoveryService:
     
     SUPPORTED_EXTENSIONS = {'.md', '.xit'}
     
-    def resolve_file_paths(self, path: Optional[str], directory: Optional[Path], 
+    def resolve_file_paths(self, directory: Optional[Path], 
                           specified_files: Optional[List[str]]) -> List[str]:
         """Resolve file paths based on various input options.
         
         Args:
-            path: Optional path argument
             directory: Default directory to search
             specified_files: Explicitly specified files
             
@@ -609,9 +608,7 @@ class FileDiscoveryService:
             FileNotFoundError: If path doesn't exist
             ValueError: If file type is not supported
         """
-        if path:
-            return self._resolve_path_argument(path)
-        elif specified_files:
+        if specified_files:
             return list(specified_files)
         else:
             service = TaskService()

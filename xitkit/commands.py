@@ -37,14 +37,13 @@ class Command(ABC):
 class ShowTasksCommand(Command):
     """Command for showing tasks with filtering options."""
     
-    def execute(self, path: str = None, directory: Path = None, 
+    def execute(self, directory: Path = None, 
                 specified_files: list = None, filters: TaskFilter = None,
                 show_location: bool = False, no_id: bool = False, count_only: bool = False,
                 sort_by: str = None, sort_order: str = None) -> None:
         """Execute the show tasks command.
         
         Args:
-            path: Optional path argument
             directory: Default directory to search
             specified_files: Explicitly specified files
             filters: Task filters to apply
@@ -54,10 +53,12 @@ class ShowTasksCommand(Command):
             sort_by: Sort attribute (priority, due_date)
             sort_order: Sort order (asc, desc)
         """
+
         try:
             # Resolve file paths
+
             file_paths = self.file_service.resolve_file_paths(
-                path, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:

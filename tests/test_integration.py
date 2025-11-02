@@ -208,7 +208,7 @@ class TestCommandIntegration:
         command.formatter.display_summary = lambda *args: None
         
         # Execute command for entire directory
-        command.execute(path=str(temp_dir))
+        command.execute(directory=Path(temp_dir))
         
         # Verify results
         assert len(displayed_tasks) == 7  # All tasks from both files
@@ -257,7 +257,7 @@ class TestCommandIntegration:
         command._display_statistics = capture_stats
         
         # Execute command
-        command.execute(path=str(test_file))
+        command.execute(specified_files=[str(test_file)])
         
         # Verify comprehensive statistics
         assert captured_stats['total'] == 12
@@ -433,8 +433,7 @@ class TestErrorHandlingIntegration:
         # Test file discovery (should include only supported types)
         discovery_service = FileDiscoveryService()
         files = discovery_service.resolve_file_paths(
-            path=str(temp_dir),
-            directory=None,
+            directory=temp_dir,
             specified_files=None
         )
         

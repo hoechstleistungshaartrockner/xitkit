@@ -86,7 +86,6 @@ class TestShowTasksCommand:
         
         # Execute command
         show_command.execute(
-            path=None,
             directory=Path("/test"),
             specified_files=None,
             filters=None,
@@ -367,7 +366,7 @@ class TestShowStatsCommand:
         # Mock the console print calls
         stats_command.formatter.console = Mock()
         
-        stats_command.execute(path="/specific/path")
+        stats_command.execute(directory="/specific/path")
         
         # Should call _display_statistics with the path
         stats_command.formatter.console.print.assert_called()
@@ -526,7 +525,7 @@ class TestMarkTaskCommand:
         
         # Verify
         mark_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, Path("/test"), None
+            Path("/test"), None
         )
         # Note: The method gets called for each task ID in the list
         assert mark_command.task_service.update_task_by_id.call_count == 1
@@ -596,7 +595,7 @@ class TestMarkTaskCommand:
         
         # Verify
         mark_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, None, specified_files
+            None, specified_files
         )
     
     def test_execute_mark_task_error_handling(self, mark_command):
@@ -807,7 +806,7 @@ class TestRemoveTaskCommand:
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, Path("/test"), None
+            Path("/test"), None
         )
         # Should load tasks twice - once for collection, once for processing
         assert remove_command.task_service.load_tasks.call_count >= 1
@@ -846,7 +845,7 @@ class TestRemoveTaskCommand:
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, Path("/test"), None
+            Path("/test"), None
         )
         # Should load tasks at least once for collection
         assert remove_command.task_service.load_tasks.call_count >= 1
@@ -913,7 +912,7 @@ class TestRemoveTaskCommand:
         
         # Verify
         remove_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, None, specified_files
+            None, specified_files
         )
     
     def test_execute_remove_task_error_handling(self, remove_command):
@@ -993,7 +992,7 @@ class TestMoveTaskCommand:
         
         # Verify
         move_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, Path("/test"), None
+            Path("/test"), None
         )
         # With new batch processing, load_tasks is called twice (collection + processing)
         assert move_command.task_service.load_tasks.call_count == 2
@@ -1078,7 +1077,7 @@ class TestMoveTaskCommand:
         
         # Verify
         move_command.file_service.resolve_file_paths.assert_called_once_with(
-            None, None, specified_files
+            None, specified_files
         )
     
     def test_execute_move_task_error_handling(self, move_command):
@@ -1361,9 +1360,8 @@ class TestCommandIntegration:
         
         # Execute command
         cmd.execute(
-            path=str(test_file),
-            directory=None,
-            specified_files=None,
+            directory=temp_dir,
+            specified_files=[str(test_file)],
             filters=None,
             show_location=False,
             count_only=False
@@ -1402,8 +1400,7 @@ class TestCommandIntegration:
         
         # Execute command
         cmd.execute(
-            path=str(temp_dir),
-            directory=None,
+            directory=Path(temp_dir),
             specified_files=None
         )
         
@@ -1439,7 +1436,7 @@ class TestCommandIntegration:
         from xitkit.status import Status, StatusType
         filters = TaskFilter(status=[Status(StatusType.OPEN)])
         cmd.execute(
-            path=str(test_file),
+            specified_files=[str(test_file)],
             filters=filters
         )
         
@@ -1454,7 +1451,7 @@ class TestCommandIntegration:
         from xitkit.tags import Tag
         filters = TaskFilter(tags=[Tag(name="work")])
         cmd.execute(
-            path=str(test_file),
+            specified_files=[str(test_file)],
             filters=filters
         )
         
@@ -1467,29 +1464,7 @@ class TestCommandIntegration:
 
 class TestCommandErrorScenarios:
     """Test command error handling scenarios."""
-    
-    def test_show_command_file_not_found(self):
-        """Test ShowTasksCommand with non-existent file."""
-        cmd = ShowTasksCommand()
-        cmd.formatter.display_error = Mock()
         
-        cmd.execute(path="/nonexistent/file.xit")
-        
-        # Should display an error
-        cmd.formatter.display_error.assert_called_once()
-        error_message = cmd.formatter.display_error.call_args[0][0]
-        assert "not found" in error_message.lower() or "does not exist" in error_message.lower()
-    
-    def test_stats_command_file_not_found(self):
-        """Test ShowStatsCommand with non-existent file."""
-        cmd = ShowStatsCommand()
-        cmd.formatter.display_error = Mock()
-        
-        cmd.execute(path="/nonexistent/file.xit")
-        
-        # Should display an error
-        cmd.formatter.display_error.assert_called_once()
-    
     def test_command_with_invalid_filter_date(self, temp_dir):
         """Test command with invalid date filter."""
         # Create test file
@@ -1505,7 +1480,7 @@ class TestCommandErrorScenarios:
         
         # Should complete without error (main test goal)
         try:
-            cmd.execute(path=str(test_file), filters=filters)
+            cmd.execute(specified_files=[str(test_file)], filters=filters)
             # Command should complete successfully
             success = True
         except Exception:

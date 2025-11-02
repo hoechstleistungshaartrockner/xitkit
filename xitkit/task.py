@@ -45,7 +45,6 @@ class Task:
         # Handle location
         self.set_location(location)
 
-        
         # Handle status - can be Status object, StatusType, string, or None
         if isinstance(status, Status):
             self.status = status

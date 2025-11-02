@@ -46,3 +46,4 @@ User experience
 Bug fixes
 [x] fix linebreak when adding a task via the 'xit add' command.
 [x] fix 'xit tag' multi-line issue #bugfix
+[ ] check whitespace preservation upon editing of Description attributes

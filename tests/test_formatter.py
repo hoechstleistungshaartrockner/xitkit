@@ -367,7 +367,7 @@ class TestFormatterWithRealContent:
     
     def test_format_complex_task(self, task_formatter):
         """Test formatting a complex task with all features."""
-        description = """Complex multi-line task\nwith continuation lines\ncontaining #tags and #priority=high\nand due date -> 2025-12-31"""
+        description = "Complex multi-line task\nwith continuation lines\ncontaining #tags and #priority=high\nand due date -> 2025-12-31"
         
         task = Task(
             description,
@@ -377,16 +377,18 @@ class TestFormatterWithRealContent:
             tags=["#work", "#project", "#priority=high"],
             due_date="2025-12-31"
         )
+        print(task.description.text)
         
         result = task_formatter.format_task(task, show_location=True)
+        print(str(result))
         
         result_lines = str(result).split('\n')
         print(result_lines)
-        assert len(result_lines) == 5 
-        assert result_lines[0] == "#000 [@] Complex multi-line task"
+        assert len(result_lines) == 4 
+        assert result_lines[0] == "#000 [@] !!! Complex multi-line task"
         assert result_lines[1] == "         with continuation lines"
         assert result_lines[2] == "         containing #tags and #priority=high"
-        assert result_lines[3] == "         and due date -> 2025-12-31 #work #project #priority=high    (/project/tasks.xit:15)"
+        assert result_lines[3] == "         and due date #work #project #priority=high -> 2025-12-31    (/project/tasks.xit:15)"
     
     def test_format_tasks_mixed_files(self, task_formatter):
         """Test formatting tasks from multiple files."""

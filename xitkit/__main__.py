@@ -158,19 +158,15 @@ def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count
 
 
 @xitkit.command()
-@click.argument('path', type=click.Path(), required=False)
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
 @click.pass_context
-def stats(ctx, path, directory, files):
+def stats(ctx, directory, files):
     """Show statistics about tasks.
     
     Displays a summary of task counts by status, priority levels, and other metrics.
-    
-    PATH: Optional file or directory path to analyze. If not provided, uses current directory
-          or files specified with --files option.
     
     Examples:
         xit stats                          # Show stats for all tasks in current directory
@@ -181,7 +177,6 @@ def stats(ctx, path, directory, files):
     # Create and execute command
     command = CommandFactory.create_stats_command()
     command.execute(
-        path=path,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else []
     )

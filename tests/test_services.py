@@ -451,9 +451,8 @@ class TestFileDiscoveryService:
             test_file.touch()
             
             result = self.service.resolve_file_paths(
-                path=str(test_file),
                 directory=None,
-                specified_files=None
+                specified_files=[str(test_file)]
             )
             
             assert result == [str(test_file)]
@@ -467,8 +466,7 @@ class TestFileDiscoveryService:
             (test_dir / "readme.txt").touch()
             
             result = self.service.resolve_file_paths(
-                path=str(test_dir),
-                directory=None,
+                directory=test_dir,
                 specified_files=None
             )
             
@@ -481,7 +479,6 @@ class TestFileDiscoveryService:
         specified = ["file1.xit", "file2.md"]
         
         result = self.service.resolve_file_paths(
-            path=None,
             directory=None,
             specified_files=specified
         )
@@ -495,7 +492,6 @@ class TestFileDiscoveryService:
             (test_dir / "test.xit").touch()
             
             result = self.service.resolve_file_paths(
-                path=None,
                 directory=test_dir,
                 specified_files=None
             )

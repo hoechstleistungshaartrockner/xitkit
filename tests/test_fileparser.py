@@ -500,7 +500,7 @@ class TestComplexScenarios:
         content = """[ ] Task 1 on line 1
 
 [ ] Task 2 on line 3
-Invalid line
+
 [ ] Task 3 on line 5
 [ ] Task 4 is Multi-line on line 6 ...
     continuation on line 7

@@ -114,20 +114,18 @@ class ShowTasksCommand(Command):
 
 class ShowStatsCommand(Command):
     """Command for showing task statistics."""
-    
-    def execute(self, path: str = None, directory: Path = None,
-                specified_files: list = None) -> None:
+
+    def execute(self, directory: Path = None, specified_files: list = None) -> None:
         """Execute the show stats command.
         
         Args:
-            path: Optional path argument
             directory: Default directory to search
             specified_files: Explicitly specified files
         """
         try:
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                path, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -142,7 +140,13 @@ class ShowStatsCommand(Command):
                 return
             
             stats = self.task_service.get_task_statistics(all_tasks)
-            self._display_statistics(stats, path)
+            if specified_files:
+                self._display_statistics(stats, "specified files")
+            elif directory:
+                self._display_statistics(stats, str(directory))
+            else:
+                directory = Path.cwd()
+                self._display_statistics(stats, directory)
             
         except XitError as e:
             self.formatter.display_error(str(e))
@@ -272,7 +276,7 @@ class MarkTaskCommand(Command):
         try:
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -349,7 +353,7 @@ class RescheduleTaskCommand(Command):
         try:
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -432,7 +436,7 @@ class RemoveTaskCommand(Command):
         try:
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -555,7 +559,7 @@ class MoveTaskCommand(Command):
         try:
             # Resolve file paths for source files
             source_files = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not source_files:
@@ -731,7 +735,7 @@ class EditTaskCommand(Command):
         try:
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -788,7 +792,7 @@ class PriorityTaskCommand(Command):
             
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -840,7 +844,7 @@ class TagTaskCommand(Command):
             
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:
@@ -885,7 +889,7 @@ class UntagTaskCommand(Command):
             
             # Resolve file paths
             file_paths = self.file_service.resolve_file_paths(
-                None, directory, specified_files
+                directory, specified_files
             )
             
             if not file_paths:

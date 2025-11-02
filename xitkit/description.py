@@ -166,8 +166,8 @@ class Description:
                 tag_without_hash = tag_str[1:]  # Remove the '#'
                 self.text = self.text.replace(tag_str, tag_without_hash)
         
-        # Clean up extra whitespace
-        self.text = re.sub(r'\s+', ' ', self.text).strip()
+        # Clean up extra whitespace but preserve line breaks
+        self.text = re.sub(r'[ \t]+', ' ', self.text).strip()
 
     def get_tags(self) -> list:
         """Get the list of tags associated with the description.
@@ -281,7 +281,7 @@ class Description:
                         break
                 
                 # Clean up extra whitespace
-                self.text = re.sub(r'\s+', ' ', self.text).strip()
+                self.text = re.sub(r'[ \t]+', ' ', self.text).strip()
         
         # Set new due date
         self.due_date = due_date

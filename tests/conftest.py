@@ -43,40 +43,6 @@ def file_parser():
 
 
 @pytest.fixture
-def utf8_xit_content():
-    """UTF-8 content for testing file parsing."""
-    return """Unicode Tasks
-[ ] 测试任务 #中文 #test
-[x] ✓ Completed task with emoji #emoji #done
-[@] Русская задача #русский #ongoing -> 2025-12-31
-[~] Ελληνικό έργο #ελληνικά #obsolete"""
-
-
-@pytest.fixture
-def complex_xit_content():
-    """Complex content for testing file parsing."""
-    return """Complex Task File
-
-# Project Tasks
-[ ] ! High priority setup #setup #priority -> 2025-12-31
-    Set up development environment
-    Install dependencies and tools
-    
-[x] Basic implementation #development
-[@] !! Critical ongoing work #critical #development #ongoing
-    This is a multi-line task
-    with continuation lines
-    
-# Personal Tasks
-[ ] Schedule meeting #personal #work
-[~] Old requirement #obsolete
-
-# Tags and Dates
-[ ] Task with value tags #priority:high #category:work #due:urgent
-[ ] Task with multiple dates -> 2025-11-30 #reminder:2025-11-15"""
-
-
-@pytest.fixture
 def sample_tasks():
     """Create a list of sample tasks for testing."""
     return [
@@ -156,3 +122,171 @@ Second Section with 3 Tasks
         file_path = Path(tmpdir) / "todo.xit"
         file_path.write_text(content, encoding='utf-8')
         yield file_path
+
+files_dict = {"valid_status.xit": """Tasks with valid statuses
+[ ] Open Task 
+[@] Ongoing Task
+[~] Obsolete Task
+[x] Done Task
+[?] Questionable Task
+""",
+              "valid_no_sections.xit": """[ ] Open Task""",
+              "white_space.xit": """Tasks with white space descriptions
+[ ]     Task with four leading spaces
+[ ] Task with four trailing spaces    
+[ ]     Task with both four leading and trailing spaces    
+[ ] 
+""",
+              "invalid_status.xit": """Tasks with invalid statuses
+[!] Invalid Status Task 1
+[#] Invalid Status Task 2
+[+] Invalid Status Task 3
+[*] Invalid Status Task 4
+[X] Invalid Status Task 5
+[o] Invalid Status Task 6
+[a] Invalid Status Task 7
+""",
+                "invalid_spacing.xit": """Tasks with invalid spacing
+[ ] Valid spacing task (valid)
+    [ ] Leading space before bracket (invalid)
+[  ] Extra space inside brackets (invalid)
+[ x ] Space around status character (invalid)
+    [ ] Leading tab before bracket (invalid)
+[	 ] Tab inside brackets (invalid)
+""",
+                "valid_priority.xit": """Tasks with valid priorities
+[ ] ! Priority 1 task
+[ ] !! Priority 2 task
+[ ] !!! Priority 3 task
+[ ] !!!!!!!!!! Priority 10 task
+[ ] . No priority (dots only)
+[ ] .. Still no priority
+[ ] ..! Priority 1 with leading dots
+[ ] !!. Priority 2 with trailing dots
+[ ] Regular task without priority
+""",
+                "invalid_priority.xit": """Tasks with invalid priorities
+[ ] .!. Invalid dots on both sides
+[ ] !.! Invalid mixed pattern
+[ ] !This is description not priority
+[ ] .This is also description
+[ ]    ! Spaces before priority (invalid)
+[ ]    . Spaces before dots (invalid)
+[ ] !Missing space after (description)
+""",
+                "valid_due_dates.xit": """Tasks with valid due dates
+[ ] Task -> 2025-12-31
+[ ] Task -> 2025-12
+[ ] Task -> 2025
+[ ] Task -> 2025-W42
+[ ] Task -> 2025-Q4
+[ ] Task -> 2025/12/31
+[ ] Task -> 2025/W42
+[ ] Task with description -> 2025-12-31 and more text
+""",
+                "invalid_due_dates.xit": """Tasks with invalid due dates
+[ ] Task → 2025-12-31 (wrong arrow)
+[ ] Task > 2025-12-31 (missing hyphen)
+[ ] Task - 2025-12-31 (wrong separator)
+[ ] Task ->2025-12-31 (missing space)
+[ ] Task -> 2025-12-31very (text after)
+[ ] Task -> 2025-12-31T10:00 (time)
+[ ] Task -> 2025/13/01 (invalid month)
+[ ] Task -> 2025/00/10 (invalid month)
+[ ] Task -> 2025/12/32 (invalid day)
+[ ] Task -> 2025-W54 (invalid week)
+[ ] Task -> 2025-Q5 (invalid quarter)
+""",
+                "valid_tags.xit": """Simple valid tags
+[ ] Task with #simple tag
+[ ] Task with #multiple #tags here
+[ ] Task with #UPPERCASE and #lowercase
+[ ] Task with #numbers123 and #123numbers
+[ ] Task with #dashes-allowed and #underscores_allowed
+[ ] Task with #unicode_täg and #日本語
+
+Tasks with tags having values
+[ ] Task #tag=value simple
+[ ] Task #tag="quoted value" with quotes
+[ ] Task #tag='single quoted' value
+[ ] Task #empty= and #another=""
+[ ] Task #mix=unquoted #quoted="with spaces" #single='also spaces'
+""",
+                "valid_multiline.xit": """Tasks with valid multi-line descriptions
+[ ] Multi-line task ...
+    with continuation line
+    123 starts with numbers
+    *&$^% starts with symbols
+      starts with two spaces
+    . starts with a dot
+    ! starts with an exclamation that is not priority
+    -> 2025-11-11 starts with a due date
+    #startstag starts with a tag
+    This is still the same task.
+[ ] finally a next task
+[ ] Another multi-line task
+    with only one continuation line but after that there's an empty line
+
+    This is invalid and does not belong to the task.
+[ ] Task with continuation line that has only spaces
+    
+           
+    This line with text is valid continuation.
+""",
+            "invalid_tags.xit": """Tasks with invalid tags
+[ ] Task with # (empty tag)
+[ ] Task with #=value (no name)
+[ ] Task with #="quoted" (no name)
+[ ] Task with #tag='unclosed quote
+[ ] Task with #tag="mismatched quote'
+""",
+            "invalid_multiline.xit": """Tasks with invalid multi-line descriptions
+[ ] Task with a valid start
+ but only one space before continuation (invalid)
+[ ] Task with a valid start
+  but only two spaces before continuation (invalid)
+[ ] Task with a valid start
+   but only three spaces before continuation (invalid)
+[ ] Task with a valid start
+no spaces before continuation (invalid) this will be interpreted as a section title
+[ ] Task with a valid start
+	but a tab before continuation (invalid)
+""",
+            "markdown_file.md": """# Markdown File with Tasks
+This is a markdown file that includes some tasks.
+```xit
+[ ] valid task inside a code block
+
+This is a section title inside a code block
+[ ] valid task
+[ ] valid multi-line task
+    continuation line
+```
+Outside the code block, this is just text.
+[ ] this seemingly valid task is outside code block and will be ignored.
+""",
+            "unicode_file.xit": """Unicode Tasks
+[ ] 测试任务 #中文 #test
+[x] ✓ Completed task with emoji #emoji #done
+[@] Русская задача #русский #ongoing -> 2025-12-31
+[~] Ελληνικό έργο #ελληνικά #obsolete""",
+            "sectioned_file.xit": """First Section
+[ ] Task in first section
+Second Section
+[ ] Task in second section
+
+Third Section
+[ ] Task in third section""",
+
+}
+
+
+
+@pytest.fixture
+def isolated_test_files(temp_dir):
+    """Create temporary files with valid and invalid status tasks for testing."""
+    for file_name, file_content in files_dict.items():
+        file_path = temp_dir / file_name
+        file_path.write_text(file_content, encoding='utf-8')
+    return temp_dir
+

@@ -383,3 +383,148 @@ Second Section
 
 """
         assert content == expected_content
+        
+class TestTaskRemoval:
+    """Test removing tasks from file."""
+    
+    def test_remove_task_from_file(self, isolated_test_files):
+        """Test removing a task from a file."""
+        file_path = isolated_test_files / "valid_status.xit"
+        
+        # read the file
+        file_parser = FileParser()
+        file_obj = file_parser.parse_file(str(file_path))
+        tasks = file_obj.get_tasks()
+        assert len(tasks) == 5
+        
+        # Remove the second task
+        task_to_remove = tasks[1]
+        file_obj.remove_task(task_to_remove)
+        
+        # get section
+        section = file_obj.sections["Tasks with valid statuses"]
+        assert len(section.tasks) == 4
+        assert section.n_lines == 6  # 1 title + 1 blank + 4 tasks
+        assert task_to_remove not in section.tasks
+        assert section.line_numbers == range(1, 7)
+        file_obj.write()
+        
+        # verify remaining tasks have correct line numbers
+        updated_tasks = file_obj.get_tasks()
+        
+        assert len(updated_tasks) == 4
+        assert updated_tasks[0].description.text == "Open Task"
+        assert updated_tasks[0].location.line_numbers == range(2, 3)  # Updated line number
+        assert updated_tasks[1].location.line_numbers == range(3, 4)
+        assert updated_tasks[2].location.line_numbers == range(4, 5)
+        assert updated_tasks[3].location.line_numbers == range(5, 6)
+        
+        # read back the file and verify the task is removed
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        expected_content = """Tasks with valid statuses
+[ ] Open Task
+[~] Obsolete Task
+[x] Done Task
+[?] Questionable Task
+
+"""
+        assert content == expected_content
+        
+    def test_remove_nonexistent_task(self, isolated_test_files):
+        """Test removing a task that does not exist in the file."""
+        file_path = isolated_test_files / "valid_status.xit"
+        
+        content_before = file_path.read_text(encoding='utf-8')
+        
+        # read the file
+        file_parser = FileParser()
+        file_obj = file_parser.parse_file(str(file_path))
+        tasks = file_obj.get_tasks()
+        assert len(tasks) == 5
+        
+        # Create a task that is not in the file
+        non_existent_task = Task(description="Non-existent task")
+        
+        # Attempt to remove it and verify no error occurs and file remains unchanged
+        file_obj.remove_task(non_existent_task)
+        file_obj.write()
+        
+        # read back the file and verify contents are unchanged
+        content_after = file_path.read_text(encoding='utf-8')
+
+        assert content_after == content_before
+        
+    def test_remove_task_from_section(self, isolated_test_files):
+        """Test removing a task from a section with only one task."""
+        file_path = isolated_test_files / "sectioned_file.xit"
+
+        # read the file
+        file_parser = FileParser()
+        file_obj = file_parser.parse_file(str(file_path))
+        tasks = file_obj.get_tasks()
+        assert len(tasks) == 3
+        n_lines_before = file_obj.n_lines
+        
+        # Remove the task from the second section
+        task_to_remove = tasks[1]
+        file_obj.remove_task(task_to_remove)
+        n_lines_after = file_obj.n_lines
+        assert n_lines_after == n_lines_before - 3  # 3 lines removed (title, task, blank)
+        
+        assert len(file_obj.sections) == 2  # One section should be removed if empty
+        assert "Second Section" not in file_obj.sections
+        
+        file_obj.write()
+        
+        # read back the file and verify the task is removed
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        expected_content = """First Section
+[ ] Task in first section
+
+Third Section
+[ ] Task in third section
+
+"""
+        assert content == expected_content
+        
+    def test_remove_task_by_section(self, isolated_test_files):
+        """Test removing a task from a specific section."""
+        file_path = isolated_test_files / "sectioned_file.xit"
+
+        # read the file
+        file_parser = FileParser()
+        file_obj = file_parser.parse_file(str(file_path))
+        tasks = file_obj.get_tasks()
+        assert len(tasks) == 3
+        n_lines_before = file_obj.n_lines
+        
+        # Remove the task from the second section
+        task_to_remove = tasks[1]
+        section2 = file_obj.sections["Second Section"]
+        section2.remove_task(task_to_remove)
+        
+        assert len(file_obj.sections) == 2  # One section should be removed if empty
+        assert "Second Section" not in file_obj.sections
+        n_lines_after = file_obj.n_lines
+        assert n_lines_after == n_lines_before - 3  # 3 lines removed (title, task, blank)
+        
+        file_obj.write()
+        
+        # read back the file and verify the task is removed
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        expected_content = """First Section
+[ ] Task in first section
+
+Third Section
+[ ] Task in third section
+
+"""
+        assert content == expected_content
+        
+    

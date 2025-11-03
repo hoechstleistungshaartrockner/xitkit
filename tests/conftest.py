@@ -138,6 +138,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [~] Obsolete Task
 [x] Done Task
 [?] Questionable Task
+
 """,
               "valid_no_sections.xit": """[ ] Open Task""",
               "white_space.xit": """Tasks with white space descriptions
@@ -145,6 +146,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] Task with four trailing spaces    
 [ ]     Task with both four leading and trailing spaces    
 [ ] 
+
 """,
               "invalid_status.xit": """Tasks with invalid statuses
 [!] Invalid Status Task 1
@@ -154,6 +156,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [X] Invalid Status Task 5
 [o] Invalid Status Task 6
 [a] Invalid Status Task 7
+
 """,
                 "invalid_spacing.xit": """Tasks with invalid spacing
 [ ] Valid spacing task (valid)
@@ -162,6 +165,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ x ] Space around status character (invalid)
     [ ] Leading tab before bracket (invalid)
 [	 ] Tab inside brackets (invalid)
+
 """,
                 "valid_priority.xit": """Tasks with valid priorities
 [ ] ! Priority 1 task
@@ -173,6 +177,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] ..! Priority 1 with leading dots
 [ ] !!. Priority 2 with trailing dots
 [ ] Regular task without priority
+
 """,
                 "invalid_priority.xit": """Tasks with invalid priorities
 [ ] .!. Invalid dots on both sides
@@ -182,6 +187,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ]    ! Spaces before priority (invalid)
 [ ]    . Spaces before dots (invalid)
 [ ] !Missing space after (description)
+
 """,
                 "valid_due_dates.xit": f"""Tasks with valid due dates
 [ ] Task -> 2024-12-31
@@ -196,6 +202,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] Task due today -> {today_date}
 [ ] Task due tomorrow -> {tomorrow_date}
 [ ] Task due next week -> {one_week_date}
+
 """,
                 "invalid_due_dates.xit": """Tasks with invalid due dates
 [ ] Task → 2024-12-31 (wrong arrow)
@@ -209,6 +216,7 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] Task -> 2024/12/32 (invalid day)
 [ ] Task -> 2024-W54 (invalid week)
 [ ] Task -> 2024-Q5 (invalid quarter)
+
 """,
                 "valid_tags.xit": """Simple valid tags
 [ ] Task with #simple tag
@@ -224,6 +232,7 @@ Tasks with tags having values
 [ ] Task #tag='single quoted' value
 [ ] Task #empty= and #another=""
 [ ] Task #mix=unquoted #quoted="with spaces" #single='also spaces'
+
 """,
                 "valid_multiline.xit": """Tasks with valid multi-line descriptions
 [ ] Multi-line task ...
@@ -245,6 +254,7 @@ Tasks with tags having values
     
            
     This line with text is valid continuation.
+
 """,
             "invalid_tags.xit": """Tasks with invalid tags
 [ ] Task with # (empty tag)
@@ -252,6 +262,7 @@ Tasks with tags having values
 [ ] Task with #="quoted" (no name)
 [ ] Task with #tag='unclosed quote
 [ ] Task with #tag="mismatched quote'
+
 """,
             "invalid_multiline.xit": """Tasks with invalid multi-line descriptions
 [ ] Task with a valid start
@@ -264,6 +275,7 @@ Tasks with tags having values
 no spaces before continuation (invalid) this will be interpreted as a section title
 [ ] Task with a valid start
 	but a tab before continuation (invalid)
+ 
 """,
             "markdown_file.md": """# Markdown File with Tasks
 This is a markdown file that includes some tasks.
@@ -277,6 +289,7 @@ This is a section title inside a code block
 ```
 Outside the code block, this is just text.
 [ ] this seemingly valid task is outside code block and will be ignored.
+
 """,
             "unicode_file.xit": """Unicode Tasks
 [ ] 测试任务 #中文 #test
@@ -285,11 +298,14 @@ Outside the code block, this is just text.
 [~] Ελληνικό έργο #ελληνικά #obsolete""",
             "sectioned_file.xit": """First Section
 [ ] Task in first section
+
 Second Section
 [ ] Task in second section
 
 Third Section
-[ ] Task in third section""",
+[ ] Task in third section
+
+""",
             "valid_mixed.xit": f"""11 Mixed Tasks
 [ ] Open task
 [x] Completed task with 3 trailing spaces   
@@ -304,6 +320,7 @@ Third Section
 [ ] multi-line
     task description
     continues here
+
 """,
             "valid_another_priority.xit": """To Do
 [ ] ! priority 1 task
@@ -315,13 +332,15 @@ Third Section
 [ ] !.... priority 1 task with trailing dots
 [ ] task with no priority
 [ ] ... task with no priority but dots
+
 """,
             "valid_another_due_dates.xit": """Due Dates Galore
 [ ] Task due 2024-10-20 -> 2024-10-20
 [ ] Task with no due date
 [ ] Task due 2024-10-21 -> 2024-10-21
 [ ] Task due 2024-10-19 -> 2024-10-19
-"""
+
+""",
 }
 
 

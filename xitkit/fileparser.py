@@ -25,6 +25,7 @@ class Section:
     line_numbers: range = None
     tasks: Optional[List[Task]] = None
     n_lines: int = 2 # title line + blank line
+    parent_file: Optional['File'] = None
 
     def __post_init__(self):
         if self.tasks is None:
@@ -40,11 +41,46 @@ class Section:
             return
         raise ValueError(f"line_number is not consecutive to the current line_numbers range. Current line numbers: {self.line_numbers}, line_number: {line_number}")
     
+    def remove_task(self, task: Task):
+        """
+        Remove a task from this section.
+        
+        Args:
+            task: The task to remove.
+        
+        Returns:
+            Number of lines removed from the section.
+        """
+        if task not in self.tasks:
+            return 0
+        
+        self.tasks.remove(task)
+        n_task_lines = task.description.text.count('\n') + 1
+        self.n_lines -= n_task_lines
+        
+        # Update parent file's line count for the task removal
+        if self.parent_file is not None:
+            self.parent_file.n_lines -= n_task_lines
+        
+        # Update line_numbers range to reflect the new size
+        if self.line_numbers is not None:
+            self.line_numbers = range(self.line_numbers.start, self.line_numbers.start + self.n_lines)
+            
+        # If this section is now empty and has a parent file, remove it from the file
+        if len(self.tasks) == 0 and self.parent_file is not None:
+            self.parent_file.remove_section(self.title)
+            
+        return n_task_lines  # Return lines removed for caller to handle file updates
+        
     def add_task(self, task: Task):
         """Add a task to this section."""
         self.tasks.append(task)
         n_task_lines = task.description.text.count('\n') + 1
         self.n_lines += n_task_lines
+        
+        # Update parent file's task mapping if it exists
+        if self.parent_file is not None:
+            self.parent_file._task_to_section[task] = self
         
     def write(self, file_handle) -> None:
         """
@@ -74,20 +110,50 @@ class File:
     path: str
     sections: dict[str, Section] = None
     n_lines: int = 0
+    _task_to_section: dict[Task, Section] = None  # Cache for efficient task lookup
 
     def __post_init__(self):
         if self.sections is None:
             self.sections = {}
+        if self._task_to_section is None:
+            self._task_to_section = {}
     
     def add_section(self, section: Section):
         """Add a section to this file."""
+        section.parent_file = self  # Set parent reference
         self.sections[section.title] = section
+        
+        # Update task-to-section mapping
+        for task in section.tasks:
+            self._task_to_section[task] = section
+            
         for idx, task in enumerate(section.tasks):
             task.set_location(Location(self.path, 
                               self.n_lines + idx + 2, # +1 for 1-based, +1 for section title line
                               section.title))
 
         self.n_lines += section.n_lines
+    
+    def remove_section(self, section_title: str):
+        """Remove a section from the file."""
+        if section_title not in self.sections:
+            return
+        
+        section = self.sections[section_title]
+        
+        # Remove tasks from mapping
+        for task in section.tasks:
+            if task in self._task_to_section:
+                del self._task_to_section[task]
+        
+        # Update file line count
+        self.n_lines -= section.n_lines
+        
+        # Finally, remove the section
+        del self.sections[section_title]
+        
+        # Update task locations once at the end
+        self._update_task_locations()
     
     def get_tasks(self) -> List[Task]:
         """Get all tasks in the file across all sections."""
@@ -96,11 +162,54 @@ class File:
             tasks.extend(section.tasks)
         return tasks
     
+    def remove_task(self, task: Task):
+        """Remove a task from the file."""
+        # Use efficient lookup instead of linear search
+        section_to_remove_from = self._task_to_section.get(task)
+        
+        if section_to_remove_from:
+            # Remove from mapping first
+            del self._task_to_section[task]
+            
+            # Remove the task from the section 
+            # Note: Section.remove_task() already updates file.n_lines
+            section_to_remove_from.remove_task(task)
+            
+            # Update task locations once at the end
+            self._update_task_locations()
+    
     def ensure_default_section(self):
         """Ensure there's at least a default 'To Do' section if no sections exist."""
         if not self.sections:
             default_section = Section(title="To Do")
             self.sections["To Do"] = default_section
+            
+    def _update_task_locations(self):
+        """Update location line numbers for all tasks after file structure changes."""
+        current_line = 1
+        
+        # Clear and rebuild task mapping
+        self._task_to_section.clear()
+        
+        for section in self.sections.values():
+            # Update section line numbers
+            section.line_numbers = range(current_line, current_line + section.n_lines)
+            
+            # Update task locations within this section
+            task_line = current_line + 1  # Skip section title line
+            for task in section.tasks:
+                # Rebuild task mapping
+                self._task_to_section[task] = section
+                
+                task_lines = task.description.text.count('\n') + 1
+                task.set_location((
+                    self.path,
+                    range(task_line, task_line + task_lines),
+                    section.title
+                ))
+                task_line += task_lines
+            
+            current_line += section.n_lines
             
     def write(self) -> None:
         """Write the file back to disk"""

@@ -41,6 +41,7 @@ User experience
 [ ] interactive task description changing #ux
 [ ] interactive task tagging/untagging #ux
 [ ] interactive task removing #ux
+[ ] interactive task moving between files #ux
 [ ] create a gif showing how to use xitkit to put on the github readme #ux
 
 Bug fixes

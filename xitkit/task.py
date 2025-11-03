@@ -9,6 +9,7 @@ from .duedate import *
 from .priority import *
 from .description import *
 from .location import Location
+from .file_repository import FileRepository
 
 
 class Task:
@@ -27,8 +28,7 @@ class Task:
                  status=None,
                  priority=None,
                  tags=None,
-                 due_date=None,
-                 id=None):
+                 due_date=None):
         """Initialize a Task instance.
 
         Args:
@@ -38,7 +38,6 @@ class Task:
             priority (Optional[Priority]): Priority object or integer level.
             tags (Optional[List[Tag]]): List of Tag objects associated with the task.
             due_date (Optional[str]): Due date string if any.
-            id (Optional[int]): Unique ID for the task.
         """
         self.description = Description(description)
 
@@ -88,7 +87,8 @@ class Task:
             raise ValueError(f"Invalid priority type: {type(priority)}")
         
         # Handle ID
-        self.id = id if id is not None else 0
+        self.id = FileRepository().assign_id()
+        FileRepository()._tasks[self.id] = self
         
         # Handle tags - can be Tag objects or strings
         # Keep a separate list for easier management
@@ -114,7 +114,7 @@ class Task:
         """Set the task's location.
 
         Args:
-            location: Location object or tuple (file_path, line_number) or None for default
+            location: Location object or tuple (file_path, line_number, section) or None for default
         """
         if isinstance(location, Location):
             self.location = location
@@ -254,20 +254,26 @@ class Task:
         
         Args:
             tag: Tag to add
+        
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
-        self.description.add_tag(tag)
+        return self.description.add_tag(tag)
+        
 
-    def add_tag_by_name(self, name: str, value: Optional[str] = None) -> None:
+    def add_tag_by_name(self, name: str, value: Optional[str] = None) -> bool:
         """Add a tag by name and optional value.
         
         Args:
             name: Tag name (without # prefix)
             value: Optional tag value
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
         # Remove # prefix if present
         name = name.lstrip('#')
         tag = Tag(name=name, value=value)
-        self.add_tag(tag)
+        return self.add_tag(tag)
 
     def remove_tag(self, tag: Tag, soft: bool =False) -> bool:
         """Remove a tag from the task.
@@ -414,7 +420,14 @@ class Task:
         Returns:
             New Task instance with the same properties
         """
-        return deepcopy(self)
+        return Task(
+            description=str(self.description),
+            location=deepcopy(self.location),
+            status=deepcopy(self.status),
+            priority=deepcopy(self.priority),
+            tags=deepcopy(self.tags),
+            due_date=deepcopy(self.due_date)
+        )
 
     def to_terminal_line(self, 
                          show_file: bool = True, 
@@ -478,32 +491,4 @@ class Task:
         """
         if not self.location or not self.location.file_path:
             return False
-        
-        from .file_repository import get_file_repository
-        repo = get_file_repository()
-        
-        success = repo.update_task(self)
-        if success:
-            repo.save_file(self.location.file_path)
-        
-        return success
-    
-    def save_to_location(self, location=None, mode: str = 'update') -> None:
-        """Save the task to a location with flexible behavior.
-        
-        DEPRECATED: Use save() method or FileRepository instead.
-        This method has been removed to consolidate file operations through FileRepository.
-        
-        For updating tasks:
-            task.save()  # Updates task in its current location
-        
-        For adding new tasks:
-            from xitkit.file_repository import get_file_repository
-            repo = get_file_repository()
-            repo.add_task_to_file(task, file_path, section_name)
-            repo.save_file(file_path)
-        """
-        raise NotImplementedError(
-            "save_to_location has been removed. Use save() method or FileRepository instead. "
-            "See docstring for migration example."
-        )
+        return FileRepository().update_task(self)

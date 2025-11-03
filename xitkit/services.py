@@ -9,7 +9,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from datetime import timedelta, datetime
 
-from .fileparser import FileParser
+import xitkit.fileparser as fp
 from .task import Task
 from .dateutils import DateParser
 from .config import get_config
@@ -20,7 +20,7 @@ from .tags import Tag
 from .duedate import DueDate
 from .priority import Priority
 from .location import Location
-from .file_repository import get_file_repository
+from .file_repository import FileRepository
 
 @dataclass
 class TaskFilter:
@@ -41,7 +41,7 @@ class TaskService:
     
     def __init__(self):
         """Initialize the task service."""
-        self.parser = FileParser()
+        self.parser = fp.FileParser()
         self.date_parser = DateParser()
     
     def find_task_files(self, directory: Path = None) -> List[str]:
@@ -62,34 +62,34 @@ class TaskService:
         
         return sorted(task_files)
     
-    def load_tasks(self, file_paths: List[str]) -> List[Task]:
-        """Load tasks from the specified files.
+    # def load_tasks(self, file_paths: List[str]) -> List[Task]:
+    #     """Load tasks from the specified files.
         
-        Files are processed in alphabetical order, and tasks are assigned
-        sequential IDs starting from 1.
+    #     Files are processed in alphabetical order, and tasks are assigned
+    #     sequential IDs starting from 1.
         
-        Args:
-            file_paths: List of file paths to parse
+    #     Args:
+    #         file_paths: List of file paths to parse
             
-        Returns:
-            List of parsed tasks with assigned IDs
+    #     Returns:
+    #         List of parsed tasks with assigned IDs
             
-        Raises:
-            FileNotFoundError: If a file doesn't exist
-            ValueError: If a file has an unsupported format
-        """
-        # Sort file paths to ensure consistent ordering
-        sorted_paths = sorted(file_paths)
+    #     Raises:
+    #         FileNotFoundError: If a file doesn't exist
+    #         ValueError: If a file has an unsupported format
+    #     """
+    #     # Sort file paths to ensure consistent ordering
+    #     sorted_paths = sorted(file_paths)
         
-        # Parse all tasks from all files
-        files = self.parser.parse_files(sorted_paths)
-        all_tasks = [t for f in files for t in f.get_tasks()]
+    #     # Parse all tasks from all files
+    #     files = self.parser.parse_files(sorted_paths)
+    #     all_tasks = [t for f in files for t in f.get_tasks()]
         
-        # Assign sequential IDs starting from 1
-        for i, task in enumerate(all_tasks, start=1):
-            task.id = i
+    #     # Assign sequential IDs starting from 1
+    #     for i, task in enumerate(all_tasks, start=1):
+    #         task.id = i
             
-        return all_tasks
+    #     return all_tasks
 
     
     def filter_tasks(self, tasks: List[Task], filters: TaskFilter) -> List[Task]:
@@ -252,54 +252,9 @@ class TaskService:
         if new_due_date:
             task.set_due_date(new_due_date.implied_date if new_due_date else None)
             
-        # Update using FileRepository with identity matching
-        repo = get_file_repository()
-        
-        success = repo.update_task_by_identity(original_task, task)
-        if success:
-            repo.save_file(task.location.file_path)
+        task.save()
         
         return task
-        
-    def update_task_by_id(self, task_id: int,
-        file_paths: List[str], 
-        new_status: Status=None, 
-        new_priority: Priority=None, 
-        new_due_date: DueDate=None) -> Optional[Task]:
-        """Find and update a task's status, priority and/or due date by its ID.
-        
-        Args:
-            task_id: The ID of the task to update
-            file_paths: List of file paths to search
-            new_status: New status to set
-            new_priority: New priority to set
-            new_due_date: New due date to set
-            
-        Returns:
-            The updated Task object if found, None otherwise
-            
-        Raises:
-            ValueError: If the new status is invalid
-        """
-        # Load all tasks to find the one with matching ID
-        all_tasks = self.load_tasks(file_paths)
-        
-        # Find the task with the specified ID
-        target_task = None
-        for task in all_tasks:
-            if task.id == task_id:
-                target_task = task
-                break
-        
-        if not target_task:
-            return None
-        
-        return self.update_task(
-                    task=target_task,
-                    new_status=new_status,
-                    new_priority=new_priority,
-                    new_due_date=new_due_date
-                )
 
     def update_task_description(self, task_id: int, new_description: str, file_paths: List[str]) -> Optional[Task]:
         """Update a task's description by its ID.
@@ -330,7 +285,7 @@ class TaskService:
         target_task.description = Description(new_description)
         
         # Update using FileRepository with identity matching
-        repo = get_file_repository()
+        repo = FileRepository()
         
         success = repo.update_task_by_identity(original_task, target_task)
         if success:
@@ -362,7 +317,7 @@ class TaskService:
             return None
         
         # Remove the task using FileRepository
-        repo = get_file_repository()
+        repo = FileRepository()
         
         success = repo.remove_task(target_task)
         if success:
@@ -396,7 +351,7 @@ class TaskService:
             return None
         
         # Add task to target file using FileRepository
-        repo = get_file_repository()
+        repo = FileRepository()
         
         success = repo.add_task_to_file(removed_task, target_file, "To Do")
         if success:
@@ -438,7 +393,7 @@ class TaskService:
         target_task.add_tag_by_name(clean_tag)
         
         # Update using FileRepository with identity matching
-        repo = get_file_repository()
+        repo = FileRepository()
         
         success = repo.update_task_by_identity(original_task, target_task)
         if success:
@@ -481,38 +436,13 @@ class TaskService:
         target_task.remove_tag_by_name(clean_tag)
         
         # Update using FileRepository with identity matching
-        repo = get_file_repository()
+        repo = FileRepository()
         
         success = repo.update_task_by_identity(original_task, target_task)
         if success:
             repo.save_file(target_task.location.file_path)
         
         return success
-    
-    def add_task_to_section(self, task: Task, section_title: str, 
-                                  file_path: str) -> bool:
-        """Add a task to a specific file section
-
-        Args:
-            task: Task object to add
-            section_title: Title of the section to add the task to
-            file_path: Path to the file containing the section
-
-        Returns:
-            True if the task was added successfully, False otherwise
-        """
-        # Load the file and find the section
-        parser = FileParser()
-        file_obj = parser.parse_file(file_path)
-        section = file_obj.sections.get(section_title)
-        if not section:
-            return False
-
-        # Add the task to the section
-        section.add_task(task)
-        file_obj.write()
-
-        return True
     
     def find_task_by_id(self, task_id: int, file_obj) -> Optional[Task]:
         """Find a task by its ID within a file object.
@@ -607,7 +537,7 @@ class TaskService:
             new_task.status = Status(StatusType.OPEN)
             
             # Add the task to file using FileRepository
-            repo = get_file_repository()
+            repo = FileRepository()
             
             success = repo.add_task_to_file(new_task, output_file, "To Do")
             if success:

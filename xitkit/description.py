@@ -110,20 +110,29 @@ class Description:
 
     # Methods for manipulating tags.
 
-    def add_tag(self, tag: Tag) -> None:
+    def add_tag(self, tag: Tag) -> bool:
         """Add a tag to the description.
 
         Args:
             tag (Tag): The tag to add.
+            
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
         # Check if tag already exists to avoid duplicates
         if tag not in self.tags:
             self.tags.append(tag)
+            
             # Add tag to text
-            if self.text:
-                self.text += f" {str(tag)}"
-            else:
+            if not self.text:
                 self.text = str(tag)
+                return True
+            
+            pattern = re.compile(r'(\s|^)' + re.escape(str(tag)) + r'(\s|$)')
+            if not pattern.search(self.text):
+                self.text += " " + str(tag)
+            return True
+        return False
 
     def remove_tag(self, tag: Tag, soft: bool = False) -> None:
         """Remove a tag from the description.

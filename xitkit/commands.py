@@ -18,7 +18,9 @@ from .task import Task
 from .duedate import DueDate
 from .location import Location
 import questionary as ques
-from .fileparser import FileParser
+from .fileparser import File, FileParser
+from .file_repository import FileRepository
+from .tags import Tag
 
 
 class Command(ABC):
@@ -50,6 +52,12 @@ class Command(ABC):
             choices=choices
         ).ask()
         return selections
+
+    def load_files(self, file_paths: list[str]) -> list[File]:
+        """Load files from given paths using the FileRepository."""
+        file_paths = sorted(set(file_paths))
+        repo = FileRepository()
+        return [repo.get_file(path) for path in file_paths]
     
     def select_files(self, 
                           file_paths: list[str], 
@@ -269,8 +277,10 @@ class UpdateCommand(Command):
         if not file_paths:
             raise XitError("No files selected.")
         
+        self.load_files(file_paths)
+        
         # Load and filter tasks
-        all_tasks = self.task_service.load_tasks(file_paths)
+        all_tasks = FileRepository()._tasks.values()
         available_sections = set()
         
         for task in all_tasks:
@@ -335,7 +345,8 @@ class ShowTasksCommand(Command):
             return
         
         # Load and filter tasks
-        all_tasks = self.task_service.load_tasks(file_paths)
+        self.load_files(file_paths)
+        all_tasks = FileRepository()._tasks.values()
         available_sections = set()
         
         for task in all_tasks:
@@ -413,7 +424,9 @@ class ShowStatsCommand(Command):
             return
         
         # Load tasks and calculate statistics
-        all_tasks = self.task_service.load_tasks(file_paths)
+        file_objs = self.load_files(file_paths)
+        all_tasks = FileRepository()._tasks.values()
+        
         
         if not all_tasks:
             self.formatter.display_warning("No tasks found in the specified files.")
@@ -505,8 +518,8 @@ class AddTaskCommand(Command):
         Path(file_path).touch()  # Ensure file exists
         
         # Parse file to get sections
-        file = FileParser().parse_file(file_path)
-        sections = list(file.sections.values())
+        files = self.load_files([file_path])
+        sections = list(files[0].sections.values())
 
         # Select section if interactive, else use last section
         section = self.select_section(sections, interactive, single=True)[0]
@@ -520,11 +533,12 @@ class AddTaskCommand(Command):
             priority=priority or 0,
             tags=tags or [],
             due_date=due_date,
-            id=None  # Will be assigned when loaded
         )
         
         # Add the task to the file
-        TaskService().add_task_to_section(task, section.title, file_path)
+        file_obj = files[0]
+        file_obj.add_task(task)
+        file_obj.write()
         
         # Display confirmation message
         relative_path = self._get_relative_path(file_path)
@@ -1032,11 +1046,12 @@ class PriorityTaskCommand(UpdateCommand):
 
 
 
-class TagTaskCommand(Command):
+class TagTaskCommand(UpdateCommand):
     """Command for adding tags to tasks."""
     
-    def _execute(self, task_id: int, tag: str,
+    def _execute(self, task_id: list[int], tag: str,
                 directory: Path = None, specified_files: list = None,
+                interactive: bool = False,
                 debug: bool = False) -> None:
         """Execute the tag task command.
         
@@ -1048,33 +1063,33 @@ class TagTaskCommand(Command):
         """
 
         # Clean the tag (remove # if present)
-        tag = tag.lstrip('#')
-        
-        # Validate tag format
-        if not tag or ' ' in tag:
-            self.formatter.display_error("Tag must be a single word without spaces")
-            return
         
         # Resolve file paths
-        file_paths = self.file_service.resolve_file_paths(
-            directory, specified_files
-        )
+        tasks_to_update = self.find_tasks(directory, specified_files, task_ids=task_id, interactive=interactive)
         
-        if not file_paths:
-            self.formatter.display_warning("No task files found.")
-            return
-        
-        # Add the tag
-        success = self.task_service.add_task_tag(
-            task_id=task_id,
-            tag=tag,
-            file_paths=file_paths
-        )
-        
-        if success:
-            self.formatter.display_success(f"Added tag #{tag} to task #{task_id:03d}")
-        else:
-            self.formatter.display_error(f"Task #{task_id:03d} not found")
+        if not tasks_to_update:
+            raise XitError(f"Task #{task_id:03d} not found in the specified files.")
+            
+        update_counter = 0
+        for task in tasks_to_update:
+            # Find and update the task
+            for t in tag:
+                success = task.add_tag_by_name(t)
+            
+                if success:
+                    # Display confirmation message
+                    relative_path = task.location.file_path
+                    self.formatter.display_success(
+                        f"✓ Added Tag {tag} to task #{task.id:03d} in {relative_path}: \"{task.description.text}\""
+                    )
+                    update_counter += 1
+                    task.save()
+                else:
+                    self.formatter.display_error(f"Task #{task.id} could not be tagged with #{t}, already exists.")
+
+        # Summary message for multiple tasks
+        if len(tasks_to_update) > 1:
+            self.formatter.display_success(f"Processed {update_counter} of {len(tasks_to_update)} tasks.")
                 
 
 
@@ -1106,6 +1121,8 @@ class UntagTaskCommand(Command):
             return
         
         # Remove the tag
+        file_objs = self.load_files(file_paths)
+        
         success = self.task_service.remove_task_tag(
             task_id=task_id,
             tag=tag,

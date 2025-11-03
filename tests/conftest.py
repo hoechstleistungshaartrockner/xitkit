@@ -9,7 +9,13 @@ from xitkit.task import Task
 from xitkit.services import TaskService, FileDiscoveryService
 from xitkit.formatter import TaskFormatter
 from xitkit.fileparser import FileParser
+from xitkit.file_repository import FileRepository
 
+@pytest.fixture(autouse=True)
+def reset_file_repository():
+    """Reset the FileRepository singleton before each test."""
+    FileRepository().reset()
+    yield
 
 @pytest.fixture
 def temp_dir():

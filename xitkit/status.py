@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Optional, Union
 import re
 
+from xitkit.exceptions import XitError
+
 class StatusType(Enum):
     """Enumeration of valid status types."""
     OPEN = " "
@@ -112,6 +114,7 @@ class Status:
                               "ongoing": StatusType.ONGOING,
                               "obsolete": StatusType.OBSOLETE,
                               "in_question": StatusType.IN_QUESTION,
+                              "inquestion": StatusType.IN_QUESTION,
                               "done": StatusType.CHECKED,
                               "complete": StatusType.CHECKED,
                               "active": StatusType.OPEN,
@@ -131,7 +134,7 @@ class Status:
                               "[?]": StatusType.IN_QUESTION}
         status_type = allowed_values.get(status_str, None)
         if status_type is None:
-            return None
+            raise XitError(f"Invalid status string: {status_str}")
         
         return cls(status_type)
     

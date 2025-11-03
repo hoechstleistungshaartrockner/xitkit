@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 from dataclasses import dataclass
-from .task import Task
+import xitkit.task as task
 from .status import Status, StatusType
 from .priority import Priority
 from .tags import Tag
@@ -23,7 +23,7 @@ class Section:
     """
     title: str
     line_numbers: range = None
-    tasks: Optional[List[Task]] = None
+    tasks: Optional[List[task.Task]] = None
     n_lines: int = 2 # title line + blank line
     parent_file: Optional['File'] = None
 
@@ -41,7 +41,7 @@ class Section:
             return
         raise ValueError(f"line_number is not consecutive to the current line_numbers range. Current line numbers: {self.line_numbers}, line_number: {line_number}")
     
-    def remove_task(self, task: Task):
+    def remove_task(self, task: task.Task):
         """
         Remove a task from this section.
         
@@ -72,7 +72,7 @@ class Section:
             
         return n_task_lines  # Return lines removed for caller to handle file updates
         
-    def add_task(self, task: Task):
+    def add_task(self, task: task.Task):
         """Add a task to this section."""
         self.tasks.append(task)
         n_task_lines = task.description.text.count('\n') + 1
@@ -110,13 +110,24 @@ class File:
     path: str
     sections: dict[str, Section] = None
     n_lines: int = 0
-    _task_to_section: dict[Task, Section] = None  # Cache for efficient task lookup
+    _task_to_section: dict[task.Task, Section] = None  # Cache for efficient task lookup
 
     def __post_init__(self):
         if self.sections is None:
             self.sections = {}
         if self._task_to_section is None:
             self._task_to_section = {}
+            
+    def add_task(self, task: task.Task):
+        """Add a task to the file, creating a default section if necessary."""
+        section_title = task.location.section or "To Do"
+        
+        if section_title not in self.sections:
+            new_section = Section(title=section_title)
+            self.add_section(new_section)
+        
+        section = self.sections[section_title]
+        section.add_task(task)
     
     def add_section(self, section: Section):
         """Add a section to this file."""
@@ -155,14 +166,14 @@ class File:
         # Update task locations once at the end
         self._update_task_locations()
     
-    def get_tasks(self) -> List[Task]:
+    def get_tasks(self) -> List[task.Task]:
         """Get all tasks in the file across all sections."""
         tasks = []
         for section in self.sections.values():
             tasks.extend(section.tasks)
         return tasks
     
-    def remove_task(self, task: Task):
+    def remove_task(self, task: task.Task):
         """Remove a task from the file."""
         # Use efficient lookup instead of linear search
         section_to_remove_from = self._task_to_section.get(task)
@@ -235,7 +246,7 @@ class ParseContext:
         in_code_block: Whether we're inside a code block (for markdown files)
         last_markdown_header: The last markdown header encountered (for section inheritance)
     """
-    current_task: Optional[Task] = None
+    current_task: Optional[task.Task] = None
     line_number: int = 0
     file_path: str = ""
     current_section: Optional[str] = None
@@ -297,7 +308,7 @@ class FileParser:
         # Validate file existence and type
         path = Path(file_path)
         if not path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
+            path.touch()
             
         if path.suffix not in ['.md', '.xit']:
             raise ValueError(f"Unsupported file type: {path.suffix}")
@@ -529,7 +540,7 @@ class FileParser:
             task_section = context.last_markdown_header
         
         # Create task object with all parsed information
-        task = Task(
+        t = task.Task(
             description=content,  # Preserve whitespace in descriptions
             location=(context.file_path, context.line_number, task_section),
             status=status,
@@ -539,7 +550,7 @@ class FileParser:
         )
         
         # Store as current task (might be continued on next lines)
-        context.current_task = task
+        context.current_task = t
     
     def _is_continuation_line(self, line: str) -> bool:
         """Check if line is a continuation of previous task description.
@@ -614,7 +625,7 @@ class FileParser:
             Due date string if found, None otherwise
             
         Example:
-            >>> parser._parse_due_date("Task -> 2025-12-31 (urgent)")
+            >>> parser._parse_due_date("task.Task -> 2025-12-31 (urgent)")
             "2025-12-31"
         """
         match = DUE_DATE_PATTERN.search(content)
@@ -636,7 +647,7 @@ class FileParser:
             List of Tag objects parsed from the content
             
         Example:
-            >>> parser._parse_tags("Task #work #priority=high #tag='quoted value'")
+            >>> parser._parse_tags("task.Task #work #priority=high #tag='quoted value'")
             [Tag(name="work"), Tag(name="priority", value="high"), Tag(name="tag", value="quoted value")]
         """
         return Tag.from_line(content)
@@ -696,7 +707,7 @@ def parse_files(file_paths: List[str]) -> List[File]:
     return parser.parse_files(file_paths)
 
 
-def parse_file_tasks(file_path: str) -> List[Task]:
+def parse_file_tasks(file_path: str) -> List[task.Task]:
     """Convenience function to parse a single file and return just the tasks.
     
     This function maintains backward compatibility for code that expects a list of tasks.
@@ -705,7 +716,7 @@ def parse_file_tasks(file_path: str) -> List[Task]:
         file_path: Path to the file to parse
         
     Returns:
-        List of Task objects found in the file
+        List of task.Task objects found in the file
         
     Example:
         >>> from xitkit.fileparser import parse_file_tasks

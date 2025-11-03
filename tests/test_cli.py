@@ -549,7 +549,7 @@ class TestMarkCLI(CLITest):
         ('CHECKED', '--done', '[x]'),
         ('ONGOING', '--ongoing', '[@]'),
         ('OBSOLETE', '--obsolete', '[~]'),
-        ('INQUESTION', '--inquestion', '[?]'),
+        ('IN_QUESTION', '--inquestion', '[?]'),
     ])
     def test_mark_task_statuses(self, isolated_test_files, runner, status, flag, expected_symbol):
         """Test marking tasks with different statuses."""
@@ -644,10 +644,11 @@ class TestPrioCLI(CLITest):
         os.chdir(isolated_test_files)
 
         result = runner.invoke(xitkit, ['prio', '-t', '1', '-p', '-1', '-f', 'valid_mixed.xit'])
-
+        print(result.output
+              )
         # Negative priorities are rejected at CLI parsing level
-        assert result.exit_code == 2
-        assert 'No such option: -1' in result.output
+        assert result.exit_code == 0
+        assert 'Priority level cannot be negative' in result.output
 
 
 class TestTagCLI(CLITest):
@@ -655,9 +656,9 @@ class TestTagCLI(CLITest):
     def test_tag_command(self, isolated_test_files, runner):
         """Test adding a tag to a task."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['tag', '1', 'urgent', '-f', 'valid_mixed.xit'])
-        
+
+        result = runner.invoke(xitkit, ['tag', '-t', '1', '--tag', 'urgent', '-f', 'valid_mixed.xit'])
+
         assert result.exit_code == 0
         assert 'Added tag #urgent to task #001' in result.output
         
@@ -669,9 +670,9 @@ class TestTagCLI(CLITest):
     def test_tag_with_hash_prefix(self, isolated_test_files, runner):
         """Test adding a tag that already has # prefix."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['tag', '1', '#urgent', '-f', 'valid_mixed.xit'])
-        
+
+        result = runner.invoke(xitkit, ['tag', '-t', '1', '--tag', '#urgent', '-f', 'valid_mixed.xit'])
+
         assert result.exit_code == 0
         assert 'Added tag #urgent to task #001' in result.output
         
@@ -684,9 +685,9 @@ class TestTagCLI(CLITest):
     def test_tag_with_multi_line_task(self, isolated_test_files, runner):
         """Test adding a tag to a multi-line task."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['tag', '11', 'important', '-f', 'valid_mixed.xit'])
-        
+
+        result = runner.invoke(xitkit, ['tag', '-t', '11', '--tag', 'important', '-f', 'valid_mixed.xit'])
+
         assert result.exit_code == 0
         assert 'Added tag #important to task #011' in result.output
 

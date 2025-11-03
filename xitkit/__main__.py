@@ -543,15 +543,18 @@ def prio(ctx, task_id, priority, directory, files, interactive, debug):
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('tag', type=str, metavar='TAG')
+@click.option('--task_id', '-t', type=int, multiple=True,
+              help='ID of the task to add tag to (can be used multiple times)')
+@click.option('--tag', type=str, multiple=True, required=True,
+              help='Tag name(s) to add (without # prefix, can be used multiple times)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--interactive", '-i', is_flag=True, help="Enable interactive mode to select tasks.")
 @click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def tag(ctx, task_id, tag, directory, files, debug):
+def tag(ctx, task_id, tag, directory, files, interactive, debug):
     """Add a tag to a task.
     
     Adds a hashtag to an existing task. The # symbol is optional - it will
@@ -571,7 +574,8 @@ def tag(ctx, task_id, tag, directory, files, debug):
         task_id=task_id,
         tag=tag,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else [],   
+        specified_files=list(files) if files else [],
+        interactive=interactive,
         debug=debug
     )
 

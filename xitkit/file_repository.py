@@ -7,54 +7,70 @@ eliminating redundant parsing and providing a consistent interface for file oper
 
 from pathlib import Path
 from typing import Dict, Optional, List
-from .fileparser import FileParser, File
-from .task import Task
+import xitkit.fileparser as fp 
+import xitkit.task as task
 
 
 class FileRepository:
     """Singleton repository for managing parsed File objects."""
     
     _instance: Optional['FileRepository'] = None
-    _files: Dict[str, File] = {}
-    _parser: FileParser = None
+    _files: Dict[str, fp.File] = {}
+    _parser: fp.FileParser = None
+    _current_id: int = 1
+    _tasks: Dict[int, task.Task] = {}
     
     def __new__(cls) -> 'FileRepository':
         """Ensure only one instance exists."""
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._parser = FileParser()
+            cls._parser = fp.FileParser()
         return cls._instance
     
-    def get_file(self, file_path: str) -> File:
+    def get_file(self, file_path: str) -> fp.File:
         """
         Get a File object for the given path, loading it if necessary.
+        Assigns sequential IDs to tasks within the file.
         
         Args:
             file_path: Path to the file
             
         Returns:
-            File object for the path
+            File object for the path with tasks having assigned IDs
         """
         # Normalize path to handle relative paths consistently
         normalized_path = str(Path(file_path).resolve())
         
         if normalized_path not in self._files:
-            self._files[normalized_path] = self._parser.parse_file(normalized_path)
+            file_obj = self._parser.parse_file(normalized_path)
+            self._files[normalized_path] = file_obj
         
         return self._files[normalized_path]
     
-    def reload_file(self, file_path: str) -> File:
+    def assign_id(self) -> None:
+        """
+        Return the next unique task ID and increment the internal counter.
+        """
+        task_id = self._current_id
+        self._current_id += 1
+        return task_id
+
+    def reload_file(self, file_path: str) -> fp.File:
         """
         Force reload a file from disk, discarding any cached version.
+        Assigns sequential IDs to tasks within the file.
         
         Args:
             file_path: Path to the file
             
         Returns:
-            Newly loaded File object
+            Newly loaded File object with tasks having assigned IDs
         """
         normalized_path = str(Path(file_path).resolve())
-        self._files[normalized_path] = self._parser.parse_file(normalized_path)
+        file_obj = self._parser.parse_file(normalized_path)
+        # Assign sequential IDs to tasks in this file
+        self._assign_task_ids(file_obj)
+        self._files[normalized_path] = file_obj
         return self._files[normalized_path]
     
     def save_file(self, file_path: str) -> None:
@@ -73,10 +89,12 @@ class FileRepository:
         for file_obj in self._files.values():
             file_obj.write()
     
-    def clear_cache(self) -> None:
-        """Clear all cached files."""
+    def reset(self) -> None:
+        """Clear all cached files, tasks, and reset ID counter."""
         self._files.clear()
-    
+        self._tasks.clear()
+        self._current_id = 1
+
     def is_loaded(self, file_path: str) -> bool:
         """
         Check if a file is currently loaded in the repository.
@@ -99,164 +117,88 @@ class FileRepository:
         """
         return list(self._files.keys())
     
-    def find_task_by_content(self, file_path: str, description_text: str, section_name: Optional[str] = None) -> Optional[Task]:
+    def find_task_by_id(self, file_path: str, task_id: int) -> Optional[task.Task]:
         """
-        Find a task by its description content within a file.
+        Find a task by its ID within a file.
         
         Args:
             file_path: Path to the file containing the task
-            description_text: Description text to match
-            section_name: Optional section name to narrow search
+            task_id: task.Task ID to find
             
         Returns:
-            Task object if found, None otherwise
+            task.Task object if found, None otherwise
         """
         file_obj = self.get_file(file_path)
         
-        # Search in specific section if provided, otherwise search all sections
-        sections_to_search = [file_obj.sections[section_name]] if section_name and section_name in file_obj.sections else file_obj.sections.values()
-        
-        for section in sections_to_search:
+        for section in file_obj.sections.values():
             for task in section.tasks:
-                if str(task.description) == description_text:
+                if task.id == task_id:
                     return task
         
         return None
     
-    def update_task_by_content(self, file_path: str, old_description: str, updated_task: Task, section_name: Optional[str] = None) -> bool:
+    def remove_task_by_id(self, file_path: str, task_id: int) -> Optional[task.Task]:
         """
-        Update a task by finding it via description content.
+        Remove a task by finding it via its ID.
         
         Args:
             file_path: Path to the file containing the task
-            old_description: Original description text to find the task
-            updated_task: Updated task object to replace with
-            section_name: Optional section name to narrow search
+            task_id: ID of the task to remove
             
         Returns:
-            True if task was found and updated, False otherwise
+            Removed task object if found, None otherwise
         """
         file_obj = self.get_file(file_path)
         
-        # Search in specific section if provided, otherwise search all sections  
-        sections_to_search = [file_obj.sections[section_name]] if section_name and section_name in file_obj.sections else file_obj.sections.values()
-        
-        for section in sections_to_search:
-            for i, task in enumerate(section.tasks):
-                if str(task.description) == old_description:
-                    section.tasks[i] = updated_task
-                    return True
-        
-        return False
-    
-    def remove_task_by_content(self, file_path: str, description_text: str, section_name: Optional[str] = None) -> bool:
-        """
-        Remove a task by finding it via description content.
-        
-        Args:
-            file_path: Path to the file containing the task
-            description_text: Description text to match
-            section_name: Optional section name to narrow search
-            
-        Returns:
-            True if task was found and removed, False otherwise
-        """
-        file_obj = self.get_file(file_path)
-        
-        # Search in specific section if provided, otherwise search all sections
-        sections_to_search = [file_obj.sections[section_name]] if section_name and section_name in file_obj.sections else file_obj.sections.values()
-        
-        for section in sections_to_search:
+        for section in file_obj.sections.values():
             for task in section.tasks:
-                if str(task.description) == description_text:
+                if task.id == task_id:
                     file_obj.remove_task(task)
-                    return True
+                    return task
         
-        return False
+        return None
     
-    def update_task_by_identity(self, old_task: Task, new_task: Task) -> bool:
+    def update_task(self, task: task.Task) -> bool:
         """
-        Update a task by finding the old task and replacing it with the new one.
+        Update a task in its file using ID-based matching.
         
         Args:
-            old_task: Original task to find and replace
-            new_task: New task to replace with
+            task: task.Task object to update
             
         Returns:
             True if task was found and updated, False otherwise
         """
-        file_path = old_task.location.file_path
-        section_name = getattr(old_task.location, 'section', None)
+        # get the according file and rewrite
+        file = self.get_file(task.location.file_path)
         
-        return self.update_task_by_content(
-            file_path=file_path,
-            old_description=str(old_task.description),
-            updated_task=new_task,
-            section_name=section_name
-        )
+        # make sure the task is in the file, add if necessary
+        if not task in file.get_tasks():
+            file.add_task(task)
+        file.write()
+        return True
     
-    def update_task(self, task: Task) -> bool:
+    def remove_task(self, task: task.Task) -> bool:
         """
-        Update a task in its file. Uses content matching.
+        Remove a task from its file using ID-based matching.
         
         Args:
-            task: Task object to update
-            
-        Returns:
-            True if task was found and updated, False otherwise
-        """
-        # For now, assume the task description hasn't changed fundamentally
-        # This is a limitation - we'd need to track original description for full support
-        file_path = task.location.file_path
-        section_name = getattr(task.location, 'section', None)
-        
-        # Try to find a task with the same base description (without status/priority markers)
-        file_obj = self.get_file(file_path)
-        
-        sections_to_search = [file_obj.sections[section_name]] if section_name and section_name in file_obj.sections else file_obj.sections.values()
-        
-        for section in sections_to_search:
-            for i, file_task in enumerate(section.tasks):
-                # Compare the base description text (this is imperfect but works for most cases)
-                task_base = str(task.description).strip()
-                file_task_base = str(file_task.description).strip()
-                
-                # Remove priority indicators for comparison
-                import re
-                task_base = re.sub(r'^[!.]+\s*', '', task_base)
-                file_task_base = re.sub(r'^[!.]+\s*', '', file_task_base)
-                
-                if task_base == file_task_base:
-                    section.tasks[i] = task
-                    return True
-        
-        return False
-    
-    def remove_task(self, task: Task) -> bool:
-        """
-        Remove a task from its file using content-based matching.
-        
-        Args:
-            task: Task object to remove
+            task: task.Task object to remove
             
         Returns:
             True if task was found and removed, False otherwise
         """
-        file_path = task.location.file_path
-        section_name = getattr(task.location, 'section', None)
-        
-        return self.remove_task_by_content(
-            file_path=file_path,
-            description_text=str(task.description),
-            section_name=section_name
+        removed_task = self.remove_task_by_id(
+            file_path=task.location.file_path,
+            task_id=task.id
         )
+        return removed_task is not None
     
-    def add_task_to_file(self, task: Task, file_path: str, section_name: Optional[str] = None) -> bool:
+    def add_task_to_file(self, task: task.Task, file_path: str, section_name: Optional[str] = None) -> bool:
         """
         Add a task to a file, optionally in a specific section.
         
         Args:
-            task: Task to add
+            task: task.Task to add
             file_path: Path to the file
             section_name: Optional section name (defaults to "To Do")
             
@@ -280,9 +222,3 @@ class FileRepository:
             return True
         
         return False
-
-
-# Convenience function to get the singleton instance
-def get_file_repository() -> FileRepository:
-    """Get the FileRepository singleton instance."""
-    return FileRepository()

@@ -374,7 +374,7 @@ class FileParser:
             line = lines[i].rstrip('\n\r')  # Remove line endings
 
             # Handle markdown files - track code blocks and headers
-            if context.file_path.endswith('.md'):
+            if str(context.file_path).endswith('.md'):
                 # Check for code block markers
                 if line.strip().startswith('```'):
                     if not context.in_code_block:
@@ -524,7 +524,7 @@ class FileParser:
         
         # Determine the section for this task
         task_section = context.current_section
-        if context.file_path.endswith('.md') and task_section is None:
+        if str(context.file_path).endswith('.md') and task_section is None:
             # In markdown files, if no section is set in code block, inherit from last markdown header
             task_section = context.last_markdown_header
         

@@ -7,7 +7,7 @@ of the task management system, separating business logic from CLI concerns.
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from .fileparser import FileParser
 from .task import Task
@@ -20,6 +20,7 @@ from .tags import Tag
 from .duedate import DueDate
 from .priority import Priority
 from .location import Location
+from .file_repository import get_file_repository
 
 @dataclass
 class TaskFilter:
@@ -176,7 +177,6 @@ class TaskService:
         tasks_with_due_date = sum(1 for task in tasks if task.has_due_date)
         
         # Count overdue tasks (using a reasonable current date)
-        from datetime import datetime
         current_date = datetime.now().strftime('%Y-%m-%d')
         overdue_tasks = sum(1 for task in tasks if task.is_overdue(current_date))
         
@@ -241,6 +241,9 @@ class TaskService:
         Returns:
             The updated Task object
         """
+        # Create a copy to preserve original for matching
+        original_task = task.copy()
+        
         # Update task properties
         if new_status:
             task.set_status(new_status)
@@ -249,8 +252,12 @@ class TaskService:
         if new_due_date:
             task.set_due_date(new_due_date.implied_date if new_due_date else None)
             
-        # Update the task in the file
-        task.save_to_location(task.location, mode='update')
+        # Update using FileRepository with identity matching
+        repo = get_file_repository()
+        
+        success = repo.update_task_by_identity(original_task, task)
+        if success:
+            repo.save_file(task.location.file_path)
         
         return task
         
@@ -319,12 +326,17 @@ class TaskService:
             return None
         
         # Update task description
+        original_task = target_task.copy()
         target_task.description = Description(new_description)
         
-        # Update the task in the file using the new method
-        target_task.save_to_location(target_task.location, mode='update')
+        # Update using FileRepository with identity matching
+        repo = get_file_repository()
         
-        return target_task
+        success = repo.update_task_by_identity(original_task, target_task)
+        if success:
+            repo.save_file(target_task.location.file_path)
+        
+        return target_task if success else None
 
     def remove_task_by_id(self, task_id: int, file_paths: List[str]) -> Optional[Task]:
         """Remove a task by its ID from the files.
@@ -349,8 +361,14 @@ class TaskService:
         if not target_task:
             return None
         
-        # Remove the task from the file using the new method
-        return target_task.remove_from_file()
+        # Remove the task using FileRepository
+        repo = get_file_repository()
+        
+        success = repo.remove_task(target_task)
+        if success:
+            repo.save_file(target_task.location.file_path)
+        
+        return target_task
 
     def move_task_by_id(self, task_id: int, source_files: List[str], target_file: str) -> Optional[Task]:
         """Move a task by its ID from source files to a target file.
@@ -377,11 +395,12 @@ class TaskService:
         if not removed_task:
             return None
         
-        # Update task's file reference
-        removed_task.set_location(Location(file_path=target_file))
+        # Add task to target file using FileRepository
+        repo = get_file_repository()
         
-        # Add task to target file
-        removed_task.save_to_location(removed_task.location, mode='append')
+        success = repo.add_task_to_file(removed_task, target_file, "To Do")
+        if success:
+            repo.save_file(target_file)
         
         return removed_task
     
@@ -411,12 +430,21 @@ class TaskService:
         
         # Add the tag (remove # prefix if present)
         clean_tag = tag.lstrip('#')
+        
+        # Create a copy of the original task to preserve the original description for matching
+        original_task = target_task.copy()
+        
+        # Add tag to the target task
         target_task.add_tag_by_name(clean_tag)
         
-        # Update the task in the file using the new method
-        target_task.save_to_location(target_task.location, mode='update')
+        # Update using FileRepository with identity matching
+        repo = get_file_repository()
         
-        return True
+        success = repo.update_task_by_identity(original_task, target_task)
+        if success:
+            repo.save_file(target_task.location.file_path)
+        
+        return success
 
     
     def remove_task_tag(self, task_id: int, tag: str, file_paths: List[str]) -> bool:
@@ -445,12 +473,21 @@ class TaskService:
         
         # Remove the tag (remove # prefix if present)
         clean_tag = tag.lstrip('#')
+        
+        # Create a copy of the original task to preserve the original description for matching
+        original_task = target_task.copy()
+        
+        # Remove tag from the target task
         target_task.remove_tag_by_name(clean_tag)
         
-        # Update the task in the file using the new method
-        target_task.save_to_location(target_task.location, mode='update')
+        # Update using FileRepository with identity matching
+        repo = get_file_repository()
         
-        return True
+        success = repo.update_task_by_identity(original_task, target_task)
+        if success:
+            repo.save_file(target_task.location.file_path)
+        
+        return success
     
     def add_task_to_section(self, task: Task, section_title: str, 
                                   file_path: str) -> bool:
@@ -567,12 +604,15 @@ class TaskService:
             new_task.set_due_date(next_date_str)
             
             # Reset status to OPEN for recurring tasks
-            from .status import StatusType, Status
             new_task.status = Status(StatusType.OPEN)
             
-            # Add the task to file
-            new_task.save_to_location(new_task.location, mode='append')
-            recurring_tasks.append(new_task)
+            # Add the task to file using FileRepository
+            repo = get_file_repository()
+            
+            success = repo.add_task_to_file(new_task, output_file, "To Do")
+            if success:
+                repo.save_file(output_file)
+                recurring_tasks.append(new_task)
         
         return recurring_tasks
     
@@ -598,7 +638,6 @@ class TaskService:
             file_paths = self.find_task_files()
         
         # Create Priority object and update task
-        from .priority import Priority
         new_priority = Priority(level=priority)
         
         updated_task = self.update_task_by_id(
@@ -618,7 +657,6 @@ class TaskService:
         Returns:
             Total number of days
         """
-        import re
         
         # Parse complex intervals like "1y2m1w4d"
         pattern = r'(?:(\d+)y)?(?:(\d+)m)?(?:(\d+)w)?(?:(\d+)d)?'

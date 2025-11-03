@@ -253,9 +253,10 @@ class TestTaskService:
             # Check file was updated
             content = file_path.read_text()
             lines = [line for line in content.split('\n') if line.strip()]
-            assert len(lines) == 2
-            assert "First task" in lines[0]
-            assert "Third task" in lines[1]
+            assert len(lines) == 3
+            assert "To Do" in lines[0]
+            assert "First task" in lines[1]
+            assert "Third task" in lines[2]
             
     def test_remove_task_by_id_not_found(self):
         """Test removing a task that doesn't exist."""
@@ -379,7 +380,7 @@ class TestTaskService:
             # Check file content
             content = file_path.read_text()
             lines = [line for line in content.split('\n') if line.strip()]
-            assert len(lines) == 4  # Original + 3 recurring
+            assert len(lines) == 5  # Original + 3 recurring + header
             
     def test_recur_task_by_id_with_end_date(self):
         """Test recurring tasks with end date constraint."""

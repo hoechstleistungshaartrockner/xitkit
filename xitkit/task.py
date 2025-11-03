@@ -470,144 +470,40 @@ class Task:
         formatted_lines = [prefix.get(idx, "    ") + line for idx, line in enumerate(lines)]
         return '\n'.join(formatted_lines)
 
-    def append_to_file(self, file_path: Path) -> None:
-        """Append the task to the specified file in checkbox format.
-        
-        Args:
-            file_path: Path to the file to append the task to
-        """
-        # Ensure the file exists and create parent directories if needed
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(file_path, 'a', encoding='utf-8') as f:
-            f.write(self.to_checkbox_format() + '\n')
-    
-    def insert_at_location(self, location: Location) -> None:
-        """Insert the task at the specified location.
-        
-        Args:
-            location: Location object specifying file and line number for insertion
-            
-        Raises:
-            FileNotFoundError: If the target file doesn't exist
-            ValueError: If line number is invalid
-        """
-        file_path = Path(location.file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File does not exist: {file_path}")
-            
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Validate line number
-        insert_line = location.line_numbers.start if hasattr(location.line_numbers, 'start') else location.line_numbers
-        if insert_line < 1 or insert_line > len(lines) + 1:
-            raise ValueError(f"Invalid line number {insert_line}. File has {len(lines)} lines.")
-        
-        # Insert at specified line (1-based index)
-        insert_index = insert_line - 1
-        task_content = self.to_checkbox_format() + '\n'
-        lines.insert(insert_index, task_content)
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    
-    def replace_at_location(self, location: Location) -> None:
-        """Replace the content at the specified location with this task.
-        
-        Args:
-            location: Location object specifying file and line range to replace
-            
-        Raises:
-            FileNotFoundError: If the target file doesn't exist
-            ValueError: If line numbers are invalid
-        """
-        file_path = Path(location.file_path)
-        if not file_path.exists():
-            raise FileNotFoundError(f"File does not exist: {file_path}")
-            
-        with open(file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        
-        # Validate line numbers
-        # account for line number offsets
-        offset_line_numbers = range(location.line_numbers.start-1, location.line_numbers.stop-1)
-        if offset_line_numbers.start < 0 or offset_line_numbers.stop > len(lines):
-            raise ValueError(f"Invalid line range {location.line_numbers.start}-{location.line_numbers.stop}. File has {len(lines)} lines.")
-
-        # Replace lines (convert to 0-based indexing)
-        task_content = self.to_checkbox_format() + '\n'
-        lines[offset_line_numbers.start:offset_line_numbers.stop] = [task_content]
-        
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    
-    def save_to_location(self, location: Location = None, mode: str = 'update') -> None:
-        """Save the task to a location with flexible behavior.
-        
-        Args:
-            location: Target location. If None, uses self.location
-            mode: Save mode - 'update', 'insert', 'append', or 'create'
-                - 'update': Replace existing content at location (default)
-                - 'insert': Insert at location without replacing
-                - 'append': Append to end of file
-                - 'create': Create new file or overwrite existing
-                
-        Raises:
-            ValueError: If mode is invalid or location is required but not provided
-        """
-        if location is None:
-            location = self.location
-            
-        if location is None:
-            raise ValueError("Location must be provided either as argument or set on task")
-        
-        file_path = Path(location.file_path)
-        
-        if mode == 'create':
-            # Create new file or overwrite existing
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(self.to_checkbox_format() + '\n')
-        elif mode == 'append':
-            self.append_to_file(file_path)
-        elif mode == 'insert':
-            self.insert_at_location(location)
-        elif mode == 'update':
-            if file_path.exists():
-                self.replace_at_location(location)
-            else:
-                # File doesn't exist, create it
-                self.save_to_location(location, mode='create')
-        else:
-            raise ValueError(f"Invalid mode: {mode}. Must be one of: 'update', 'insert', 'append', 'create'")
-        
-        # Update task's location to reflect where it was saved
-        self.location = location
-
-    def remove_from_file(self) -> 'Task':
-        """Remove the task from its file based on its location.
+    def save(self) -> bool:
+        """Save the task to its file using the FileRepository.
         
         Returns:
-            The Task instance that was removed.
+            True if the task was saved successfully, False otherwise
         """
-        if not self.location.file_path.exists():
-            raise FileNotFoundError(f"File does not exist: {self.location.file_path}")
-
-        with open(self.location.file_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-
-        # Remove the specific line (accounting for 1-based line numbers)
-        if self.location.line_numbers is None:
-            return None
+        if not self.location or not self.location.file_path:
+            return False
         
-        for line_idx in reversed(self.location.line_numbers):
-            line_idx -= 1  # Convert to 0-based index
-            if line_idx < 0 or line_idx >= len(lines):
-                continue
-            lines.pop(line_idx)
-
-        with open(self.location.file_path, 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-
-        return self
+        from .file_repository import get_file_repository
+        repo = get_file_repository()
+        
+        success = repo.update_task(self)
+        if success:
+            repo.save_file(self.location.file_path)
+        
+        return success
+    
+    def save_to_location(self, location=None, mode: str = 'update') -> None:
+        """Save the task to a location with flexible behavior.
+        
+        DEPRECATED: Use save() method or FileRepository instead.
+        This method has been removed to consolidate file operations through FileRepository.
+        
+        For updating tasks:
+            task.save()  # Updates task in its current location
+        
+        For adding new tasks:
+            from xitkit.file_repository import get_file_repository
+            repo = get_file_repository()
+            repo.add_task_to_file(task, file_path, section_name)
+            repo.save_file(file_path)
+        """
+        raise NotImplementedError(
+            "save_to_location has been removed. Use save() method or FileRepository instead. "
+            "See docstring for migration example."
+        )

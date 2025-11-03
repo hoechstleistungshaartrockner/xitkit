@@ -537,7 +537,7 @@ class TestTaskFileOperations:
         """Test writing a task to an empty file."""
         file_path = tmp_path / "tasks.xit"
         task = Task("New task", location=(file_path, None))
-        task.save_to_location(task.location, mode='append')
+        task.save()
         with open(file_path, 'r') as f:
             content = f.read()
         assert content.strip() == str(task)
@@ -549,7 +549,7 @@ class TestTaskFileOperations:
             f.write("[ ] Existing task\n")
         
         task = Task("New task", location=(file_path, None))
-        task.save_to_location(task.location, mode='append')
+        task.save()
         
         with open(file_path, 'r') as f:
             lines = f.readlines()
@@ -565,7 +565,7 @@ class TestTaskFileOperations:
             f.write("[ ] Task 2\n")
 
         task = Task("New task", location=(file_path, 2))
-        task.save_to_location(task.location, mode='insert')
+        task.save()
 
         with open(file_path, 'r') as f:
             lines = f.readlines()
@@ -583,7 +583,7 @@ class TestTaskFileOperations:
 
         task = Task("Old task", location=(file_path, 1))
         task.set_status(StatusType.CHECKED)
-        task.save_to_location(task.location, mode='update')
+        task.save()
 
         with open(file_path, 'r') as f:
             lines = f.readlines()
@@ -601,7 +601,7 @@ class TestTaskFileOperations:
         
         task = Task("Multi-line task line 1\nMulti-line task line 2", location=(file_path, 2))
         task.set_status(StatusType.CHECKED)
-        task.save_to_location(task.location, mode='update')
+        task.save()
 
         with open(file_path, 'r') as f:
             lines = f.readlines()

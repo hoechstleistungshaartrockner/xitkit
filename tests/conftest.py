@@ -47,9 +47,9 @@ def sample_tasks():
     """Create a list of sample tasks for testing."""
     return [
         Task("Open task", location=("/test1.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
-        Task("High priority task", location=("/test1.xit", 2), status="OPEN", priority=2, tags=["#work", "#urgent"], due_date="2025-12-31"),
+        Task("High priority task", location=("/test1.xit", 2), status="OPEN", priority=2, tags=["#work", "#urgent"], due_date="2024-12-31"),
         Task("Done task", location=("/test1.xit", 3), status="DONE", priority=1, tags=["#personal"], due_date=None),
-        Task("Ongoing task", location=("/test2.xit", 1), status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
+        Task("Ongoing task", location=("/test2.xit", 1), status="ONGOING", priority=0, tags=["#project"], due_date="2024-11-30"),
         Task("Obsolete task", location=("/test2.xit", 2), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
     ]
 
@@ -59,11 +59,11 @@ def stats_sample_tasks():
     """Create a diverse list of tasks for statistics testing."""
     return [
         Task("Open task", location=("/test.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
-        Task("High priority", location=("/test.xit", 2), status="OPEN", priority=2, tags=["#urgent"], due_date="2025-12-31"),
+        Task("High priority", location=("/test.xit", 2), status="OPEN", priority=2, tags=["#urgent"], due_date="2024-12-31"),
         Task("Medium priority", location=("/test.xit", 3), status="OPEN", priority=1, tags=["#work"], due_date=None),
         Task("Done task", location=("/test.xit", 4), status="DONE", priority=0, tags=["#personal"], due_date=None),
         Task("Done priority", location=("/test.xit", 5), status="DONE", priority=1, tags=["#work"], due_date=None),
-        Task("Ongoing task", location=("/test.xit", 6), status="ONGOING", priority=0, tags=["#project"], due_date="2025-11-30"),
+        Task("Ongoing task", location=("/test.xit", 6), status="ONGOING", priority=0, tags=["#project"], due_date="2024-11-30"),
         Task("Obsolete task", location=("/test.xit", 7), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
     ]
 
@@ -122,6 +122,15 @@ Second Section with 3 Tasks
         file_path = Path(tmpdir) / "todo.xit"
         file_path.write_text(content, encoding='utf-8')
         yield file_path
+        
+        
+from datetime import datetime, timedelta
+
+# Define date variables before they're used in f-strings
+yesterday_date = (datetime.now() - timedelta(days=1)).date()
+today_date = datetime.now().date()
+tomorrow_date = (datetime.now() + timedelta(days=1)).date()
+one_week_date = (datetime.now() + timedelta(weeks=1)).date()
 
 files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] Open Task
@@ -174,28 +183,32 @@ files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ]    . Spaces before dots (invalid)
 [ ] !Missing space after (description)
 """,
-                "valid_due_dates.xit": """Tasks with valid due dates
-[ ] Task -> 2025-12-31
-[ ] Task -> 2025-12
-[ ] Task -> 2025
-[ ] Task -> 2025-W42
-[ ] Task -> 2025-Q4
-[ ] Task -> 2025/12/31
-[ ] Task -> 2025/W42
-[ ] Task with description -> 2025-12-31 and more text
+                "valid_due_dates.xit": f"""Tasks with valid due dates
+[ ] Task -> 2024-12-31
+[ ] Task -> 2024-12
+[ ] Task -> 2024
+[ ] Task -> 2024-W42
+[ ] Task -> 2024-Q4
+[ ] Task -> 2024/12/31
+[ ] Task -> 2024/W42
+[ ] Task with description -> 2024-12-31 and more text
+[ ] Task due yesterday -> {yesterday_date}
+[ ] Task due today -> {today_date}
+[ ] Task due tomorrow -> {tomorrow_date}
+[ ] Task due next week -> {one_week_date}
 """,
                 "invalid_due_dates.xit": """Tasks with invalid due dates
-[ ] Task → 2025-12-31 (wrong arrow)
-[ ] Task > 2025-12-31 (missing hyphen)
-[ ] Task - 2025-12-31 (wrong separator)
-[ ] Task ->2025-12-31 (missing space)
-[ ] Task -> 2025-12-31very (text after)
-[ ] Task -> 2025-12-31T10:00 (time)
-[ ] Task -> 2025/13/01 (invalid month)
-[ ] Task -> 2025/00/10 (invalid month)
-[ ] Task -> 2025/12/32 (invalid day)
-[ ] Task -> 2025-W54 (invalid week)
-[ ] Task -> 2025-Q5 (invalid quarter)
+[ ] Task → 2024-12-31 (wrong arrow)
+[ ] Task > 2024-12-31 (missing hyphen)
+[ ] Task - 2024-12-31 (wrong separator)
+[ ] Task ->2024-12-31 (missing space)
+[ ] Task -> 2024-12-31very (text after)
+[ ] Task -> 2024-12-31T10:00 (time)
+[ ] Task -> 2024/13/01 (invalid month)
+[ ] Task -> 2024/00/10 (invalid month)
+[ ] Task -> 2024/12/32 (invalid day)
+[ ] Task -> 2024-W54 (invalid week)
+[ ] Task -> 2024-Q5 (invalid quarter)
 """,
                 "valid_tags.xit": """Simple valid tags
 [ ] Task with #simple tag
@@ -220,7 +233,7 @@ Tasks with tags having values
       starts with two spaces
     . starts with a dot
     ! starts with an exclamation that is not priority
-    -> 2025-11-11 starts with a due date
+    -> 2024-11-11 starts with a due date
     #startstag starts with a tag
     This is still the same task.
 [ ] finally a next task
@@ -268,7 +281,7 @@ Outside the code block, this is just text.
             "unicode_file.xit": """Unicode Tasks
 [ ] 测试任务 #中文 #test
 [x] ✓ Completed task with emoji #emoji #done
-[@] Русская задача #русский #ongoing -> 2025-12-31
+[@] Русская задача #русский #ongoing -> 2024-12-31
 [~] Ελληνικό έργο #ελληνικά #obsolete""",
             "sectioned_file.xit": """First Section
 [ ] Task in first section
@@ -277,9 +290,39 @@ Second Section
 
 Third Section
 [ ] Task in third section""",
-
+            "valid_mixed.xit": f"""11 Mixed Tasks
+[ ] Open task
+[x] Completed task with 3 trailing spaces   
+[@] Ongoing task
+[~] Obsolete task
+[?] Task in question
+[ ] !! High priority task #urgent
+[ ] Task due tomorrow -> {tomorrow_date}
+[ ] Task with #tags -> 2024-10-21
+[ ] Task with #multiple #tags
+[ ] Simple task
+[ ] multi-line
+    task description
+    continues here
+""",
+            "valid_another_priority.xit": """To Do
+[ ] ! priority 1 task
+[ ] !! priority 2 task
+[ ] !!! priority 3 task
+[ ] !!!! priority 4 task
+[ ] !!!!! priority 5 task
+[ ] ....! priority 1 task with leading dots
+[ ] !.... priority 1 task with trailing dots
+[ ] task with no priority
+[ ] ... task with no priority but dots
+""",
+            "valid_another_due_dates.xit": """Due Dates Galore
+[ ] Task due 2024-10-20 -> 2024-10-20
+[ ] Task with no due date
+[ ] Task due 2024-10-21 -> 2024-10-21
+[ ] Task due 2024-10-19 -> 2024-10-19
+"""
 }
-
 
 
 @pytest.fixture

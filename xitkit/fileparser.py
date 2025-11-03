@@ -10,6 +10,7 @@ from .duedate import DueDate
 from .config import get_config
 from .exceptions import FileNotSupportedError, ParseError
 from .patterns import *
+from .location import Location
 
 
 @dataclass
@@ -23,6 +24,7 @@ class Section:
     title: str
     line_numbers: range = None
     tasks: Optional[List[Task]] = None
+    n_lines: int = 2 # title line + blank line
 
     def __post_init__(self):
         if self.tasks is None:
@@ -41,7 +43,25 @@ class Section:
     def add_task(self, task: Task):
         """Add a task to this section."""
         self.tasks.append(task)
+        n_task_lines = task.description.text.count('\n') + 1
+        self.n_lines += n_task_lines
+        
+    def write(self, file_handle) -> None:
+        """
+        Write the section and its tasks to the given file handle.
+        
+        Args:
+            file_handle: An open file handle to write to
+        
+        Returns:
+            None
+        
+        """
+        file_handle.write(f"{self.title}\n")
+        for task in self.tasks:
+            file_handle.write(f"{task.to_checkbox_format()}\n")
 
+        file_handle.write("\n")
 
 @dataclass
 class File:
@@ -53,6 +73,7 @@ class File:
     """
     path: str
     sections: dict[str, Section] = None
+    n_lines: int = 0
 
     def __post_init__(self):
         if self.sections is None:
@@ -61,6 +82,12 @@ class File:
     def add_section(self, section: Section):
         """Add a section to this file."""
         self.sections[section.title] = section
+        for idx, task in enumerate(section.tasks):
+            task.set_location(Location(self.path, 
+                              self.n_lines + idx + 2, # +1 for 1-based, +1 for section title line
+                              section.title))
+
+        self.n_lines += section.n_lines
     
     def get_tasks(self) -> List[Task]:
         """Get all tasks in the file across all sections."""
@@ -74,6 +101,13 @@ class File:
         if not self.sections:
             default_section = Section(title="To Do")
             self.sections["To Do"] = default_section
+            
+    def write(self) -> None:
+        """Write the file back to disk"""
+        
+        with open(self.path, 'w', encoding='utf-8') as f:
+            for section in self.sections.values():
+                section.write(f)
 
 
 
@@ -293,6 +327,14 @@ class FileParser:
                     else:
                         current_section_obj = file_obj.sections["To Do"]
                 
+                # Set the task's location if it doesn't have one
+                if context.current_task.location.section is None:
+                    context.current_task.set_location(Location(
+                        file_path=file_obj.path,
+                        line_numbers=context.current_task.location.line_numbers,
+                        section=current_section_obj.title
+                    ))
+                
                 current_section_obj.add_task(context.current_task)
                 context.current_task = None
             
@@ -319,6 +361,14 @@ class FileParser:
                     file_obj.add_section(current_section_obj)
                 else:
                     current_section_obj = file_obj.sections["To Do"]
+            
+            # Set the task's location if it doesn't have one
+            if context.current_task.location.section is None:
+                context.current_task.set_location(Location(
+                    file_path=file_obj.path,
+                    line_numbers=context.current_task.location.line_numbers,
+                    section=current_section_obj.title
+                ))
             
             current_section_obj.add_task(context.current_task)
     

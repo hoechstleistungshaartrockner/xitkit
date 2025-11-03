@@ -34,10 +34,10 @@ Developer experience
 User experience
 [ ] bash completion for xitkit commands #userexperience
 [x] interactive task showing that asks for file and section #ux
-[ ] interactive task adding #ux
-[ ] interactive task marking #ux
-[ ] interactive task priority changing #ux
-[ ] interactive task due date changing #ux
+[x] interactive task adding #ux
+[x] interactive task marking #ux
+[x] interactive task priority changing #ux
+[x] interactive task due date changing #ux
 [ ] interactive task description changing #ux
 [ ] interactive task tagging/untagging #ux
 [ ] interactive task removing #ux

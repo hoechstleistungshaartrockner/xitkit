@@ -226,7 +226,34 @@ class TaskService:
                 return task.due_date.implied_date or '9999-12-31'
             
             return sorted(tasks, key=due_date_key, reverse=reverse)
-
+        
+    def update_task(self, task: Task, 
+        new_status: Status=None, 
+        new_priority: Priority=None, 
+        new_due_date: DueDate=None) -> Task:
+        """Update a task's status, priority and/or due date.
+        
+        Args:
+            task: The Task object to update
+            new_status: New status to set
+            new_priority: New priority to set
+            new_due_date: New due date to set
+        Returns:
+            The updated Task object
+        """
+        # Update task properties
+        if new_status:
+            task.set_status(new_status)
+        if new_priority:    
+            task.set_priority(new_priority)
+        if new_due_date:
+            task.set_due_date(new_due_date.implied_date if new_due_date else None)
+            
+        # Update the task in the file
+        task.save_to_location(task.location, mode='update')
+        
+        return task
+        
     def update_task_by_id(self, task_id: int,
         file_paths: List[str], 
         new_status: Status=None, 
@@ -260,18 +287,12 @@ class TaskService:
         if not target_task:
             return None
         
-        # Update task properties
-        if new_status:
-            target_task.set_status(new_status)
-        if new_priority:
-            target_task.set_priority(new_priority)
-        if new_due_date:
-            target_task.set_due_date(new_due_date.implied_date if new_due_date else None)
-        
-        # Update the task in the file using the new method
-        target_task.save_to_location(target_task.location, mode='update')
-        
-        return target_task
+        return self.update_task(
+                    task=target_task,
+                    new_status=new_status,
+                    new_priority=new_priority,
+                    new_due_date=new_due_date
+                )
 
     def update_task_description(self, task_id: int, new_description: str, file_paths: List[str]) -> Optional[Task]:
         """Update a task's description by its ID.
@@ -431,6 +452,49 @@ class TaskService:
         
         return True
     
+    def add_task_to_section(self, task: Task, section_title: str, 
+                                  file_path: str) -> bool:
+        """Add a task to a specific file section
+
+        Args:
+            task: Task object to add
+            section_title: Title of the section to add the task to
+            file_path: Path to the file containing the section
+
+        Returns:
+            True if the task was added successfully, False otherwise
+        """
+        # Load the file and find the section
+        parser = FileParser()
+        file_obj = parser.parse_file(file_path)
+        section = file_obj.sections.get(section_title)
+        if not section:
+            return False
+
+        # Add the task to the section
+        section.add_task(task)
+        file_obj.write()
+
+        return True
+    
+    def find_task_by_id(self, task_id: int, file_obj) -> Optional[Task]:
+        """Find a task by its ID within a file object.
+
+        Args:
+            task_id: ID of the task to find
+            file_obj: File object to search within
+
+        Returns:
+            The Task object if found, None otherwise
+        """
+        for section in file_obj.sections.values():
+            for task in section.tasks:
+                if task.id == task_id:
+                    return task
+        return None
+
+
+
     def recur_task_by_id(self, task_id: int, interval: str, end_date: str = None, 
                         count: int = None, target_file: str = None,
                         directory: Path = None, specified_files: list = None) -> List[Task]:

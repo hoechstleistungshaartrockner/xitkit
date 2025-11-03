@@ -103,15 +103,20 @@ class TestValidFormats(ParserTestBase):
         """Test parsing various due date formats."""
         tasks = self.parse_and_unpack(isolated_test_files / "valid_due_dates.xit")
         
-        assert len(tasks) == 8
-        assert tasks[0].due_date.normalized_date == "2025-12-31"
-        assert tasks[1].due_date.normalized_date == "2025-12-31"  # 2025-12 implies end of month
-        assert tasks[2].due_date.normalized_date == "2025-12-31"  # 2025 implies end of year
-        assert tasks[3].due_date.normalized_date == "2025-10-19"  # KW42 of 2025
-        assert tasks[4].due_date.normalized_date == "2025-12-31"  # Q4 of 2025
-        assert tasks[5].due_date.normalized_date == "2025-12-31"  # Slash format
-        assert tasks[6].due_date.normalized_date == "2025-10-19"  # Slash week format (KW42 of 2025)
-        assert tasks[7].due_date.normalized_date == "2025-12-31"
+        assert len(tasks) == 12
+        assert tasks[0].due_date.normalized_date == "2024-12-31"
+        assert tasks[1].due_date.normalized_date == "2024-12-31"  # 2024-12 implies end of month
+        assert tasks[2].due_date.normalized_date == "2024-12-31"  # 2024 implies end of year
+        assert tasks[3].due_date.normalized_date == "2024-10-20"  # KW42 of 2024
+        assert tasks[4].due_date.normalized_date == "2024-12-31"  # Q4 of 2024
+        assert tasks[5].due_date.normalized_date == "2024-12-31"  # Slash format
+        assert tasks[6].due_date.normalized_date == "2024-10-20"  # Slash week format (KW42 of 2024)
+        assert tasks[7].due_date.normalized_date == "2024-12-31"
+        # Additional tasks with relative dates (yesterday, today, tomorrow, next week)
+        assert tasks[8].due_date.normalized_date == "2025-11-02"  # yesterday
+        assert tasks[9].due_date.normalized_date == "2025-11-03"  # today  
+        assert tasks[10].due_date.normalized_date == "2025-11-04"  # tomorrow
+        assert tasks[11].due_date.normalized_date == "2025-11-10"  # next week
 
     def test_parse_basic_tags(self, isolated_test_files):
         """Test parsing basic tag formats."""
@@ -155,14 +160,14 @@ class TestValidFormats(ParserTestBase):
         tasks = self.parse_and_unpack(isolated_test_files / "valid_multiline.xit")
 
         assert len(tasks) == 4
-        assert tasks[0].description.text == "Multi-line task ...\nwith continuation line\n123 starts with numbers\n*&$^% starts with symbols\n  starts with two spaces\n. starts with a dot\n! starts with an exclamation that is not priority\n-> 2025-11-11 starts with a due date\n#startstag starts with a tag\nThis is still the same task."
+        assert tasks[0].description.text == "Multi-line task ...\nwith continuation line\n123 starts with numbers\n*&$^% starts with symbols\n  starts with two spaces\n. starts with a dot\n! starts with an exclamation that is not priority\n-> 2024-11-11 starts with a due date\n#startstag starts with a tag\nThis is still the same task."
         assert tasks[1].description.text == "finally a next task"
         assert tasks[2].description.text == "Another multi-line task\nwith only one continuation line but after that there's an empty line"
         assert tasks[3].description.text == "Task with continuation line that has only spaces\n\n       \nThis line with text is valid continuation."
 
         # Check that tags and due dates are correctly parsed from multiline tasks
         assert tasks[0].tags[0].name == "startstag"
-        assert tasks[0].due_date.normalized_date == "2025-11-11"
+        assert tasks[0].due_date.normalized_date == "2024-11-11"
 
     def test_parse_utf8_content(self, isolated_test_files):
         """Test parsing UTF-8 content."""
@@ -279,6 +284,20 @@ class TestFileParsing(ParserTestBase):
         with pytest.raises(FileNotFoundError):
             file_parser.parse_file("/nonexistent/file.xit")
     
+    def test_parse_empty_file(self, isolated_test_files, file_parser):
+        """Test parsing an empty file returns no tasks."""
+        empty_file = isolated_test_files / "empty_file.xit"
+        empty_file.touch()  # Ensure the file is empty
+        file_obj = file_parser.parse_file(str(empty_file))
+        
+        tasks = file_obj.get_tasks()
+        assert len(tasks) == 0
+        
+        sections = list(file_obj.sections.values())
+        assert len(sections) == 1
+        assert sections[0].title == "To Do"
+        assert sections[-1].title == "To Do"
+    
     def test_parse_unsupported_file_type(self, temp_dir, file_parser):
         """Test parsing unsupported file type raises ValueError."""
         test_file = create_test_file(temp_dir, "test.txt", "[ ] Task")
@@ -319,3 +338,48 @@ class TestFileParsing(ParserTestBase):
         # Should get 3 tasks from the 2 valid files
         assert len(tasks) == 5 + 9 # 5 from valid_status, 9 from valid_priority
     
+class TestWriteFile:
+    """Test writing tasks back to file."""
+    
+    def test_write_tasks_to_file(self, tmpdir):
+        """Test writing tasks to a file."""
+        file_path = tmpdir / "write_test.xit"
+
+        section1 = Section("First Section")
+        section1.add_task(
+            Task(description="Task one in first section")
+            )
+        assert section1.n_lines == 3  # 2 lines for title and blank + 1 task line
+        section2 = Section("Second Section")
+        section2.add_task(
+            Task(description="Task one in second section")
+            )
+        assert section2.n_lines == 3  # 2 lines for title and blank + 1 task line
+        
+        # Create file and add sections
+        file = File(file_path)
+        file.add_section(section1)
+        file.add_section(section2)
+        file.write()
+        
+        tasks = file.get_tasks()
+        assert len(tasks) == 2
+        for t in tasks:
+            assert t.location.file_path == file_path
+        assert tasks[0].location.section == "First Section"
+        assert tasks[1].location.section == "Second Section"
+        assert tasks[0].location.line_numbers == range(2, 3)
+        assert tasks[1].location.line_numbers == range(5, 6)
+        
+        # Read back the file and verify contents
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        expected_content = """First Section
+[ ] Task one in first section
+
+Second Section
+[ ] Task one in second section
+
+"""
+        assert content == expected_content

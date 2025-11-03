@@ -399,3 +399,32 @@ class TestStatusEdgeCases:
         for whitespace_status in whitespace_cases:
             status = Status.from_string(whitespace_status)
             assert status is None
+            
+class TestStatusInstantiation:
+    """Test instantiation of Status class."""
+    
+    @pytest.mark.parametrize("input_value,expected_type", [
+        ("open", StatusType.OPEN),
+        ("checked", StatusType.CHECKED),
+        ("ongoing", StatusType.ONGOING),
+        ("obsolete", StatusType.OBSOLETE),
+        ("in_question", StatusType.IN_QUESTION),
+        ("OPEN", StatusType.OPEN),
+        ("CHECKED", StatusType.CHECKED),
+        ("ONGOING", StatusType.ONGOING),
+        ("OBSOLETE", StatusType.OBSOLETE),
+        ("IN_QUESTION", StatusType.IN_QUESTION),
+        ("INQUESTION", StatusType.IN_QUESTION),
+        ("[ ]", StatusType.OPEN),
+        ("[x]", StatusType.CHECKED),
+        ("[@]", StatusType.ONGOING),
+        ("[~]", StatusType.OBSOLETE),
+        ("[?]", StatusType.IN_QUESTION),
+        ("DONE", StatusType.CHECKED)
+    ])
+    def test_valid_instantiation(self, input_value, expected_type):
+        """Test that valid inputs instantiate Status correctly."""
+        status = Status.from_string(input_value)
+        assert status.status_type == expected_type
+        assert isinstance(status, Status)
+        assert str(status) == Status(expected_type).to_checkbox()

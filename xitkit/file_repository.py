@@ -117,47 +117,6 @@ class FileRepository:
         """
         return list(self._files.keys())
     
-    def find_task_by_id(self, file_path: str, task_id: int) -> Optional[task.Task]:
-        """
-        Find a task by its ID within a file.
-        
-        Args:
-            file_path: Path to the file containing the task
-            task_id: task.Task ID to find
-            
-        Returns:
-            task.Task object if found, None otherwise
-        """
-        file_obj = self.get_file(file_path)
-        
-        for section in file_obj.sections.values():
-            for task in section.tasks:
-                if task.id == task_id:
-                    return task
-        
-        return None
-    
-    def remove_task_by_id(self, file_path: str, task_id: int) -> Optional[task.Task]:
-        """
-        Remove a task by finding it via its ID.
-        
-        Args:
-            file_path: Path to the file containing the task
-            task_id: ID of the task to remove
-            
-        Returns:
-            Removed task object if found, None otherwise
-        """
-        file_obj = self.get_file(file_path)
-        
-        for section in file_obj.sections.values():
-            for task in section.tasks:
-                if task.id == task_id:
-                    file_obj.remove_task(task)
-                    return task
-        
-        return None
-    
     def update_task(self, task: task.Task) -> bool:
         """
         Update a task in its file using ID-based matching.
@@ -176,23 +135,23 @@ class FileRepository:
             file.add_task(task)
         file.write()
         return True
-    
-    def remove_task(self, task: task.Task) -> bool:
+
+    def unlink_task(self, task: task.Task) -> bool:
         """
-        Remove a task from its file using ID-based matching.
-        
+        Unlink a task from its file without deleting it.
+
         Args:
-            task: task.Task object to remove
-            
+            task: task.Task object to unlink
+
         Returns:
-            True if task was found and removed, False otherwise
+            True if task was unlinked successfully, False otherwise
         """
-        removed_task = self.remove_task_by_id(
-            file_path=task.location.file_path,
-            task_id=task.id
-        )
-        return removed_task is not None
-    
+        file = self.get_file(task.location.file_path)
+        if file:
+            file.remove_task(task)
+            return True
+        return False
+
     def add_task_to_file(self, task: task.Task, file_path: str, section_name: Optional[str] = None) -> bool:
         """
         Add a task to a file, optionally in a specific section.

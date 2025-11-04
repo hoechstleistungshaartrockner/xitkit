@@ -368,6 +368,7 @@ class TaskFormatter:
         Args:
             message: Error message to display
         """
+        message = message.replace("[", "\\[")
         self.console.print(f"[red]{message}[/red]")
     
     def display_warning(self, message: str) -> None:
@@ -376,6 +377,7 @@ class TaskFormatter:
         Args:
             message: Warning message to display
         """
+        message = message.replace("[", "\\[")
         self.console.print(f"[yellow]{message}[/yellow]")
     
     def display_success(self, message: str) -> None:
@@ -384,6 +386,7 @@ class TaskFormatter:
         Args:
             message: Success message to display
         """
+        message = message.replace("[", "\\[")
         self.console.print(f"[green]{message}[/green]")
 
 

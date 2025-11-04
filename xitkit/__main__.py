@@ -273,7 +273,7 @@ def mark(ctx, task_ids, status, directory, files, interactive, debug):
     command = CommandFactory.create_mark_command()
     command.execute(
         task_ids=list(task_ids),
-        status=status,
+        new_attribute=status,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         interactive=interactive,
@@ -322,7 +322,7 @@ def reschedule(ctx, task_id, new_date, directory, files, interactive, debug):
     command = CommandFactory.create_reschedule_command()
     command.execute(
         task_ids=task_id,
-        new_date=new_date,
+        new_attribute=new_date,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         interactive=interactive,
@@ -336,9 +336,13 @@ def reschedule(ctx, task_id, new_date, directory, files, interactive, debug):
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--force', is_flag=True,
+              help='Automatically confirm task removals without prompting')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to remove tasks from')
 @click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def rm(ctx, task_ids, directory, files, debug):
+def rm(ctx, task_ids, directory, files, force, interactive, debug):
     """Remove one or more tasks by their IDs with confirmation.
     
     Shows each task and asks for confirmation before permanently deleting it.
@@ -355,7 +359,7 @@ def rm(ctx, task_ids, directory, files, debug):
         xit rm 3 --files tasks.xit  # Remove task #3 from specific file (with confirmation)
         xit rm 5 --directory /path/to/project  # Remove task from specific directory
     """
-    if not task_ids:
+    if not task_ids and not interactive:
         click.echo("Error: Must specify at least one task ID", err=True)
         ctx.exit(1)
     
@@ -363,23 +367,29 @@ def rm(ctx, task_ids, directory, files, debug):
     command = CommandFactory.create_remove_command()
     command.execute(
         task_ids=list(task_ids),
+        new_attribute=force,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
+        interactive=interactive,
         debug=debug
     )
 
 
 @xitkit.command()
 @click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
-@click.option('--target', '-t', required=True, 
+@click.option('--target-file', '-t', required=True, 
               help='Target file to move the tasks to')
+@click.option('--section', '-s', type=str,
+              help='Target section within the file to move the tasks to')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to move tasks from')
 @click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def move(ctx, task_ids, target, directory, files, debug):
+def move(ctx, task_ids, target_file, section, directory, files, interactive, debug):
     """Move one or more tasks to another file.
     
     Moves tasks from their current files to the specified target file.
@@ -395,7 +405,7 @@ def move(ctx, task_ids, target, directory, files, debug):
         xit move 3 -t done.xit --files tasks.xit  # Move task #3 to done.xit from specific file
         xit move 5 --target archive.xit --directory /path/to/project  # Move task from specific directory
     """
-    if not task_ids:
+    if not task_ids and not interactive:
         click.echo("Error: Must specify at least one task ID", err=True)
         ctx.exit(1)
     
@@ -403,9 +413,10 @@ def move(ctx, task_ids, target, directory, files, debug):
     command = CommandFactory.create_move_command()
     command.execute(
         task_ids=list(task_ids),
-        target_file=target,
+        new_attribute=(target_file, section),
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
+        interactive=interactive,
         debug=debug
     )
 
@@ -534,7 +545,7 @@ def prio(ctx, task_id, priority, directory, files, interactive, debug):
     command = CommandFactory.create_priority_command()
     command.execute(
         task_ids=task_id,
-        priority=priority,
+        new_attribute=priority,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],   
         interactive=interactive,
@@ -571,8 +582,8 @@ def tag(ctx, task_id, tag, directory, files, interactive, debug):
     # Create and execute command
     command = CommandFactory.create_tag_command()
     command.execute(
-        task_id=task_id,
-        tag=tag,
+        task_ids=task_id,
+        new_attribute=tag,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         interactive=interactive,
@@ -581,15 +592,18 @@ def tag(ctx, task_id, tag, directory, files, interactive, debug):
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('tag', type=str, metavar='TAG')
+@click.option('--task_id', '-t', type=int, multiple=True,
+              help='ID of the task to remove tag from (can be used multiple times)')
+@click.option('--tag', type=str, multiple=True, required=True,
+              help='Tag name(s) to remove (without # prefix, can be used multiple times)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--interactive", '-i', is_flag=True, help="Enable interactive mode to select tasks.")
 @click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def untag(ctx, task_id, tag, directory, files, debug):
+def untag(ctx, task_id, tag, directory, files, interactive,debug):
     """Remove a tag from a task.
     
     Removes a hashtag from an existing task. The # symbol is optional.
@@ -606,10 +620,11 @@ def untag(ctx, task_id, tag, directory, files, debug):
     # Create and execute command
     command = CommandFactory.create_untag_command()
     command.execute(
-        task_id=task_id,
-        tag=tag,
+        task_ids=task_id,
+        new_attribute=tag,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],   
+        interactive=interactive,
         debug=debug
     )
 

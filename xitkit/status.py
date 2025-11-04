@@ -127,11 +127,19 @@ class Status:
                               "DONE": StatusType.CHECKED,
                               "COMPLETE": StatusType.CHECKED,
                               "ACTIVE": StatusType.OPEN,
+                              # checkbox formats
                               "[ ]": StatusType.OPEN,
                               "[x]": StatusType.CHECKED,
                               "[@]": StatusType.ONGOING,
                               "[~]": StatusType.OBSOLETE,
-                              "[?]": StatusType.IN_QUESTION}
+                              "[?]": StatusType.IN_QUESTION,
+                              # single character indicators
+                              " ": StatusType.OPEN,
+                              "x": StatusType.CHECKED,
+                              "@": StatusType.ONGOING,
+                              "~": StatusType.OBSOLETE,
+                              "?": StatusType.IN_QUESTION,
+                              }
         status_type = allowed_values.get(status_str, None)
         if status_type is None:
             raise XitError(f"Invalid status string: {status_str}")

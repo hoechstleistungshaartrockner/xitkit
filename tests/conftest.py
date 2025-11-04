@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Union
 
 from xitkit.task import Task
-from xitkit.services import TaskService, FileDiscoveryService
+from xitkit.services import TaskService
 from xitkit.formatter import TaskFormatter
 from xitkit.fileparser import FileParser
 from xitkit.file_repository import FileRepository
@@ -23,24 +23,15 @@ def temp_dir():
     with tempfile.TemporaryDirectory() as tmpdir:
         yield Path(tmpdir)
 
-
 @pytest.fixture
 def task_service():
     """Create a TaskService instance for testing."""
     return TaskService()
 
-
-@pytest.fixture
-def file_service():
-    """Create a FileDiscoveryService instance for testing."""
-    return FileDiscoveryService()
-
-
 @pytest.fixture
 def task_formatter():
     """Create a TaskFormatter instance for testing."""
     return TaskFormatter()
-
 
 @pytest.fixture
 def file_parser():
@@ -50,27 +41,15 @@ def file_parser():
 
 @pytest.fixture
 def sample_tasks():
-    """Create a list of sample tasks for testing."""
-    return [
-        Task("Open task", location=("/test1.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
-        Task("High priority task", location=("/test1.xit", 2), status="OPEN", priority=2, tags=["#work", "#urgent"], due_date="2024-12-31"),
-        Task("Done task", location=("/test1.xit", 3), status="DONE", priority=1, tags=["#personal"], due_date=None),
-        Task("Ongoing task", location=("/test2.xit", 1), status="ONGOING", priority=0, tags=["#project"], due_date="2024-11-30"),
-        Task("Obsolete task", location=("/test2.xit", 2), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
-    ]
-
-
-@pytest.fixture
-def stats_sample_tasks():
-    """Create a diverse list of tasks for statistics testing."""
+    """Create a diverse list of tasks for testing."""
     return [
         Task("Open task", location=("/test.xit", 1), status="OPEN", priority=0, tags=["#work"], due_date=None),
         Task("High priority", location=("/test.xit", 2), status="OPEN", priority=2, tags=["#urgent"], due_date="2024-12-31"),
         Task("Medium priority", location=("/test.xit", 3), status="OPEN", priority=1, tags=["#work"], due_date=None),
         Task("Done task", location=("/test.xit", 4), status="DONE", priority=0, tags=["#personal"], due_date=None),
         Task("Done priority", location=("/test.xit", 5), status="DONE", priority=1, tags=["#work"], due_date=None),
-        Task("Ongoing task", location=("/test.xit", 6), status="ONGOING", priority=0, tags=["#project"], due_date="2024-11-30"),
-        Task("Obsolete task", location=("/test.xit", 7), status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
+        Task("Ongoing task", location=("/other.xit", 6), status="ONGOING", priority=0, tags=["#project"], due_date="2024-11-30"),
+        Task("Obsolete task", status="OBSOLETE", priority=0, tags=["#old"], due_date=None),
     ]
 
 
@@ -105,29 +84,29 @@ def assert_task_equal(task1: Task, task2: Task) -> None:
     assert task1.tags == task2.tags
     assert task1.due_date == task2.due_date
 
-@pytest.fixture
-def sectionized_file():
-    """Create a temporary file with sections for testing."""
-    content = """
-First Section with 5 Tasks
-[ ] Open Task 1 in Section 1 #section1
-[@] Task in Progress in Section 1 #section1
-[~] Obsolete Task in Section 1 #section1
-[x] Done Task in Section 1 #section1
-[?] Task in Question in Section 1 #section1
+# @pytest.fixture
+# def sectionized_file():
+#     """Create a temporary file with sections for testing."""
+#     content = """
+# First Section with 5 Tasks
+# [ ] Open Task 1 in Section 1 #section1
+# [@] Task in Progress in Section 1 #section1
+# [~] Obsolete Task in Section 1 #section1
+# [x] Done Task in Section 1 #section1
+# [?] Task in Question in Section 1 #section1
 
-Second Section with 3 Tasks
-[ ] Multi-line Task in Section 2
-    Continuation line 1
-    Continuation line 2
-[x] Completed Task in Section 2 #section2
-[ ] !! High Priority Task in Section 2 #section2 #priority
+# Second Section with 3 Tasks
+# [ ] Multi-line Task in Section 2
+#     Continuation line 1
+#     Continuation line 2
+# [x] Completed Task in Section 2 #section2
+# [ ] !! High Priority Task in Section 2 #section2 #priority
 
-    """
-    with tempfile.TemporaryDirectory() as tmpdir:
-        file_path = Path(tmpdir) / "todo.xit"
-        file_path.write_text(content, encoding='utf-8')
-        yield file_path
+#     """
+#     with tempfile.TemporaryDirectory() as tmpdir:
+#         file_path = Path(tmpdir) / "todo.xit"
+#         file_path.write_text(content, encoding='utf-8')
+#         yield file_path
         
         
 from datetime import datetime, timedelta
@@ -137,6 +116,25 @@ yesterday_date = (datetime.now() - timedelta(days=1)).date()
 today_date = datetime.now().date()
 tomorrow_date = (datetime.now() + timedelta(days=1)).date()
 one_week_date = (datetime.now() + timedelta(weeks=1)).date()
+
+# Create a large file content for performance testing
+large_file_lines = []
+status_chars = [' ', 'x', '@', '~', '?']
+        
+for i in range(1000):
+    status = status_chars[i % len(status_chars)]
+    priority = "!" * (i % 4)  # 0-3 priority levels
+    tags = f"#tag{i % 10} #category{i % 5}"
+    due_date = f"-> 2025-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}"
+    
+    task_line = f"[{status}] {priority} Task {i} {tags} {due_date}".strip()
+    large_file_lines.append(task_line)
+    
+    # Add some multi-line tasks
+    if i % 20 == 0:
+        large_file_lines.append("    This is a continuation line")
+        large_file_lines.append("    With more details")
+large_file_content = "\n".join(large_file_lines)
 
 files_dict = {"valid_status.xit": """Tasks with valid statuses
 [ ] Open Task
@@ -347,6 +345,7 @@ Third Section
 [ ] Task due 2024-10-19 -> 2024-10-19
 
 """,
+            "valid_large_file.xit": large_file_content,
 }
 
 

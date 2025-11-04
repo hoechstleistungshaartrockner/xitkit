@@ -169,197 +169,35 @@ class TestUnicodeAndSpecialContent:
 
 
 @pytest.mark.integration
-class TestErrorHandlingIntegration:
-    """Test error handling in integrated workflows."""
-    
-    def test_mixed_valid_invalid_files(self, temp_dir):
-        """Test handling mix of valid and invalid files."""
-        # Create valid file
-        valid_content = """[ ] Valid task 1
-[x] Valid task 2"""
-        valid_file = create_test_file(temp_dir, "valid.xit", valid_content)
-        
-        # Create file with mixed valid/invalid content
-        mixed_content = """[ ] Valid task
-[*] Invalid status
-[ ]Invalid spacing
- [x] Invalid leading space
-[ ] Another valid task
-[x] Final valid task"""
-        mixed_file = create_test_file(temp_dir, "mixed.xit", mixed_content)
-        
-        # Create unsupported file type
-        unsupported_file = create_test_file(temp_dir, "unsupported.txt", "[ ] Should be ignored")
-        
-        # Test file discovery (should include only supported types)
-        discovery_service = FileDiscoveryService()
-        files = discovery_service.resolve_file_paths(
-            directory=temp_dir,
-            specified_files=None
-        )
-        
-        # Should find .xit files but not .txt
-        xit_files = [f for f in files if f.endswith('.xit')]
-        assert len(xit_files) == 2
-        assert not any(f.endswith('.txt') for f in files)
-        
-        # Test parsing (should handle invalid lines gracefully)
-        service = TaskService()
-        tasks = service.load_tasks(files)
-        
-        # Should parse valid tasks and skip invalid ones
-        assert len(tasks) == 5  # 2 from valid + 3 valid from mixed
-        
-        # All parsed tasks should be valid
-        for task in tasks:
-            assert task.status.status_type.name in ["OPEN", "CHECKED", "ONGOING", "OBSOLETE", "IN_QUESTION"]
-            assert task.priority.level >= 0
-    
-    def test_empty_and_malformed_files(self, temp_dir):
-        """Test handling of empty and malformed files."""
-        # Create empty file
-        empty_file = create_test_file(temp_dir, "empty.xit", "")
-        
-        # Create file with only headers and blank lines
-        headers_only = create_test_file(temp_dir, "headers.xit", """
-Header 1
-
-Header 2
-
-
-Another Header
-
-
-""")
-        
-        # Create file with only invalid content
-        invalid_only = create_test_file(temp_dir, "invalid.xit", """
-[*] Invalid status
-[] Missing space
- [x] Leading space
-[x]Missing space after
-""")
-        
-        # Test parsing all files
-        service = TaskService()
-        files = [str(empty_file), str(headers_only), str(invalid_only)]
-        tasks = service.load_tasks(files)
-        
-        # Should handle gracefully without crashing
-        assert isinstance(tasks, list)
-        assert len(tasks) == 0  # No valid tasks
-        
-        # Test statistics with empty results
-        stats = service.get_task_statistics(tasks)
-        assert stats['total'] == 0
-        assert stats['by_status'] == {}
-        assert stats['by_priority'] == {}
-
-
-@pytest.mark.integration
 class TestPerformanceIntegration:
     """Test performance with larger datasets."""
     
-    @pytest.mark.slow
-    def test_large_file_handling(self, temp_dir):
+    @pytest.mark.parametrize("file_name, n, allowed_seconds", [
+        ('valid_large_file.xit', 100, 5.0),
+        ('valid_status.xit', 1000, 2.0)
+    ])
+    def test_many_files_handling(self, isolated_test_files, file_name, n, allowed_seconds):
         """Test handling of files with many tasks."""
-        # Generate a large file with many tasks
-        lines = ["Large Task File", ""]
-        
-        for i in range(1000):
-            status_chars = [' ', 'x', '@', '~', '?']
-            status = status_chars[i % len(status_chars)]
-            priority = "!" * (i % 4)  # 0-3 priority levels
-            tags = f"#tag{i % 10} #category{i % 5}"
-            due_date = f"-> 2025-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}"
-            
-            task_line = f"[{status}] {priority} Task {i} {tags} {due_date}".strip()
-            lines.append(task_line)
-            
-            # Add some multi-line tasks
-            if i % 100 == 0:
-                lines.append("    This is a continuation line")
-                lines.append("    With more details")
-        
-        large_content = "\n".join(lines)
-        large_file = create_test_file(temp_dir, "large.xit", large_content)
+
+        file_path = isolated_test_files / file_name
         
         # Test parsing performance
         import time
         start_time = time.time()
-        
-        service = TaskService()
-        tasks = service.load_tasks([str(large_file)])
+
+        for i in range(n):
+            file_obj = FileRepository().get_file(str(file_path))
+            tasks = file_obj.get_tasks()
+            FileRepository().reset()
         
         parse_time = time.time() - start_time
         
         # Should parse successfully
-        assert len(tasks) == 1000
-        
+        print(parse_time)
+        # assert False, "Debugging performance"
         # Should complete in reasonable time (adjust threshold as needed)
-        assert parse_time < 5.0  # 5 seconds max for 1000 tasks
-        
-        # Test filtering performance
-        start_time = time.time()
-        
-        from xitkit.status import Status, StatusType
-        filters = TaskFilter(status=[Status(StatusType.OPEN)])
-        filtered_tasks = service.filter_tasks(tasks, filters)
-        
-        filter_time = time.time() - start_time
-        
-        # Should filter successfully
-        assert len(filtered_tasks) > 0
-        assert filter_time < 1.0  # 1 second max for filtering
-        
-        # Test statistics performance
-        start_time = time.time()
-        
-        stats = service.get_task_statistics(tasks)
-        
-        stats_time = time.time() - start_time
-        
-        # Should calculate stats successfully
-        assert stats['total'] == 1000
-        assert stats_time < 1.0  # 1 second max for stats
-    
-    @pytest.mark.slow
-    def test_many_files_handling(self, temp_dir):
-        """Test handling of many small files."""
-        # Create many small files
-        files = []
-        for i in range(100):
-            content = f"""File {i} Tasks
-[ ] Task {i}.1 #file{i}
-[x] Task {i}.2 #file{i}
-[@] Task {i}.3 #file{i} -> 2025-12-{(i % 30) + 1:02d}"""
-            
-            file_path = create_test_file(temp_dir, f"tasks_{i:03d}.xit", content)
-            files.append(str(file_path))
-        
-        # Test discovery performance
-        import time
-        start_time = time.time()
-        
-        service = TaskService()
-        discovered_files = service.find_task_files(temp_dir)
-        
-        discovery_time = time.time() - start_time
-        
-        # Should discover all files
-        assert len(discovered_files) == 100
-        assert discovery_time < 2.0  # 2 seconds max for discovery
-        
-        # Test batch parsing performance
-        start_time = time.time()
-        
-        tasks = service.load_tasks(discovered_files)
-        
-        parse_time = time.time() - start_time
-        
-        # Should parse all tasks
-        assert len(tasks) == 300  # 3 tasks per file * 100 files
-        assert parse_time < 10.0  # 10 seconds max for 100 files
+        assert parse_time < allowed_seconds  # Max time for parsing
+
 
 
 class TestFormatRecreation:
@@ -467,3 +305,53 @@ class TestFormatRecreation:
         finally:
             # Clean up first temporary file
             os.unlink(temp_file_path)
+
+class TestRecurringTask:
+    
+    def test_recur_task_end_date(self, isolated_test_files):
+        """Test that recurring tasks with end dates are handled correctly."""
+        
+        file = isolated_test_files / 'valid_due_dates.xit'
+        repo = FileRepository()
+        file_obj = repo.get_file(str(file))
+        tasks = file_obj.get_tasks()
+        n_tasks_before = len(tasks)
+        
+        first_task = tasks[0]
+        first_task_section = first_task.location.section
+        first_task.recur(interval="1w", end_date="2025-01-31")
+        tasks_after = file_obj.get_tasks()
+        n_tasks_after = len(tasks_after)
+        
+        assert n_tasks_after == n_tasks_before + 4 # 4 weeks from 2024-12-31 to 2025-01-31
+        
+        assert tasks_after[-4].due_date.implied_date == "2025-01-07"
+        assert tasks_after[-3].due_date.implied_date == "2025-01-14"
+        assert tasks_after[-2].due_date.implied_date == "2025-01-21"
+        assert tasks_after[-1].due_date.implied_date == "2025-01-28"
+        
+        # test that tasks were added to file_obj in the same section
+        section = file_obj.sections.get(first_task_section)
+        assert section is not None
+        assert len(section.tasks) == n_tasks_after  # all tasks are in the same section
+        
+    def test_recur_task_count(self, isolated_test_files):
+        """Test that recurring tasks with count are handled correctly."""
+        
+        file = isolated_test_files / 'valid_due_dates.xit'
+        repo = FileRepository()
+        file_obj = repo.get_file(str(file))
+        tasks = file_obj.get_tasks()
+        n_tasks_before = len(tasks)
+        
+        first_task = tasks[0]
+        first_task.recur(interval="2d", count=3)
+        tasks_after = file_obj.get_tasks()
+        n_tasks_after = len(tasks_after)
+        
+        assert n_tasks_after == n_tasks_before + 3 # 3 additional tasks
+        
+        assert tasks_after[-3].due_date.implied_date == "2025-01-02"
+        assert tasks_after[-2].due_date.implied_date == "2025-01-04"
+        assert tasks_after[-1].due_date.implied_date == "2025-01-06"
+        

@@ -222,12 +222,13 @@ class File:
             
             current_line += section.n_lines
             
-    def write(self) -> None:
+    def write(self) -> bool:
         """Write the file back to disk"""
         
         with open(self.path, 'w', encoding='utf-8') as f:
             for section in self.sections.values():
                 section.write(f)
+        return True
 
 
 

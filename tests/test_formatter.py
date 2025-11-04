@@ -127,7 +127,7 @@ class TestTaskFormatting:
         result = task_formatter.format_task(task)
         
         text_content = str(result)
-        assert text_content == "#000 [ ] !! Important task"
+        assert text_content == "#001 [ ] !! Important task"
     
     def test_format_task_different_statuses(self, task_formatter):
         """Test formatting tasks with different statuses."""
@@ -166,7 +166,7 @@ class TestTaskFormatting:
         lines = str(result).split('\n')
         print(lines)
         assert len(lines) == 2
-        assert lines[0] == "#000 [ ] Line one"
+        assert lines[0] == "#001 [ ] Line one"
         assert lines[1] == "         Line two"
 
     def test_format_task_with_trailing_whitespace(self, task_formatter):
@@ -187,7 +187,7 @@ class TestTaskFormatting:
         result = task_formatter.format_task(task, show_location=True)
         
         text_content = str(result)
-        assert text_content == "#000 [ ] Test task    (/test.xit:42)"
+        assert text_content == "#001 [ ] Test task    (/test.xit:42)"
     
     def test_format_task_with_tags_and_dates(self, task_formatter):
         """Test formatting a task with tags and due dates."""
@@ -198,7 +198,7 @@ class TestTaskFormatting:
         
         # The formatter should highlight syntax in the description
         text_content = str(result)
-        assert text_content == "#000 [ ] Task with #tag and -> 2025-12-31"
+        assert text_content == "#001 [ ] Task with #tag and -> 2025-12-31"
 
 
 class TestDisplayMethods:
@@ -311,7 +311,7 @@ class TestConvenienceFunction:
         result = format_task_rich(task, show_location=True)
         
         text_content = str(result)
-        assert text_content == "#000 [ ] Test task    (/test.xit:42)"
+        assert text_content == "#001 [ ] Test task    (/test.xit:42)"
 
 
 class TestFormatterEdgeCases:
@@ -385,10 +385,10 @@ class TestFormatterWithRealContent:
         result_lines = str(result).split('\n')
         print(result_lines)
         assert len(result_lines) == 4 
-        assert result_lines[0] == "#000 [@] !!! Complex multi-line task"
+        assert result_lines[0] == "#001 [@] !!! Complex multi-line task"
         assert result_lines[1] == "         with continuation lines"
         assert result_lines[2] == "         containing #tags and #priority=high"
-        assert result_lines[3] == "         and due date #work #project #priority=high -> 2025-12-31    (/project/tasks.xit:15)"
+        assert result_lines[3] == "         and due date #work #project -> 2025-12-31    (/project/tasks.xit:15)"
     
     def test_format_tasks_mixed_files(self, task_formatter):
         """Test formatting tasks from multiple files."""

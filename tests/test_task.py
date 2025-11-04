@@ -9,6 +9,7 @@ from xitkit.status import Status, StatusType
 from xitkit.description import Description
 from xitkit.priority import Priority
 from xitkit.location import Location
+from xitkit.exceptions import XitError
 
 
 class TestTaskCreation:
@@ -30,7 +31,7 @@ class TestTaskCreation:
         assert task.priority == Priority()
         assert task.tags == []
         assert task.due_date is None
-        assert task.id == 0
+        assert task.id == 1
         assert str(task) == "[ ] Empty task"
 
     @pytest.mark.parametrize("status_input,expected_status,expected_str", [
@@ -111,7 +112,7 @@ class TestTaskCreation:
         assert task.priority.level == 2
         assert len(task.tags) == 2
         assert task.due_date_string == "2025-11-15"
-        assert task.id == 0
+        assert task.id == 1
 
 
 class TestTaskProperties:
@@ -176,10 +177,10 @@ class TestTaskModification:
         """Test setting invalid status raises ValueError."""
         task = Task("Test")
         
-        with pytest.raises(ValueError, match="Invalid status"):
+        with pytest.raises(XitError, match="Invalid status"):
             task.set_status("INVALID")
-        
-        with pytest.raises(ValueError, match="Invalid status type"):
+
+        with pytest.raises(ValueError, match="Invalid status"):
             task.set_status(123)
 
     def test_priority_modification(self):
@@ -417,11 +418,9 @@ class TestTaskEdgeCases:
         task = Task("Test")
         
         # Try invalid status - should not crash
-        try:
-            task.set_status("invalid")
-        except ValueError:
-            pass
-        
+        with pytest.raises(XitError):
+            task.set_status("INVALID")
+            
         # Task should still be functional
         assert task.status == Status(StatusType.OPEN)
         task.set_status(StatusType.CHECKED)

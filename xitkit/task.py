@@ -10,6 +10,7 @@ from .priority import *
 from .description import *
 from .location import Location
 from .file_repository import FileRepository
+from .dateutils import generate_recurring_dates
 
 
 class Task:
@@ -492,3 +493,88 @@ class Task:
         if not self.location or not self.location.file_path:
             return False
         return FileRepository().update_task(self)
+
+    def recur(self, interval: str, count: int = None, end_date: str = None) -> list:
+        """Create recurring tasks based on this task.
+        
+        Args:
+            interval: Recurrence interval string (e.g., '1w' for one week)
+            count: Number of occurrences to create
+            end_date: Optional end date string in YYYY-MM-DD format
+            
+        Returns:
+            List of newly created Task instances
+        """
+        # throw error if both count and end_date are provided
+        if count is not None and end_date is not None:
+            raise ValueError("Specify either count or end_date, not both.")
+        
+        dates = generate_recurring_dates(
+            start_date=self.due_date.implied_date if self.due_date else None,
+            interval=interval,
+            count=count +1 if count is not None else None,
+            end_date=end_date
+        )
+        print(dates)
+        
+        # get the according file and rewrite
+        file = FileRepository().get_file(self.location.file_path)
+        
+        for date in dates[1:]:  # skip the first date as it's the original task
+            new_task = self.copy()
+            new_task.set_due_date(date)
+            file.add_task(new_task)
+        
+        # Save the file with new tasks
+        file.write()
+        return dates[1:]  # return only the newly created tasks
+    
+    def unlink(self) -> bool:
+        """Unlink the task from its file without deleting it.
+        
+        Returns:
+            True if the task was unlinked successfully, False otherwise
+        """
+        if not self.location or not self.location.file_path:
+            return False
+        return FileRepository().unlink_task(self)
+    
+    def delete(self) -> bool:
+        """Delete the task from its file.
+        
+        Returns:
+            True if the task was deleted successfully, False otherwise
+        """
+        if not self.location or not self.location.file_path:
+            return False
+        file = FileRepository().get_file(self.location.file_path)
+        if file:
+            file.remove_task(self)
+            file.write()
+            return True
+        return False
+    
+    def move(self, new_file_path: str, section_name: Optional[str] = None) -> bool:
+        """Move the task to a different file and optional section.
+        
+        Args:
+            new_file_path: Path of the target file
+            section_name: Optional section name in the target file
+            
+        Returns:
+            True if the task was moved successfully, False otherwise
+        """
+        # Unlink from current file
+        if not self.unlink():
+            return False
+        
+        # write old file
+        old_file = FileRepository().get_file(self.location.file_path)
+        old_file.write()
+        
+        # Update location
+        self.location.file_path = new_file_path
+        self.location.section = section_name
+        
+        # save to new file
+        return self.save()

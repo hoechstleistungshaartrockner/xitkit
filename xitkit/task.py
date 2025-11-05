@@ -515,7 +515,6 @@ class Task:
             count=count +1 if count is not None else None,
             end_date=end_date
         )
-        print(dates)
         
         # get the according file and rewrite
         file = FileRepository().get_file(self.location.file_path)

@@ -422,22 +422,22 @@ def move(ctx, task_ids, target_file, section, directory, files, interactive, deb
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.option('--interval', '-i', required=True, type=str,
-              help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y")')
+@click.argument('task_id', type=int, nargs=-1, metavar='ID')
+@click.option('--interval', type=str,
+              help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y", "7m3w")')
 @click.option('--end-date', '-e', type=str,
               help='End date for recurrence in YYYY-MM-DD format')
 @click.option('--count', '-n', type=int,
               help='Maximum number of recurring instances to create')
-@click.option('--target-file', '-t', type=str,
-              help='Target file for recurring tasks (default: same as original task)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
 @click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to create recurring tasks in')
 @click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def recur(ctx, task_id, interval, end_date, count, target_file, directory, files, debug):
+def recur(ctx, task_id, interval, end_date, count, directory, files, interactive, debug):
     """Create recurring instances of a task.
     
     Creates multiple recurring instances of an existing task based on the specified interval.
@@ -463,20 +463,22 @@ def recur(ctx, task_id, interval, end_date, count, target_file, directory, files
         click.echo("Error: Cannot specify both --end-date and --count. Choose one.", err=True)
         ctx.exit(1)
     
-    if not end_date and not count:
-        click.echo("Error: Must specify either --end-date or --count for recurrence limit.", err=True)
+    if (not end_date and not count) and not interactive:
+        click.echo("Error: Must specify either --end-date or --count for recurrence limit or use interactive mode.", err=True)
+        ctx.exit(1)
+    
+    if not interval and not interactive:
+        click.echo("Error: Must specify --interval for recurrence or use interactive mode.", err=True)
         ctx.exit(1)
     
     # Create and execute command
     command = CommandFactory.create_recur_command()
     command.execute(
-        task_id=task_id,
-        interval=interval,
-        end_date=end_date,
-        count=count,
-        target_file=target_file,
+        task_ids=task_id,
+        new_attribute=(interval, end_date, count),
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
+        interactive=interactive,
         debug=debug
     )
 

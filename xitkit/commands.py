@@ -21,6 +21,7 @@ import questionary as ques
 from .fileparser import File, FileParser
 from .file_repository import FileRepository
 from .tags import Tag
+import re
 
 
 class Command(ABC):
@@ -261,6 +262,36 @@ class Command(ABC):
         if force_deletion:
             return 'delete permanently'
         return 'mark as obsolete'
+    
+    def select_recurrence_params(self, params: tuple = None, interactive: bool = False) -> tuple:
+        """
+        Select recurrence parameters either interactively or from provided tuple.
+        
+        Args:
+            params: Tuple of (interval, end_date, count)
+            interactive: Whether to prompt for missing information
+        
+        Returns:
+            Tuple of (interval, end_date, count)
+        """
+        interval, end_date, count = params if params else (None, None, None)
+        
+        if (end_date and count):
+            raise XitError("Cannot specify both end_date and count.")
+        
+        if interval is None and interactive:
+            interval = ques.text("Enter recurrence interval (e.g., '1d', '2w', '3m', '1y', '7m3w'):").ask()
+            
+        if (end_date is None and count is None) and interactive:
+            end = ques.text("Enter number of occurrences or end date (YYYY-MM-DD):").ask()
+            is_count = re.compile(r'^\d{1,4}$')
+            if is_count.match(end):
+                count, end_date = int(end), None
+            else:
+                count, end_date = None, end
+
+        return interval, end_date, count
+    
     
     def execute(self, *args, **kwargs) -> None:
         """wrapper to execute command with error handling."""
@@ -695,155 +726,20 @@ class MoveTaskCommand(UpdateCommand):
     def _edit_task(self, task: Task, new_attribute = None) -> tuple[Task, bool]:
         return task, task.move(new_attribute.file_path, new_attribute.section)
     
-    # def _execute(self, task_ids: list, target_file: str, directory: Path = None, 
-    #             specified_files: list = None,
-    #             debug: bool = False) -> None:
-    #     """Execute the move task command for one or more tasks.
-        
-    #     Args:
-    #         task_ids: List of task IDs to move
-    #         target_file: Path to the target file
-    #         directory: Default directory to search
-    #         specified_files: Explicitly specified files
-    #     """
-    #     # Resolve file paths for source files
-    #     source_files = self.file_service.resolve_file_paths(
-    #         directory, specified_files
-    #     )
-        
-    #     if not source_files:
-    #         self.formatter.display_warning("No task files found.")
-    #         return
-        
-    #     # Resolve target file path
-    #     if not Path(target_file).is_absolute():
-    #         if directory:
-    #             target_file = str(directory / target_file)
-    #         else:
-    #             target_file = str(Path.cwd() / target_file)
-        
-    #     # First, collect all target tasks before any modifications
-    #     all_tasks = self.task_service.load_tasks(source_files)
-    #     target_tasks = []
-    #     not_found_ids = []
-        
-    #     # Build a mapping of ID to task for quick lookup
-    #     task_by_id = {task.id: task for task in all_tasks}
-        
-    #     # Collect target tasks in the order specified by user
-    #     for task_id in task_ids:
-    #         if task_id in task_by_id:
-    #             target_tasks.append(task_by_id[task_id])
-    #         else:
-    #             not_found_ids.append(task_id)
-        
-    #     # Report not found tasks
-    #     for task_id in not_found_ids:
-    #         self.formatter.display_error(f"Task #{task_id} not found.")
-        
-    #     # Process tasks in the order specified by the user
-    #     moved_count = 0
-        
-    #     for task in target_tasks:
-    #         try:
-    #             # Use the task's content and position to move it, not just ID
-    #             # Since IDs can change after each move, we need to find the task by content
-    #             current_tasks = self.task_service.load_tasks(source_files)
-    #             current_task = None
-                
-    #             # Find the task by matching content and file (since ID may have changed)
-    #             for curr_task in current_tasks:
-    #                 if (curr_task.description == task.description and 
-    #                     curr_task.location.file_path == task.location.file_path and
-    #                     curr_task.status == task.status and
-    #                     curr_task.priority == task.priority and
-    #                     curr_task.due_date == task.due_date):
-    #                     current_task = curr_task
-    #                     break
-                
-    #             if current_task:
-    #                 moved_task = self.task_service.move_task_by_id(current_task.id, source_files, target_file)
-    #                 if moved_task:
-    #                     # Display confirmation message using original ID for user clarity
-    #                     target_relative = self._get_relative_path(target_file)
-    #                     self.formatter.display_success(
-    #                         f"✓ Moved task #{task.id} to {target_relative}: \"{moved_task.description}\""
-    #                     )
-    #                     moved_count += 1
-    #                 else:
-    #                     self.formatter.display_error(f"Failed to move task #{task.id}.")
-    #             else:
-    #                 self.formatter.display_error(f"Task #{task.id} no longer found (may have been moved already).")
-    #         except Exception as e:
-    #             self.formatter.display_error(f"Error moving task #{task.id}: {e}")
-    #             if debug:
-    #                 raise e
-        
-    #     # Summary message for multiple tasks
-    #     if len(task_ids) > 1:
-    #         self.formatter.display_success(f"Moved {moved_count} of {len(task_ids)} tasks.")
-                
 
-
-class RecurTaskCommand(Command):
+class RecurTaskCommand(UpdateCommand):
     """Command for creating recurring instances of a task."""
+        
+    def _select_new_attribute(self, attribute = None, interactive = False):
+        return self.select_recurrence_params(params=attribute, interactive=interactive)
     
-    def _execute(self, task_id: int, interval: str, end_date: str = None, 
-                count: int = None, target_file: str = None,
-                directory: Path = None, specified_files: list = None,
-                debug: bool = False) -> None:
-        """Execute the recur task command.
-        
-        Args:
-            task_id: ID of the task to make recurring
-            interval: Interval expression (e.g., "1w", "30d", "3m")
-            end_date: Optional end date in YYYY-MM-DD format
-            count: Optional maximum number of occurrences  
-            target_file: Optional target file for new tasks
-            directory: Directory to search for tasks
-            specified_files: Specific files to search in
-        """
-        # Create recurring tasks
-        created_tasks = self.task_service.recur_task_by_id(
-            task_id=task_id,
-            interval=interval,
-            end_date=end_date,
-            count=count,
-            target_file=target_file,
-            directory=directory,
-            specified_files=specified_files
-        )
-        
-        # Display success message
-        if created_tasks:
-            self.formatter.display_success(
-                f"Created {len(created_tasks)} recurring instance(s) of task #{task_id:03d}"
-            )
-            
-            # Show additional info about created tasks
-            if target_file:
-                target_display = self._get_relative_path(target_file)
-                from rich.console import Console
-                console = Console()
-                console.print(f"📁 Recurring tasks added to {target_display} with {interval} interval", style="dim")
-            else:
-                from rich.console import Console  
-                console = Console()
-                console.print(f"📁 Recurring tasks added to original file with {interval} interval", style="dim")
-            
-            # Display date range if we have dates
-            if len(created_tasks) >= 1:
-                first_date = created_tasks[0].due_date
-                last_date = created_tasks[-1].due_date
-                if first_date and last_date:
-                    from rich.console import Console
-                    console = Console()
-                    if first_date == last_date:
-                        console.print(f"📅 Due date: {first_date}", style="dim")
-                    else:
-                        console.print(f"📅 Date range: {first_date} to {last_date}", style="dim")
-        else:
-            self.formatter.display_warning(f"No recurring instances created for task #{task_id:03d}")
+    def _edit_task(self, task: Task, new_attribute = None) -> tuple[Task, bool]:
+        interval, end_date, count = new_attribute
+        dates = task.recur(interval, end_date=end_date, count=count)
+        due_date_original = task.due_date.implied_date
+        new_tasks_checkbox_formats = [task.to_checkbox_format().replace(str(due_date_original), str(due_date)) for due_date in dates]
+        self._confirm = lambda task: f"✓ Created {len(dates)} new instance(s) of task #{task.id:03d} in file {task.location.file_path} (section: {task.location.section}):\n" + "\n".join(new_tasks_checkbox_formats)
+        return task, True
         
 
 class EditTaskCommand(Command):

@@ -3,7 +3,7 @@
 import pytest
 from datetime import datetime, timedelta
 
-from xitkit.dateutils import DateParser, get_date_parser, parse_date_expression
+from xitkit.dateutils import DateParser, get_date_parser, parse_date_expression, generate_recurring_dates, parse_interval_expression
 
 
 class TestDateParserBasics:
@@ -454,8 +454,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_days(self):
         """Test parsing day intervals."""
-        from xitkit.dateutils import parse_interval_expression
-        
         result = parse_interval_expression("1d")
         assert result == timedelta(days=1)
         
@@ -467,8 +465,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_weeks(self):
         """Test parsing week intervals."""
-        from xitkit.dateutils import parse_interval_expression
-        
         result = parse_interval_expression("1w")
         assert result == timedelta(weeks=1)
         
@@ -480,8 +476,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_months(self):
         """Test parsing month intervals (approximated as 30-day periods)."""
-        from xitkit.dateutils import parse_interval_expression
-        
         result = parse_interval_expression("1m")
         assert result == timedelta(days=30)
         
@@ -493,8 +487,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_years(self):
         """Test parsing year intervals (approximated as 365-day periods)."""
-        from xitkit.dateutils import parse_interval_expression
-        
         result = parse_interval_expression("1y")
         assert result == timedelta(days=365)
         
@@ -503,7 +495,6 @@ class TestIntervalParsing:
     
     def test_parse_composite_intervals(self):
         """Test parsing composite interval expressions."""
-        from xitkit.dateutils import parse_interval_expression
         
         result = parse_interval_expression("1w2d")
         assert result == timedelta(weeks=1, days=2)
@@ -516,7 +507,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_case_insensitive(self):
         """Test that interval parsing is case insensitive."""
-        from xitkit.dateutils import parse_interval_expression
         
         result1 = parse_interval_expression("1W")
         result2 = parse_interval_expression("1w")
@@ -528,7 +518,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_invalid_formats(self):
         """Test error handling for invalid interval formats."""
-        from xitkit.dateutils import parse_interval_expression
         
         with pytest.raises(ValueError, match="Invalid interval format"):
             parse_interval_expression("1x")  # Invalid unit
@@ -547,7 +536,6 @@ class TestIntervalParsing:
     
     def test_parse_interval_expression_zero_negative(self):
         """Test error handling for zero and negative amounts."""
-        from xitkit.dateutils import parse_interval_expression
         
         with pytest.raises(ValueError, match="Interval amount must be positive"):
             parse_interval_expression("0d")
@@ -561,7 +549,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_with_count(self):
         """Test generating recurring dates with count limit."""
-        from xitkit.dateutils import generate_recurring_dates
         
         dates = generate_recurring_dates("2025-10-20", "1w", count=4)
         expected = ["2025-10-20", "2025-10-27", "2025-11-03", "2025-11-10"]
@@ -569,7 +556,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_with_end_date(self):
         """Test generating recurring dates with end date limit."""
-        from xitkit.dateutils import generate_recurring_dates
         
         dates = generate_recurring_dates("2025-10-01", "1w", end_date="2025-10-31")
         expected = ["2025-10-01", "2025-10-08", "2025-10-15", "2025-10-22", "2025-10-29"]
@@ -577,7 +563,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_monthly(self):
         """Test generating monthly recurring dates."""
-        from xitkit.dateutils import generate_recurring_dates
         
         dates = generate_recurring_dates("2025-01-01", "1m", count=3)
         expected = ["2025-01-01", "2025-01-31", "2025-03-02"]
@@ -585,7 +570,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_daily(self):
         """Test generating daily recurring dates."""
-        from xitkit.dateutils import generate_recurring_dates
         
         dates = generate_recurring_dates("2025-10-15", "1d", count=3)
         expected = ["2025-10-15", "2025-10-16", "2025-10-17"]
@@ -593,17 +577,13 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_invalid_start_date(self):
         """Test error handling for invalid start date."""
-        from xitkit.dateutils import generate_recurring_dates
         
         with pytest.raises(ValueError, match="Invalid start date format"):
             generate_recurring_dates("invalid-date", "1w", count=2)
         
-        with pytest.raises(ValueError, match="Start date is required"):
-            generate_recurring_dates("", "1w", count=2)
     
     def test_generate_recurring_dates_invalid_end_date(self):
         """Test error handling for invalid end date."""
-        from xitkit.dateutils import generate_recurring_dates
         
         with pytest.raises(ValueError, match="Invalid end date format"):
             generate_recurring_dates("2025-10-01", "1w", end_date="invalid-date")
@@ -613,7 +593,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_invalid_count(self):
         """Test error handling for invalid count."""
-        from xitkit.dateutils import generate_recurring_dates
         
         with pytest.raises(ValueError, match="Count must be positive"):
             generate_recurring_dates("2025-10-01", "1w", count=0)
@@ -626,7 +605,6 @@ class TestRecurringDateGeneration:
     
     def test_generate_recurring_dates_no_parameters(self):
         """Test that either end_date or count is required."""
-        from xitkit.dateutils import generate_recurring_dates
         
         # This should raise an error when no limit is specified
         with pytest.raises(ValueError, match="Either end_date or count must be specified"):

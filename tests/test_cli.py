@@ -1033,57 +1033,53 @@ class TestRecurCLI(CLITest):
         """Test creating weekly recurring tasks with count limit."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['recur', '7', '-i', '1w', '-n', '3', '-f', 'valid_mixed.xit'])
-        
+        result = runner.invoke(xitkit, ['recur', '7', '--interval', '1w', '-n', '3', '-f', 'valid_mixed.xit'])
+        print(result.output)
         assert result.exit_code == 0
-        assert 'Created 3 recurring instances' in result.output
+        assert 'Created 3 new instance(s)' in result.output
+        date_1w = (datetime.now() + timedelta(weeks=1, days=1)).date()
+        date_2w = (datetime.now() + timedelta(weeks=2, days=1)).date()
+        date_3w = (datetime.now() + timedelta(weeks=3, days=1)).date()
+        assert f'Task due tomorrow -> {date_1w}' in result.output
+        assert f'Task due tomorrow -> {date_2w}' in result.output
+        assert f'Task due tomorrow -> {date_3w}' in result.output
         
         # Verify recurring tasks were created
         with open('valid_mixed.xit', 'r') as f:
             content = f.read()
+            lines = content.strip().split('\n')
             # Should have the original task plus 3 new instances
-            task_lines = [line for line in content.split('\n') if 'Task due tomorrow' in line]
-            assert len(task_lines) == 4  # Original + 3 recurring instances
+            assert lines[-3] == f'[ ] Task due tomorrow -> {date_1w}'
+            assert lines[-2] == f'[ ] Task due tomorrow -> {date_2w}'
+            assert lines[-1] == f'[ ] Task due tomorrow -> {date_3w}'
 
     def test_recur_daily_with_end_date(self, isolated_test_files, runner):
         """Test creating daily recurring tasks with end date limit."""
         os.chdir(isolated_test_files)
         
         # Use a close end date to limit the number of instances
-        end_date = (datetime.now() + timedelta(days=3)).strftime('%Y-%m-%d')
-        result = runner.invoke(xitkit, ['recur', '8', '-i', '1d', '-e', end_date, '-f', 'valid_mixed.xit'])
-        
+        end_date = (datetime.now() + timedelta(days=3 + 1)).strftime('%Y-%m-%d') # Task is due tomorrow, so +3 days from that
+        result = runner.invoke(xitkit, ['recur', '7', '--interval', '1d', '-e', end_date, '-f', 'valid_mixed.xit'])
+        print(result.output)
         assert result.exit_code == 0
-        assert 'recurring instances' in result.output
-        
+        assert 'Created 3 new instance(s)' in result.output  # Should create 3 instances
+        for i in range(2, 5):
+            assert f'Task due tomorrow -> { (datetime.now() + timedelta(days=i)).date() }' in result.output
+
         # Verify recurring tasks were created
         with open('valid_mixed.xit', 'r') as f:
             content = f.read()
             # Should have the original task plus new instances within the date range
-            task_lines = [line for line in content.split('\n') if 'Task with #tags' in line]
-            assert len(task_lines) >= 2  # At least original + some recurring instances
-
-    def test_recur_monthly_to_target_file(self, isolated_test_files, runner):
-        """Test creating monthly recurring tasks to a different target file."""
-        os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['recur', '1', '-i', '1m', '-n', '2', '-t', 'recurring.xit', '-f', 'valid_mixed.xit'])
-        
-        assert result.exit_code == 0
-        assert 'Created 2 recurring instances' in result.output
-        
-        # Verify recurring tasks were created in the target file
-        with open('recurring.xit', 'r') as f:
-            content = f.read()
-            task_lines = [line for line in content.split('\n') if 'Open task' in line]
-            assert len(task_lines) == 2  # 2 recurring instances
+            lines = content.strip().split('\n')
+            for i in range(2, 5):
+                assert lines[i-5] == f'[ ] Task due tomorrow -> {(datetime.now() + timedelta(days=i)).date()}'
 
     def test_recur_invalid_interval(self, isolated_test_files, runner):
         """Test recur command with invalid interval."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['recur', '1', '-i', 'invalid', '-n', '3', '-f', 'valid_mixed.xit'])
-        
+
+        result = runner.invoke(xitkit, ['recur', '1', '--interval', 'invalid', '-n', '3', '-f', 'valid_mixed.xit'])
+        print(result.output)
         assert result.exit_code == 0
         assert 'Invalid interval format' in result.output or 'Error' in result.output
 
@@ -1091,16 +1087,17 @@ class TestRecurCLI(CLITest):
         """Test recur command with both end date and count (should fail)."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['recur', '1', '-i', '1w', '-e', '2025-12-31', '-n', '5', '-f', 'valid_mixed.xit'])
-        
+        result = runner.invoke(xitkit, ['recur', '1', '--interval', '1w', '-e', '2025-12-31', '-n', '5', '-f', 'valid_mixed.xit'])
+        print(result.output)
         assert result.exit_code == 1
         assert 'Cannot specify both --end-date and --count' in result.output
 
     def test_recur_neither_end_date_nor_count(self, isolated_test_files, runner):
         """Test recur command without end date or count (should fail)."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['recur', '1', '-i', '1w', '-f', 'valid_mixed.xit'])
+
+        result = runner.invoke(xitkit, ['recur', '1', '--interval', '1w', '-f', 'valid_mixed.xit'])
+        print(result.output)
         
         assert result.exit_code == 1
         assert 'Must specify either --end-date or --count' in result.output
@@ -1108,11 +1105,11 @@ class TestRecurCLI(CLITest):
     def test_recur_nonexistent_task(self, isolated_test_files, runner):
         """Test recur command with nonexistent task."""
         os.chdir(isolated_test_files)
-        
-        result = runner.invoke(xitkit, ['recur', '999', '-i', '1w', '-n', '3', '-f', 'valid_mixed.xit'])
-        
+
+        result = runner.invoke(xitkit, ['recur', '999', '--interval', '1w', '-n', '3', '-f', 'valid_mixed.xit'])
+
         assert result.exit_code == 0
-        assert 'Task #999 not found' in result.output
+        assert 'No matching tasks found for the specified IDs.' in result.output
 
 
 class TestRmCLI(CLITest):

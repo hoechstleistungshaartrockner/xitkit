@@ -447,7 +447,8 @@ def generate_recurring_dates(start_date: str, interval: str, end_date: str = Non
         ValueError: If parameters are invalid
     """
     if not start_date:
-        raise ValueError("Start date is required")
+        # assume today if not provided
+        start_date = str(datetime.now().strftime("%Y-%m-%d"))
     
     # Parse start date
     try:

@@ -26,6 +26,12 @@ A powerful command-line task management tool that parses and manages tasks from 
 - Python 3.14+
 - Micromamba or Conda (recommended but not necessary)
 
+### :pip: Install via pip
+
+```bash
+pip install xitkit
+```
+
 ### :gear: Setup
 
 1. Clone the repository:

@@ -39,12 +39,13 @@ User experience
 [x] interactive task priority changing #ux
 [x] interactive task due date changing #ux
 [ ] interactive task description changing #ux
-[ ] interactive task tagging/untagging #ux
-[ ] interactive task removing #ux
-[ ] interactive task moving between files #ux
+[x] interactive task tagging/untagging #ux
+[x] interactive task removing #ux
+[x] interactive task moving between files #ux
 [ ] create a gif showing how to use xitkit to put on the github readme #ux
 
 Bug fixes
 [x] fix linebreak when adding a task via the 'xit add' command.
 [x] fix 'xit tag' multi-line issue #bugfix
 [ ] check whitespace preservation upon editing of Description attributes
+

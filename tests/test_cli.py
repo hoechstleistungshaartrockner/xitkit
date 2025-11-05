@@ -613,19 +613,7 @@ class TestMarkCLI(CLITest):
         
         assert result.exit_code == 0  # Command succeeds but shows error
         assert 'No matching tasks found for the specified IDs.' in result.output
-
-    def test_mark_missing_arguments(self, isolated_test_files, runner):
-        """Test mark command with missing required arguments."""
-        os.chdir(isolated_test_files)
-        # Missing task ID
-        result = runner.invoke(xitkit, ['mark', '--done'])
-        assert result.exit_code == 1
-        assert 'Must specify at least one task ID' in result.output
         
-        # Missing status flag
-        result = runner.invoke(xitkit, ['mark', '1'])
-        assert result.exit_code == 1
-        assert 'Must specify a status flag' in result.output
 
 class TestPrioCLI(CLITest):
     """Test the 'prio' command of the CLI."""
@@ -634,7 +622,7 @@ class TestPrioCLI(CLITest):
         """Test setting task priority."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['prio', '-t', '1', '-p', '5', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['prio', '1', '-p', '5', '-f', 'valid_mixed.xit'])
         print(result.output)
         
         assert result.exit_code == 0
@@ -650,7 +638,7 @@ class TestPrioCLI(CLITest):
         """Test removing priority (setting to 0)."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['prio', '-t', '1', '-p', '0', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['prio', '1', '-p', '0', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -666,7 +654,7 @@ class TestPrioCLI(CLITest):
         """Test setting invalid priority."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['prio', '-t', '1', '-p', '-1', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['prio', '1', '-p', '-1', '-f', 'valid_mixed.xit'])
         print(result.output
               )
         # Negative priorities are rejected at CLI parsing level
@@ -677,7 +665,7 @@ class TestPrioCLI(CLITest):
         """Test setting priority for multiple tasks."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['prio', '-t', '1', '-t', '2', '-p', '3', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['prio', '1', '2', '-p', '3', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -690,21 +678,21 @@ class TestPrioCLI(CLITest):
         """Test prio command with missing arguments."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['prio', '-f', 'valid_mixed.xit', '-p', '3'])
+        result = runner.invoke(xitkit, ['prio', '1', '-p', '3'])
         print(result.output)
         
         assert result.exit_code == 0
-        assert 'No matching tasks found for the specified IDs.' in result.output
+        # this task will just prio the first task in todo.xit or file it finds. but it will tell you which one it edited.
         
     def test_prio_missing_priority(self, isolated_test_files, runner):
         """Test prio command with missing priority argument."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['prio', '-t', '1', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['prio', '1', '-f', 'valid_mixed.xit'])
         print(result.output)
         
         assert result.exit_code == 0  # Click validation error for missing required option
-        assert 'Priority not specified' in result.output
+        assert 'or use interactive mode' in result.output
 
 
 class TestTagCLI(CLITest):
@@ -713,7 +701,7 @@ class TestTagCLI(CLITest):
         """Test adding a tag to a task."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['tag', '-t', '1', '--tag', 'urgent', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '1', '--tag', 'urgent', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -728,7 +716,7 @@ class TestTagCLI(CLITest):
         """Test adding a tag that already has # prefix."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['tag', '-t', '1', '--tag', '#urgent', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '1', '--tag', '#urgent', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -743,7 +731,7 @@ class TestTagCLI(CLITest):
         """Test adding a tag to a multi-line task."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['tag', '-t', '11', '--tag', 'important', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '11', '--tag', 'important', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'Updated task #011' in result.output
@@ -765,24 +753,24 @@ class TestTagCLI(CLITest):
         """Test adding tags to multiple tasks."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['tag', '-t', '1', '-t', '2', '--tag', 'important', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '1', '2', '--tag', 'important', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
         assert 'Updated task #002' in result.output
         assert '[ ] Open task #important' in result.output
-        assert '[x] Completed task with 3 trailing spaces   #important' in result.output
+        assert '[x] Completed task with 3 trailing spaces    #important' in result.output
         
         with open('valid_mixed.xit', 'r') as f:
             content = f.read()
             assert '[ ] Open task #important' in content
-            assert '[x] Completed task with 3 trailing spaces   #important' in content
+            assert '[x] Completed task with 3 trailing spaces    #important' in content
 
     def test_tag_multiple_tags_single_task(self, isolated_test_files, runner):
         """Test adding multiple tags to a single task."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['tag', '-t', '1', '--tag', 'work', '--tag', 'priority', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '1', '--tag', 'work', '--tag', 'priority', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -796,7 +784,7 @@ class TestTagCLI(CLITest):
         """Test tagging a nonexistent task."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['tag', '-t', '999', '--tag', 'test', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['tag', '999', '--tag', 'test', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'No matching tasks found for the specified IDs.' in result.output
@@ -806,8 +794,10 @@ class TestTagCLI(CLITest):
         os.chdir(isolated_test_files)
         
         result = runner.invoke(xitkit, ['tag', '-f', 'valid_mixed.xit'])
-        
-        assert result.exit_code == 2  # Click validation error for missing required option
+        print(result.output)
+        assert result.exit_code == 0  # Click validation error for missing required option
+        assert 'Error:' in result.output
+        assert 'or use interactive mode' in result.output
 
 class TestUntagCLI(CLITest):
     """Test the 'untag' command of the CLI."""
@@ -816,7 +806,7 @@ class TestUntagCLI(CLITest):
         """Test removing a tag from a task."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['untag', '-t', '6', '--tag', 'urgent', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['untag', '6', '--tag', 'urgent', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'Updated task #006' in result.output
@@ -834,7 +824,7 @@ class TestUntagCLI(CLITest):
         """Test removing a tag that doesn't exist on the task."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['untag', '-t', '1', '--tag', 'nonexistent', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['untag', '1', '--tag', 'nonexistent', '-f', 'valid_mixed.xit'])
 
         print(result.output)
         assert result.exit_code == 0
@@ -850,7 +840,7 @@ class TestUntagCLI(CLITest):
         """Test removing a tag from a task that has no tags."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['untag', '-t', '1', '--tag', 'sometag', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['untag', '1', '--tag', 'sometag', '-f', 'valid_mixed.xit'])
         print(result.output)
         assert result.exit_code == 0
         assert 'Updated task #001' in result.output
@@ -865,7 +855,7 @@ class TestUntagCLI(CLITest):
         """Test removing a tag with hash prefix."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['untag', '-t', '6', '--tag', '#urgent', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['untag', '6', '--tag', '#urgent', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #006' in result.output
@@ -882,7 +872,7 @@ class TestUntagCLI(CLITest):
         """Test untagging a nonexistent task."""
         os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['untag', '-t', '999', '--tag', 'anytag', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['untag', '999', '--tag', 'anytag', '-f', 'valid_mixed.xit'])
 
         assert result.exit_code == 0
         assert 'No matching tasks found for the specified IDs.' in result.output
@@ -946,7 +936,7 @@ class TestRescheduleCLI(CLITest):
         """Test rescheduling a single task to a specific date."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-t', '7', '-n', '2025-01-15', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['reschedule', '7', '-n', '2025-01-15', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #007' in result.output
@@ -961,7 +951,7 @@ class TestRescheduleCLI(CLITest):
         """Test rescheduling multiple tasks."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-t', '7', '-t', '8', '-n', '2025-02-20', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['reschedule', '7', '8', '-n', '2025-02-20', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #007' in result.output
@@ -979,7 +969,7 @@ class TestRescheduleCLI(CLITest):
         """Test rescheduling with natural language date."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-t', '8', '-n', 'today', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['reschedule', '8', '-n', 'today', '-f', 'valid_mixed.xit'])
         
         today_date = datetime.now().date()
         assert result.exit_code == 0
@@ -994,7 +984,7 @@ class TestRescheduleCLI(CLITest):
         """Test rescheduling with relative date expression."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-t', '7', '-n', '1w', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['reschedule', '7', '-n', '1w', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'Updated task #007' in result.output
@@ -1010,19 +1000,19 @@ class TestRescheduleCLI(CLITest):
         """Test rescheduling a task that doesn't exist."""
         os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-t', '999', '-n', '2025-12-31', '-f', 'valid_mixed.xit'])
+        result = runner.invoke(xitkit, ['reschedule', '999', '-n', '2025-12-31', '-f', 'valid_mixed.xit'])
         
         assert result.exit_code == 0
         assert 'No matching tasks found for the specified IDs.' in result.output
 
-    def test_reschedule_missing_task_id(self, isolated_test_files, runner):
-        """Test reschedule command without task ID."""
-        os.chdir(isolated_test_files)
+    # def test_reschedule_missing_task_id(self, isolated_test_files, runner):
+    #     """Test reschedule command without task ID."""
+    #     os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['reschedule', '-n', '2025-12-31', '-f', 'valid_mixed.xit'])
+    #     result = runner.invoke(xitkit, ['reschedule', '-n', '2025-12-31', '-f', 'valid_mixed.xit'])
         
-        assert result.exit_code == 1
-        assert 'Must specify at least one task ID' in result.output
+    #     assert result.exit_code == 1
+    #     assert 'Must specify at least one task ID' in result.output
 
 
 
@@ -1089,7 +1079,7 @@ class TestRecurCLI(CLITest):
         
         result = runner.invoke(xitkit, ['recur', '1', '--interval', '1w', '-e', '2025-12-31', '-n', '5', '-f', 'valid_mixed.xit'])
         print(result.output)
-        assert result.exit_code == 1
+        assert result.exit_code == 0
         assert 'Cannot specify both --end-date and --count' in result.output
 
     def test_recur_neither_end_date_nor_count(self, isolated_test_files, runner):
@@ -1099,7 +1089,7 @@ class TestRecurCLI(CLITest):
         result = runner.invoke(xitkit, ['recur', '1', '--interval', '1w', '-f', 'valid_mixed.xit'])
         print(result.output)
         
-        assert result.exit_code == 1
+        assert result.exit_code == 0
         assert 'Must specify either --end-date or --count' in result.output
 
     def test_recur_nonexistent_task(self, isolated_test_files, runner):
@@ -1186,14 +1176,14 @@ class TestRmCLI(CLITest):
         assert result.exit_code == 0
         assert 'No matching tasks found for the specified IDs.' in result.output
 
-    def test_rm_missing_task_ids(self, isolated_test_files, runner):
-        """Test rm command without task IDs."""
-        os.chdir(isolated_test_files)
+    # def test_rm_missing_task_ids(self, isolated_test_files, runner):
+    #     """Test rm command without task IDs."""
+    #     os.chdir(isolated_test_files)
         
-        result = runner.invoke(xitkit, ['rm', '-f', 'valid_mixed.xit'])
+    #     result = runner.invoke(xitkit, ['rm', '-f', 'valid_mixed.xit'])
         
-        assert result.exit_code == 1
-        assert 'Must specify at least one task ID' in result.output
+    #     assert result.exit_code == 1
+    #     assert 'Must specify at least one task ID' in result.output
 
 
 class TestMoveCLI(CLITest):
@@ -1249,14 +1239,14 @@ class TestMoveCLI(CLITest):
         assert result.exit_code == 0
         assert 'No matching tasks found for the specified IDs.' in result.output
 
-    def test_move_missing_task_ids(self, isolated_test_files, runner):
-        """Test move command without task IDs."""
-        os.chdir(isolated_test_files)
+    # def test_move_missing_task_ids(self, isolated_test_files, runner):
+    #     """Test move command without task IDs."""
+    #     os.chdir(isolated_test_files)
 
-        result = runner.invoke(xitkit, ['move', '--target-file', 'archive.xit', '-f', 'valid_mixed.xit'])
+    #     result = runner.invoke(xitkit, ['move', '--target-file', 'archive.xit', '-f', 'valid_mixed.xit'])
 
-        assert result.exit_code == 1
-        assert 'Must specify at least one task ID' in result.output
+    #     assert result.exit_code == 1
+    #     assert 'Must specify at least one task ID' in result.output
 
     def test_move_missing_target(self, isolated_test_files, runner):
         """Test move command without target file."""
@@ -1264,8 +1254,8 @@ class TestMoveCLI(CLITest):
         
         result = runner.invoke(xitkit, ['move', '1', '-f', 'valid_mixed.xit'])
         
-        assert result.exit_code == 2  # Click validation error
-        assert 'Missing option' in result.output or 'required' in result.output
+        assert result.exit_code == 0 # Click validation error
+        assert 'or use interactive mode' in result.output
 
 
 class TestCLIIntegration:
@@ -1345,3 +1335,30 @@ class TestCLIIntegration:
         assert 'Total tasks: 3' in result.output
         assert 'Done: 2' in result.output
         assert 'Open: 1' in result.output
+        
+
+class TestMissingArguments:
+    
+    @pytest.fixture
+    def runner(self):
+        """Provide a Click test runner."""
+        return CliRunner()
+    
+    @pytest.mark.parametrize('command', [
+        ('mark'),
+        ('tag'),
+        ('untag'),
+        ('edit'),
+        ('reschedule'),
+        ('recur'),
+        ('rm'),
+        ('move'),
+    ])
+    def test_missing_arguments(self, isolated_test_files, runner, command):
+        """Test mark command with missing required arguments."""
+        os.chdir(isolated_test_files)
+        # Missing task ID
+        result = runner.invoke(xitkit, [command])
+        print(result.output)
+        assert result.exit_code == 0
+        assert 'Must specify at least one task ID or use interactive mode' in result.output

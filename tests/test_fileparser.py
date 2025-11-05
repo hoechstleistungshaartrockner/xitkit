@@ -9,6 +9,7 @@ from xitkit.task import Task
 from xitkit.status import StatusType
 from xitkit.patterns import *
 from tests.conftest import create_test_file, assert_task_equal
+from datetime import datetime, timedelta
 
 class ParserTestBase:
     """Base class for FileParser tests."""
@@ -103,6 +104,11 @@ class TestValidFormats(ParserTestBase):
         """Test parsing various due date formats."""
         tasks = self.parse_and_unpack(isolated_test_files / "valid_due_dates.xit")
         
+        yesterday_date = (datetime.now() - timedelta(days=1)).date()
+        today_date = datetime.now().date()
+        tomorrow_date = (datetime.now() + timedelta(days=1)).date()
+        next_week_date = (datetime.now() + timedelta(weeks=1)).date()
+        
         assert len(tasks) == 12
         assert tasks[0].due_date.normalized_date == "2024-12-31"
         assert tasks[1].due_date.normalized_date == "2024-12-31"  # 2024-12 implies end of month
@@ -113,10 +119,10 @@ class TestValidFormats(ParserTestBase):
         assert tasks[6].due_date.normalized_date == "2024-10-20"  # Slash week format (KW42 of 2024)
         assert tasks[7].due_date.normalized_date == "2024-12-31"
         # Additional tasks with relative dates (yesterday, today, tomorrow, next week)
-        assert tasks[8].due_date.normalized_date == "2025-11-02"  # yesterday
-        assert tasks[9].due_date.normalized_date == "2025-11-03"  # today  
-        assert tasks[10].due_date.normalized_date == "2025-11-04"  # tomorrow
-        assert tasks[11].due_date.normalized_date == "2025-11-10"  # next week
+        assert tasks[8].due_date.normalized_date == str(yesterday_date)  # yesterday
+        assert tasks[9].due_date.normalized_date == str(today_date)  # today
+        assert tasks[10].due_date.normalized_date == str(tomorrow_date)  # tomorrow
+        assert tasks[11].due_date.normalized_date == str(next_week_date)  # next week
 
     def test_parse_basic_tags(self, isolated_test_files):
         """Test parsing basic tag formats."""

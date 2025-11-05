@@ -59,7 +59,10 @@ class TaskService:
         task_files = []
         for pattern in ['**/*.xit', '**/*.md']:
             task_files.extend(str(p) for p in directory.glob(pattern))
-        
+
+        # convert file paths to relative to cwd
+        task_files = [str(Path(fp).relative_to(Path.cwd())) for fp in task_files]
+
         return sorted(task_files)
     
     def filter_tasks(self, tasks: List[Task], filters: TaskFilter) -> List[Task]:

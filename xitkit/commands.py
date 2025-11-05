@@ -91,7 +91,7 @@ class Command(ABC):
             
         Returns:
             Resolved file path(s) or None if error occurred.
-        """
+        """     
         
         if all(fp is None for fp in file_paths):
             file_paths = []
@@ -292,10 +292,27 @@ class Command(ABC):
 
         return interval, end_date, count
     
+    def select_existing_tags(self):
+        pass
     
+    def select_new_tags(self, tags: list[str] = None, interactive: bool = False) -> list[str]:
+        """Select new tags either interactively or from provided list."""
+        
+        if (not tags or len(tags) == 0) and interactive:
+            tag_input = ques.text("Enter tag names (comma-separated, without # prefix):").ask()
+            tags = [tag.strip() for tag in tag_input.split(',') if tag.strip()]
+        
+        return tags or []
+
+    @abstractmethod
+    def check_inputs(self, *args, **kwargs) -> None:
+        pass
+
     def execute(self, *args, **kwargs) -> None:
         """wrapper to execute command with error handling."""
         try:
+            self.check_inputs(*args, **kwargs)
+
             self._execute(*args, **kwargs)
         except XitError as e:
             self.formatter.display_error(str(e))
@@ -422,7 +439,19 @@ class UpdateCommand(Command):
             sections = list(file_obj.sections.keys())
             section = self.ask_single_choice("Select new section:", sections)[0]
         return Location(file_path=file_path, line_numbers=None, section=section)
-        
+    
+    def check_inputs(self, *args, **kwargs) -> None:
+        task_ids = kwargs.get("task_ids", [])
+        interactive = kwargs.get("interactive", False)
+        if not task_ids and not interactive:
+            message = "Error: Must specify at least one task ID or use interactive mode"
+            raise XitError(message)
+
+        self._check_inputs(*args, **kwargs)
+
+    def _check_inputs(self, *args, **kwargs) -> None:
+        """Child classes can override this method for additional input checks."""
+        pass
 
 class ShowTasksCommand(Command):
     """Command for showing tasks with filtering options."""
@@ -510,12 +539,8 @@ class ShowTasksCommand(Command):
             self.formatter.display_summary(len(filtered_tasks), len(all_tasks))
                 
 
-    def _get_relative_path(self, file_path: str) -> str:
-        """Get relative path for display."""
-        try:
-            return str(Path(file_path).relative_to(Path.cwd()))
-        except ValueError:
-            return file_path
+    def check_inputs(self, *args, **kwargs):
+        pass
 
 
 class ShowStatsCommand(Command):
@@ -600,6 +625,9 @@ class ShowStatsCommand(Command):
             self.formatter.console.print("[bold]By File:[/bold]")
             for filename, count in sorted(stats['by_file'].items()):
                 self.formatter.console.print(f"  {filename}: {count}")
+                
+    def check_inputs(self, *args, **kwargs):
+        pass
 
 
 class AddTaskCommand(Command):
@@ -668,6 +696,15 @@ class AddTaskCommand(Command):
             return str(Path(file_path).relative_to(Path.cwd()))
         except ValueError:
             return file_path
+    
+    def check_inputs(self, *args, **kwargs):
+        description = kwargs.get("description", "").strip()
+        file_path = kwargs.get("file_path", None)
+        interactive = kwargs.get("interactive", False)
+        if not description:
+            raise XitError("Error: Task description cannot be empty.")
+        # if not file_path and not interactive:
+        #     raise XitError("Error: Must specify a file path or use interactive mode.")
 
 
 class MarkTaskCommand(UpdateCommand):
@@ -680,6 +717,12 @@ class MarkTaskCommand(UpdateCommand):
         task.set_status(new_attribute)
         return task, task.save()
     
+    def _check_inputs(self, *args, **kwargs):
+        status = kwargs.get("new_attribute", None)
+        interactive = kwargs.get("interactive", False)
+        if not status and not interactive:
+            raise XitError("Error: Must specify a status flag (--done, --open, --ongoing, --obsolete, --inquestion)")
+
   
 class RescheduleTaskCommand(UpdateCommand):
     """Command for rescheduling tasks to new due dates."""
@@ -726,6 +769,12 @@ class MoveTaskCommand(UpdateCommand):
     def _edit_task(self, task: Task, new_attribute = None) -> tuple[Task, bool]:
         return task, task.move(new_attribute.file_path, new_attribute.section)
     
+    def _check_inputs(self, *args, **kwargs):
+        target_file, section = kwargs.get("new_attribute", (None, None))
+        interactive = kwargs.get("interactive", False)
+        if not target_file and not interactive:
+            raise XitError("Error: Must specify new file path and section or use interactive mode.")
+    
 
 class RecurTaskCommand(UpdateCommand):
     """Command for creating recurring instances of a task."""
@@ -740,7 +789,22 @@ class RecurTaskCommand(UpdateCommand):
         new_tasks_checkbox_formats = [task.to_checkbox_format().replace(str(due_date_original), str(due_date)) for due_date in dates]
         self._confirm = lambda task: f"✓ Created {len(dates)} new instance(s) of task #{task.id:03d} in file {task.location.file_path} (section: {task.location.section}):\n" + "\n".join(new_tasks_checkbox_formats)
         return task, True
+    
+    def _check_inputs(self, *args, **kwargs):
+            # Validate mutual exclusivity
+        interval, end_date, count = kwargs.get("new_attribute", (None, None, None))
+        interactive = kwargs.get("interactive", False)
+            
+        if end_date and count:
+            raise XitError("Error: Cannot specify both --end-date and --count. Choose one.")
+
         
+        if (not end_date and not count) and not interactive:
+            raise XitError("Error: Must specify either --end-date or --count for recurrence limit or use interactive mode.")
+        
+        if not interval and not interactive:
+            raise XitError("Error: Must specify --interval for recurrence or use interactive mode.")
+
 
 class EditTaskCommand(Command):
     """Command for editing task descriptions."""
@@ -791,6 +855,12 @@ class PriorityTaskCommand(UpdateCommand):
     def _edit_task(self, task: Task, new_attribute = None):
         task.set_priority(new_attribute)
         return task, task.save()
+    
+    def _check_inputs(self, *args, **kwargs):
+        priority = kwargs.get("new_attribute", None)
+        interactive = kwargs.get("interactive", False)
+        if priority is None and not interactive:
+            raise XitError("Error: Must specify a priority level or use interactive mode")
 
 
 
@@ -798,23 +868,35 @@ class TagTaskCommand(UpdateCommand):
     """Command for adding tags to tasks."""
     
     def _select_new_attribute(self, attribute = None, interactive = False):
-        return attribute  # Tags are provided directly
+        return self.select_new_tags(tags=attribute, interactive=interactive)
     
     def _edit_task(self, task: Task, new_attribute = None):
         for tag in new_attribute:
             task.add_tag_by_name(tag)
         return task, task.save()
+    
+    def _check_inputs(self, *args, **kwargs):
+        tags = kwargs.get("new_attribute", None)
+        interactive = kwargs.get("interactive", False)
+        if (not tags or len(tags) == 0) and not interactive:
+            raise XitError("Error: Must specify at least one tag to add or use interactive mode")
 
 class UntagTaskCommand(UpdateCommand):
     """Command for removing tags from tasks."""
     
     def _select_new_attribute(self, attribute = None, interactive = False):
-        return attribute  # Tags are provided directly
+        return self.select_new_tags(tags=attribute, interactive=interactive)
     
     def _edit_task(self, task: Task, new_attribute = None):
         for tag in new_attribute:
             task.remove_tag_by_name(tag)
         return task, task.save()
+    
+    def _check_inputs(self, *args, **kwargs):
+        tags = kwargs.get("new_attribute", None)
+        interactive = kwargs.get("interactive", False)
+        if (not tags or len(tags) == 0) and not interactive:
+            raise XitError("Error: Must specify at least one tag to remove or use interactive mode")
     
 class CommandFactory:
     """Factory for creating command instances."""

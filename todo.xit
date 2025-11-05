@@ -1,3 +1,4 @@
+New commands and features
 [x] add a new task
 [x] change the status of a task
 [x] move tasks between files
@@ -7,21 +8,44 @@
 [x] add or remove tags from/to a task ('xit tag <task_id> <tag>' and 'xit untag <task_id> <tag>' commands)
 [x] remove tasks permanently
 [x] list tasks + filter according to attributes
-[ ] log all xit commands you used ('xit log' to view) log file is stored in ~/.xit/log.txt
-[ ] undo the last X xit commands executed ('xit undo <number>'), needs to be confirmed by the user
+[ ] log all xit commands you used ('xit log' to view) log file is stored in ~/.xit/log.txt #new-subcommand
+[ ] undo the last X xit commands executed ('xit undo <number>'), needs to be confirmed by the user #new-subcommand
 [ ] create a configuration file to set default things (e.g. color scheme, default keywords -> #created=2025-10-20)
-    'xit config' to create/edit -> opens in default text editor e.g. vim
+    'xit config' to create/edit -> opens in default text editor e.g. vim #new-subcommand
 [x] xit stats command to show statistics about tasks
 [x] support for multiple task files (e.g., work.xit, personal.xit)
 [x] support for recurring tasks ('xit recur <task_id> -i <interval> -e <end_date> -f <file> -n <number_of_occurrences>')
 [x] support for batch operations on multiple tasks at once (e.g., 'xit mark 1 2 3 --done' to mark tasks 1, 2, and 3 as done)
-[ ] find tasks by keyword in description ('xit find <keyword>')
-[ ] find out the history of a task (when it was created, modified, marked done, etc.) ('xit history <task_id>')
+[ ] find tasks by keyword in description ('xit find <keyword>') #new-subcommand
+[ ] find out the history of a task (when it was created, modified, marked done, etc.) ('xit history <task_id>') #new-subcommand
 [x] sort tasks by different attributes (due date, priority) ('xit show -f <file> --sort <attribute> --order <asc/desc>')
 [x] create test for xit show -f tests/files/examples2.xit --sort due_date
-[ ] 'xit goto <task_id>' to open the file containing the task in the default text editor at the line of the task
-[ ] pomodoro timer should be able to link to tasks ('xit pomodoro <work_time> <break_time> -t <task_id> -t <task_id> ...')
-[ ] pomodoro timer should make a sound when the work/break time is over (configurable sound)
+[ ] 'xit goto <task_id>' to open the file containing the task in the default text editor at the line of the task #new-subcommand
+[ ] adjust tag command to allow batch processing #enhancement
+
+Pomodoro timer updates
+[ ] pomodoro timer should be able to link to tasks ('xit pomodoro <work_time> <break_time> -t <task_id> -t <task_id> ...') #pomodoro
+[ ] pomodoro timer should make a sound when the work/break time is over (configurable sound) #pomodoro
+
+Developer experience
 [ ] create sphinx documentation for xitkit
-[ ] bash completion for xitkit commands
+[@] sections and FileWriter #structure
+
+User experience
+[ ] bash completion for xitkit commands #userexperience
+[x] interactive task showing that asks for file and section #ux
+[x] interactive task adding #ux
+[x] interactive task marking #ux
+[x] interactive task priority changing #ux
+[x] interactive task due date changing #ux
+[ ] interactive task description changing #ux
+[x] interactive task tagging/untagging #ux
+[x] interactive task removing #ux
+[x] interactive task moving between files #ux
+[ ] create a gif showing how to use xitkit to put on the github readme #ux
+
+Bug fixes
 [x] fix linebreak when adding a task via the 'xit add' command.
+[x] fix 'xit tag' multi-line issue #bugfix
+[ ] check whitespace preservation upon editing of Description attributes
+

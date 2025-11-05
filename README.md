@@ -16,9 +16,8 @@ A powerful command-line task management tool that parses and manages tasks from 
 - **:rocket: Batch Processing**: Mark, reschedule, remove, or move multiple tasks at once
 - **:repeat: Recurring Tasks**: Create recurring instances with flexible intervals (daily, weekly, monthly, yearly)
 - **:shell: Shell Integration**: Support for shell expansion (`{3..21}`) and sequences
-- **:triangular_flag_on_post: Status Flags**: Intuitive `--done`, `--ongoing`, `--obsolete` flags instead of cryptic symbols
-- **:shield: Smart Error Handling**: Individual task feedback with batch operation summaries
 - **:tomato: Pomodoro timer**: simple, textual-based pomodoro timer
+- **:wrench: Interactive Mode**: Edit tasks interactively
 
 ## :package: Installation
 
@@ -64,7 +63,6 @@ xitkit --help
 | Command    | Description                                               |
 |------------|-----------------------------------------------------------|
 | add        | Add a new task.                                           |
-| edit       | Edit the description of a task.                           |
 | mark       | Mark one or more tasks with a specific status.            |
 | move       | Move one or more tasks to another file.                   |
 | pomodoro   | A simple Pomodoro Timer App to run in the terminal.       |
@@ -99,9 +97,12 @@ xit stats
 # Show help
 xit --help
 
+# Interactive mode
+xit show --interactive # will prompt you to select which tasks to show (applies for other commands as well)
+
 # Add a new task
 xit add "Buy groceries"
-xit add "!! Important meeting -> 2025-12-15 #work" -f work.xit
+xit add "Important meeting -> 2025-12-15 #work" -f work.xit -p 2
 
 # Mark tasks with new status flags (supports batch processing)
 xit mark 5 --done                     # Mark task #5 as done
@@ -112,10 +113,9 @@ xit mark 7 8 --obsolete               # Mark tasks as obsolete
 xit mark 9 --inquestion               # Mark task as in question
 
 # Reschedule tasks (supports batch processing)
-xit reschedule 5 2025-12-31            # Set specific date for single task
-xit reschedule 2 3 4 today             # Set multiple tasks to today
-xit reschedule {3..21} tomorrow        # Set task range to tomorrow (bash expansion)
-xit reschedule 1 2 "+1w"               # Add one week to multiple tasks
+xit reschedule 5 -n 2025-12-31            # Set specific date for single task
+xit reschedule 2 3 4 -n today             # Set multiple tasks to today
+xit reschedule {3..21} -n tomorrow        # Set task range to tomorrow (bash expansion)
 
 # Remove tasks (supports batch processing with confirmation)
 xit rm 5                               # Remove single task (with confirmation)
@@ -123,23 +123,23 @@ xit rm 2 3 4 5                        # Remove multiple tasks (confirmation for 
 xit rm {3..21}                         # Remove task range (bash expansion)
 
 # Move tasks between files (supports batch processing)
-xit move 5 --target other.xit          # Move single task to another file
-xit move 2 3 4 --target done.xit      # Move multiple tasks to done.xit
-xit move {3..21} --target archive.xit  # Move task range to archive.xit
+xit move 5 --target-file other.xit          # Move single task to another file
+xit move 2 3 4 --target-file done.xit      # Move multiple tasks to done.xit
+xit move {3..21} --target-file archive.xit  # Move task range to archive.xit
 
 # Create recurring instances of tasks
 xit recur 5 --interval 1w --count 4    # Create 4 weekly instances of task #5
-xit recur 3 -i 2w -n 5                # Create 5 bi-weekly instances of task #3
-xit recur 7 -i 1m -e 2026-12-31       # Monthly recurrence until end of 2026
-xit recur 2 -i 1d -n 30 -t work.xit  # 30 daily instances in work.xit file
+xit recur 3 --interval 2w --count 5     # Create 5 bi-weekly instances of task #3
+xit recur 7 --interval 1m --end 2026-12-31       # Monthly recurrence until end of 2026
+xit recur 2 --interval 1d --count 30 --task-file work.xit  # 30 daily instances in work.xit file
 
 # Edit task properties
 xit edit 5 "Updated task description"   # Change the description of task #5
-xit prio 3 2                          # Set priority level 2 (!!) for task #3
-xit prio 7 0                          # Remove priority from task #7
-xit tag 5 urgent                      # Add #urgent tag to task #5
-xit tag 3 "work"                      # Add #work tag to task #3
-xit untag 5 urgent                    # Remove #urgent tag from task #5
+xit prio 3 -p 2                          # Set priority level 2 (!!) for task #3
+xit prio 7 -p 0                          # Remove priority from task #7
+xit tag 5 -t urgent                      # Add #urgent tag to task #5
+xit tag 3 -t "work"                      # Add #work tag to task #3
+xit untag 5 -t urgent                    # Remove #urgent tag from task #5
 ```
 
 
@@ -149,15 +149,6 @@ xit untag 5 urgent                    # Remove #urgent tag from task #5
 
 ```bash
 python -m pytest
-
-# Run with coverage
-python -m pytest --cov=xit
-
-# Run specific test file
-python -m pytest tests/test_fileparser.py
-
-# Test batch processing functionality specifically
-python -m pytest tests/test_commands.py::TestBatchProcessing -v
 ```
 
 ## :page_facing_up: License
@@ -169,4 +160,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Developer of the [x]it! format: [Jotaen](https://github.com/Jotaen/xit)
 - Built with [Rich](https://github.com/Textualize/rich) for beautiful terminal output
 - Uses [Click](https://click.palletsprojects.com/) for the command-line interface
+- Uses [Questionary](https://github.com/tmbo/questionary) for interactive prompts
 

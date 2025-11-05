@@ -110,20 +110,29 @@ class Description:
 
     # Methods for manipulating tags.
 
-    def add_tag(self, tag: Tag) -> None:
+    def add_tag(self, tag: Tag) -> bool:
         """Add a tag to the description.
 
         Args:
             tag (Tag): The tag to add.
+            
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
         # Check if tag already exists to avoid duplicates
         if tag not in self.tags:
             self.tags.append(tag)
+            
             # Add tag to text
-            if self.text:
-                self.text += f" {str(tag)}"
-            else:
+            if not self.text:
                 self.text = str(tag)
+                return True
+            
+            pattern = re.compile(r'(\s|^)' + re.escape(str(tag)) + r'(\s|$)')
+            if not pattern.search(self.text):
+                self.text += " " + str(tag)
+            return True
+        return False
 
     def remove_tag(self, tag: Tag, soft: bool = False) -> None:
         """Remove a tag from the description.
@@ -166,8 +175,8 @@ class Description:
                 tag_without_hash = tag_str[1:]  # Remove the '#'
                 self.text = self.text.replace(tag_str, tag_without_hash)
         
-        # Clean up extra whitespace
-        self.text = re.sub(r'\s+', ' ', self.text).strip()
+        # Clean up extra whitespace but preserve line breaks
+        self.text = re.sub(r'[ \t]+', ' ', self.text).strip()
 
     def get_tags(self) -> list:
         """Get the list of tags associated with the description.
@@ -281,7 +290,7 @@ class Description:
                         break
                 
                 # Clean up extra whitespace
-                self.text = re.sub(r'\s+', ' ', self.text).strip()
+                self.text = re.sub(r'[ \t]+', ' ', self.text).strip()
         
         # Set new due date
         self.due_date = due_date

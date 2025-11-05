@@ -47,7 +47,6 @@ def xitkit(ctx):
 
 
 @xitkit.command()
-@click.argument('path', type=click.Path(), required=False)
 @click.option('--status', '-s', 
               type=click.Choice(['open', 'done', 'ongoing', 'obsolete', 'inquestion'], 
                                case_sensitive=False),
@@ -61,29 +60,29 @@ def xitkit(ctx):
               help='Filter tasks due exactly on the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
 @click.option('--due-by', type=str,
               help='Filter tasks due on or before the specified date. Supports: "today", "tomorrow", "1d", "2w", "3m", "1y", or date formats like "2025-12-31"')
-@click.option('--show-line', '-l', is_flag=True,
-              help='Show line numbers for each task')
+@click.option('--show-location', '-l', is_flag=True,
+              help='Show location information for each task')
 @click.option('--no-id', is_flag=True,
               help='Hide task IDs')
 @click.option('--count', '-c', is_flag=True,
               help='Show only the count of matching tasks')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
 @click.option('--sort', type=click.Choice(['priority', 'due_date'], case_sensitive=False),
               help='Sort tasks by the specified attribute (priority or due_date)')
 @click.option('--order', type=click.Choice(['asc', 'desc'], case_sensitive=False),
               help='Sort order: asc (ascending) or desc (descending). Defaults to asc if not specified')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to show tasks from')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, count, directory, files, sort, order):
+def show(ctx, status, priority, tag, due_on, due_by, show_location, no_id, count, directory, files, sort, order, interactive, debug):
     """Show tasks from .md and .xit files.
     
     This command displays tasks with optional filtering by status, priority, tags, and due dates.
     Tasks are grouped by file with colored syntax highlighting.
-    
-    PATH: Optional file or directory path to parse. If not provided, uses current directory
-          or files specified with --files option.
     
     Examples:
         xit show                           # Show all tasks from current directory
@@ -95,7 +94,7 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
         xit show --due-by 2025             # Show tasks due on or before 2025
         xit show --due-on today            # Show tasks due exactly today
         xit show --count                   # Show count of all tasks
-        xit show --show-line               # Include line numbers
+        xit show --show-location               # Include location information
         xit show --files work.xit personal.xit --status open  # Show open tasks from multiple files
         xit show --sort priority --order desc  # Show tasks sorted by priority (highest first)
         xit show --sort due_date --order asc   # Show tasks sorted by due date (earliest first)
@@ -149,32 +148,30 @@ def show(ctx, path, status, priority, tag, due_on, due_by, show_line, no_id, cou
     # Create and execute command
     command = CommandFactory.create_show_command()
     command.execute(
-        path=path,
         directory=Path(directory) if directory else Path.cwd(),
         specified_files=list(files) if files else [],
         filters=filters,
-        show_line=show_line,
+        show_location=show_location,
         no_id=no_id,
         count_only=count,
         sort_by=sort,
-        sort_order=order or 'asc' if sort else None
+        sort_order=order or 'asc' if sort else None,
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('path', type=click.Path(), required=False)
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def stats(ctx, path, directory, files):
+def stats(ctx, directory, files, debug):
     """Show statistics about tasks.
     
     Displays a summary of task counts by status, priority levels, and other metrics.
-    
-    PATH: Optional file or directory path to analyze. If not provided, uses current directory
-          or files specified with --files option.
     
     Examples:
         xit stats                          # Show stats for all tasks in current directory
@@ -185,9 +182,9 @@ def stats(ctx, path, directory, files):
     # Create and execute command
     command = CommandFactory.create_stats_command()
     command.execute(
-        path=path,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        debug=debug
     )
 
 
@@ -201,8 +198,11 @@ def stats(ctx, path, directory, files):
               help='Due date for the new task in one of the supported formats (e.g., "2025-12-31", "today", "tomorrow", "1d", "2w", "3m", "1y")')
 @click.option('--tag', '-t', multiple=True,
               help='Tags to add to the new task (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select file and section to add the task to')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def add(ctx, description, file, priority, due, tag):
+def add(ctx, description, file, priority, due, tag, interactive, debug):
     """Add a new task.
     
     Creates a new task with the specified description and appends it to the target file.
@@ -221,16 +221,18 @@ def add(ctx, description, file, priority, due, tag):
     command = CommandFactory.create_add_command()
     command.execute(
         description=description,
-        file_path=file or "todo.xit",
+        file_path=file,
         directory=Path.cwd(),
         priority=priority,
         due_date=due,
-        tags=list(tag)
+        tags=list(tag),
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID...', required=False)
 @click.option('--open', 'status', flag_value='open', help='Mark tasks as open')
 @click.option('--done', 'status', flag_value='done', help='Mark tasks as done')  
 @click.option('--ongoing', 'status', flag_value='ongoing', help='Mark tasks as ongoing')
@@ -238,10 +240,13 @@ def add(ctx, description, file, priority, due, tag):
 @click.option('--inquestion', 'status', flag_value='inquestion', help='Mark tasks as in question')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to mark tasks in')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def mark(ctx, task_ids, status, directory, files):
+def mark(ctx, task_ids, status, directory, files, interactive, debug):
     """Mark one or more tasks with a specific status.
     
     Changes the status of tasks identified by their IDs. The task IDs can be found
@@ -256,33 +261,32 @@ def mark(ctx, task_ids, status, directory, files):
         xit mark 3 --ongoing --files tasks.xit  # Mark task #3 as ongoing in specific file
         xit mark 5 --done --directory /path/to/project  # Mark task in specific directory
     """
-    if not task_ids:
-        click.echo("Error: Must specify at least one task ID", err=True)
-        ctx.exit(1)
-    
-    if not status:
-        click.echo("Error: Must specify a status flag (--done, --open, --ongoing, --obsolete, --inquestion)", err=True)
-        ctx.exit(1)
     
     # Create and execute command
     command = CommandFactory.create_mark_command()
     command.execute(
         task_ids=list(task_ids),
-        status=status.upper(),
+        new_attribute=status,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
-@click.argument('new_date', type=str, metavar='DATE')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID', required=False)
+@click.option('--new_date', '-n', type=str,
+              help='New due date for the task (supports natural language and relative dates)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to reschedule tasks in')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def reschedule(ctx, task_ids, new_date, directory, files):
+def reschedule(ctx, task_ids, new_date, directory, files, interactive, debug):
     """Reschedule one or more tasks to a new due date.
     
     Changes the due date of tasks identified by their IDs. The task IDs can be found
@@ -302,28 +306,32 @@ def reschedule(ctx, task_ids, new_date, directory, files):
         xit reschedule 8 2d-                # Subtract two days from task #8
         xit reschedule 9 "+3m"              # Add three months to task #9
     """
-    if not task_ids:
-        click.echo("Error: Must specify at least one task ID", err=True)
-        ctx.exit(1)
     
     # Create and execute command
     command = CommandFactory.create_reschedule_command()
     command.execute(
-        task_ids=list(task_ids),
-        new_date=new_date,
+        task_ids=task_ids,
+        new_attribute=new_date,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID', required=False)
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--force', is_flag=True,
+              help='Automatically confirm task removals without prompting')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to remove tasks from')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def rm(ctx, task_ids, directory, files):
+def rm(ctx, task_ids, directory, files, force, interactive, debug):
     """Remove one or more tasks by their IDs with confirmation.
     
     Shows each task and asks for confirmation before permanently deleting it.
@@ -340,29 +348,34 @@ def rm(ctx, task_ids, directory, files):
         xit rm 3 --files tasks.xit  # Remove task #3 from specific file (with confirmation)
         xit rm 5 --directory /path/to/project  # Remove task from specific directory
     """
-    if not task_ids:
-        click.echo("Error: Must specify at least one task ID", err=True)
-        ctx.exit(1)
-    
+
     # Create and execute command
     command = CommandFactory.create_remove_command()
     command.execute(
         task_ids=list(task_ids),
+        new_attribute=force,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_ids', nargs=-1, type=int, metavar='ID...')
-@click.option('--target', '-t', required=True, 
+@click.argument('task_ids', nargs=-1, type=int, metavar='ID', required=False)
+@click.option('--target-file', '-t', 
               help='Target file to move the tasks to')
+@click.option('--section', '-s', type=str,
+              help='Target section within the file to move the tasks to')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to move tasks from')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def move(ctx, task_ids, target, directory, files):
+def move(ctx, task_ids, target_file, section, directory, files, interactive, debug):
     """Move one or more tasks to another file.
     
     Moves tasks from their current files to the specified target file.
@@ -378,36 +391,36 @@ def move(ctx, task_ids, target, directory, files):
         xit move 3 -t done.xit --files tasks.xit  # Move task #3 to done.xit from specific file
         xit move 5 --target archive.xit --directory /path/to/project  # Move task from specific directory
     """
-    if not task_ids:
-        click.echo("Error: Must specify at least one task ID", err=True)
-        ctx.exit(1)
-    
+
     # Create and execute command
     command = CommandFactory.create_move_command()
     command.execute(
         task_ids=list(task_ids),
-        target_file=target,
+        new_attribute=(target_file, section),
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.option('--interval', '-i', required=True, type=str,
-              help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y")')
+@click.argument('task_ids', type=int, nargs=-1, metavar='ID', required=False)
+@click.option('--interval', type=str,
+              help='Recurrence interval (e.g., "1d", "1w", "2w", "1m", "3m", "1y", "7m3w")')
 @click.option('--end-date', '-e', type=str,
               help='End date for recurrence in YYYY-MM-DD format')
 @click.option('--count', '-n', type=int,
               help='Maximum number of recurring instances to create')
-@click.option('--target-file', '-t', type=str,
-              help='Target file for recurring tasks (default: same as original task)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True,
+              help='Interactively select files and sections to create recurring tasks in')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def recur(ctx, task_id, interval, end_date, count, target_file, directory, files):
+def recur(ctx, task_ids, interval, end_date, count, directory, files, interactive, debug):
     """Create recurring instances of a task.
     
     Creates multiple recurring instances of an existing task based on the specified interval.
@@ -428,37 +441,30 @@ def recur(ctx, task_id, interval, end_date, count, target_file, directory, files
         1m, 3m    - Months (1 month, 3 months)
         1y        - Years (1 year)
     """
-    # Validate mutual exclusivity
-    if end_date and count:
-        click.echo("Error: Cannot specify both --end-date and --count. Choose one.", err=True)
-        ctx.exit(1)
-    
-    if not end_date and not count:
-        click.echo("Error: Must specify either --end-date or --count for recurrence limit.", err=True)
-        ctx.exit(1)
     
     # Create and execute command
     command = CommandFactory.create_recur_command()
     command.execute(
-        task_id=task_id,
-        interval=interval,
-        end_date=end_date,
-        count=count,
-        target_file=target_file,
+        task_ids=task_ids,
+        new_attribute=(interval, end_date, count),
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
+@click.argument('task_ids', type=int, metavar='ID', nargs=-1, required=False)
 @click.argument('description', type=str, metavar='DESCRIPTION')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option('--interactive', '-i', is_flag=True, help='Enable interactive mode to select tasks.')
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def edit(ctx, task_id, description, directory, files):
+def edit(ctx, task_ids, description, directory, files, debug):
     """Edit the description of a task.
     
     Changes the description text of an existing task while preserving its priority,
@@ -472,25 +478,33 @@ def edit(ctx, task_id, description, directory, files):
         xit edit 3 "New text" --files work.xit      # Edit task in specific file
         xit edit 7 "Revised task" -d ~/projects     # Edit task in project directory
     """
+    # currently does not work. exit immediately
+    click.echo("The 'edit' command is currently not functional.", err=True)
+    ctx.exit(1)
+    
     # Create and execute command
     command = CommandFactory.create_edit_command()
     command.execute(
-        task_id=task_id,
+        task_id=task_ids,
         description=description,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],   
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('priority', type=int, metavar='PRIORITY')
+@click.argument('task_ids', type=int, nargs=-1, metavar='ID', required=False)
+@click.option('--priority', '-p', type=int,
+              help='Priority level to set (0 = no priority, 1+ = number of exclamation marks)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--interactive", '-i', is_flag=True, help="Enable interactive mode to select tasks.")
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def prio(ctx, task_id, priority, directory, files):
+def prio(ctx, task_ids, priority, directory, files, interactive, debug):
     """Set the priority of a task.
     
     Assigns or changes the priority level of an existing task.
@@ -504,25 +518,31 @@ def prio(ctx, task_id, priority, directory, files):
         xit prio 3 3 --files work.xit               # Set priority 3 (!!!) in specific file
         xit prio 7 0 -d ~/projects                  # Remove priority from task #7
     """
+
     # Create and execute command
     command = CommandFactory.create_priority_command()
     command.execute(
-        task_id=task_id,
-        priority=priority,
+        task_ids=task_ids,
+        new_attribute=priority,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],   
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('tag', type=str, metavar='TAG')
+@click.argument('task_ids', type=int, nargs=-1, metavar='ID', required=False)
+@click.option('--tag', '-t', type=str, multiple=True,
+              help='Tag name(s) to add (without # prefix, can be used multiple times)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--interactive", '-i', is_flag=True, help="Enable interactive mode to select tasks.")
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def tag(ctx, task_id, tag, directory, files):
+def tag(ctx, task_ids, tag, directory, files, interactive, debug):
     """Add a tag to a task.
     
     Adds a hashtag to an existing task. The # symbol is optional - it will
@@ -539,22 +559,27 @@ def tag(ctx, task_id, tag, directory, files):
     # Create and execute command
     command = CommandFactory.create_tag_command()
     command.execute(
-        task_id=task_id,
-        tag=tag,
+        task_ids=task_ids,
+        new_attribute=tag,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],
+        interactive=interactive,
+        debug=debug
     )
 
 
 @xitkit.command()
-@click.argument('task_id', type=int, metavar='ID')
-@click.argument('tag', type=str, metavar='TAG')
+@click.argument('task_ids', type=int, nargs=-1, metavar='ID', required=False)
+@click.option('--tag', type=str, multiple=True,
+              help='Tag name(s) to remove (without # prefix, can be used multiple times)')
 @click.option('--directory', '-d', type=click.Path(exists=True, file_okay=False), 
               help='Directory to search for task files (default: current directory)')
-@click.option('--files', '-f', multiple=True, type=click.Path(exists=True),
+@click.option('--files', '-f', multiple=True, # type=click.Path(exists=True),
               help='Specific files to parse (can be used multiple times)')
+@click.option("--interactive", '-i', is_flag=True, help="Enable interactive mode to select tasks.")
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def untag(ctx, task_id, tag, directory, files):
+def untag(ctx, task_ids, tag, directory, files, interactive,debug):
     """Remove a tag from a task.
     
     Removes a hashtag from an existing task. The # symbol is optional.
@@ -571,22 +596,25 @@ def untag(ctx, task_id, tag, directory, files):
     # Create and execute command
     command = CommandFactory.create_untag_command()
     command.execute(
-        task_id=task_id,
-        tag=tag,
+        task_ids=task_ids,
+        new_attribute=tag,
         directory=Path(directory) if directory else Path.cwd(),
-        specified_files=list(files) if files else []
+        specified_files=list(files) if files else [],   
+        interactive=interactive,
+        debug=debug
     )
 
 @xitkit.command()
 @click.argument('time_work', type=int, default=25)
 @click.argument('time_break', type=int, default=5)
+@click.option("--debug", is_flag=True, help="Enable debug mode where exceptions are not caught.")
 @click.pass_context
-def pomodoro(ctx, time_work, time_break):
+def pomodoro(ctx, time_work, time_break, debug):
     """A simple Pomodoro Timer App to run in the terminal."""
-    app = PomodoroApp(time_work=time_work, time_break=time_break)
+    app = PomodoroApp(time_work=time_work, time_break=time_break, debug=debug)
     app.run()
 
 
 
 if __name__ == '__main__':
-    xit()
+    xitkit()

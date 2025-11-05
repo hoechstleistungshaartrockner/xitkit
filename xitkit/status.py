@@ -9,6 +9,8 @@ from enum import Enum
 from typing import Optional, Union
 import re
 
+from xitkit.exceptions import XitError
+
 class StatusType(Enum):
     """Enumeration of valid status types."""
     OPEN = " "
@@ -32,6 +34,11 @@ class Status:
     """
     
     status_type: StatusType
+    
+    def __post_init__(self):
+        """Validate status type after initialization."""
+        if not isinstance(self.status_type, StatusType):
+            raise ValueError(f"Invalid status type: {self.status_type}. Maybe use Status.from_string()?")
     
     def __str__(self) -> str:
         """Return string representation of the status."""
@@ -102,23 +109,47 @@ class Status:
         if not isinstance(status_str, str):
             return None
             
-        # Must be exactly 3 characters: [, character, ]
-        if len(status_str) != 3:
-            return None
-            
-        # Must start with [ and end with ]
-        if not (status_str.startswith('[') and status_str.endswith(']')):
-            return None
-            
-        # Extract the middle character
-        indicator = status_str[1]
+        allowed_values = {"open": StatusType.OPEN,
+                              "checked": StatusType.CHECKED,
+                              "ongoing": StatusType.ONGOING,
+                              "obsolete": StatusType.OBSOLETE,
+                              "in_question": StatusType.IN_QUESTION,
+                              "inquestion": StatusType.IN_QUESTION,
+                              "done": StatusType.CHECKED,
+                              "complete": StatusType.CHECKED,
+                              "active": StatusType.OPEN,
+                              "OPEN": StatusType.OPEN,
+                              "CHECKED": StatusType.CHECKED,
+                              "ONGOING": StatusType.ONGOING,
+                              "OBSOLETE": StatusType.OBSOLETE,
+                              "IN_QUESTION": StatusType.IN_QUESTION,
+                              "INQUESTION": StatusType.IN_QUESTION,
+                              "DONE": StatusType.CHECKED,
+                              "COMPLETE": StatusType.CHECKED,
+                              "ACTIVE": StatusType.OPEN,
+                              # checkbox formats
+                              "[ ]": StatusType.OPEN,
+                              "[x]": StatusType.CHECKED,
+                              "[@]": StatusType.ONGOING,
+                              "[~]": StatusType.OBSOLETE,
+                              "[?]": StatusType.IN_QUESTION,
+                              # single character indicators
+                              " ": StatusType.OPEN,
+                              "x": StatusType.CHECKED,
+                              "@": StatusType.ONGOING,
+                              "~": StatusType.OBSOLETE,
+                              "?": StatusType.IN_QUESTION,
+                              }
+        status_type = allowed_values.get(status_str, None)
+        if status_type is None:
+            raise XitError(f"Invalid status string: {status_str}")
         
-        # Map indicator to StatusType
-        try:
-            status_type = StatusType(indicator)
-            return cls(status_type)
-        except ValueError:
-            return None
+        return cls(status_type)
+    
+    @property
+    def name(self) -> str:
+        """Get the name of the status type."""
+        return self.status_type.name
     
     @classmethod
     def from_line(cls, line: str) -> Optional['Status']:

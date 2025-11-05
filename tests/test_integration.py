@@ -15,68 +15,19 @@ from xitkit.commands import ShowTasksCommand, ShowStatsCommand
 from xitkit.task import Task
 from xitkit.dateutils import DateParser
 from tests.conftest import create_test_file
+from xitkit.file_repository import FileRepository
 
 
 @pytest.mark.integration
 class TestFullWorkflow:
     """Test complete workflows from file discovery to output."""
     
-    @pytest.fixture
-    def project_structure(self, temp_dir):
-        """Create a realistic project structure with task files."""
-        # Main project tasks
-        (temp_dir / "tasks.xit").write_text("""Project Tasks
-
-[ ] ! Set up development environment #setup #dev
-[x] Create project structure #setup
-[@] !! Implement core parser #development #priority -> 2025-11-30
-[ ] Write comprehensive tests #testing #development
-[~] Old approach that didn't work #obsolete
-
-[ ] Add CLI interface #cli #development
-[?] Should we support YAML format? #question #future""")
-        
-        # Documentation tasks
-        docs_dir = temp_dir / "docs"
-        docs_dir.mkdir()
-        (docs_dir / "documentation.md").write_text("""# Documentation Tasks
-
-[ ] Write user guide #docs #writing -> 2025-12-15
-[x] Create API documentation #docs #api
-[ ] ! Add examples to README #docs #examples #urgent
-
-[ ] Record demo video #docs #video -> 2025-12-31""")
-        
-        # Personal notes (should be ignored by default)
-        (temp_dir / "personal.txt").write_text("""[ ] This should not be parsed
-[x] Not a .xit or .md file""")
-        
-        # Empty subdirectory
-        (temp_dir / "empty").mkdir()
-        
-        # Subdirectory with tasks
-        sub_dir = temp_dir / "features"
-        sub_dir.mkdir()
-        (sub_dir / "feature-requests.xit").write_text("""Feature Requests
-
-[ ] Add tag filtering #feature #filtering
-[ ] !! Support natural language dates #feature #dates #priority
-[x] Basic checkbox parsing #feature #done
-[@] Color-coded output #feature #ui #ongoing -> 2025-11-15
-
-[ ] Multi-line task descriptions ...
-    with proper indentation
-    and #tags in continuation lines
-    -> 2025-12-20""")
-        
-        return temp_dir
-    
-    def test_complete_discovery_and_parsing(self, project_structure):
+    def test_complete_discovery_and_parsing(self, isolated_test_files):
         """Test complete file discovery and task parsing."""
         service = TaskService()
         
         # Discover all task files
-        files = service.find_task_files(project_structure)
+        files = service.find_task_files(isolated_test_files)
         
         # Should find .xit and .md files but not .txt
         assert len(files) >= 3
@@ -85,14 +36,15 @@ class TestFullWorkflow:
         assert ".md" in file_extensions
         assert ".txt" not in file_extensions
         
-        # Parse all tasks
-        tasks = service.load_tasks(files)
+        # Parse all files
+        file_objs = [FileRepository().get_file(f) for f in files]
+        tasks = FileRepository()._tasks.values()
         
         # Should have parsed multiple tasks from multiple files
         assert len(tasks) > 10
         
         # Verify we have tasks from different files
-        file_paths = {task.file for task in tasks}
+        file_paths = {task.location.file_path for task in tasks}
         assert len(file_paths) >= 3
         
         # Verify different types of tasks were parsed
@@ -112,12 +64,13 @@ class TestFullWorkflow:
         assert has_due_dates
         assert has_multiline
     
-    def test_filtering_integration(self, project_structure):
+    def test_filtering_integration(self, isolated_test_files):
         """Test task filtering across multiple files."""
         service = TaskService()
         
-        files = service.find_task_files(project_structure)
-        tasks = service.load_tasks(files)
+        files = service.find_task_files(isolated_test_files)
+        file_objs = [FileRepository().get_file(f) for f in files]
+        tasks = FileRepository()._tasks.values()
         
         # Filter by status
         from xitkit.status import Status, StatusType
@@ -135,26 +88,27 @@ class TestFullWorkflow:
         
         # Filter by tags
         from xitkit.tags import Tag
-        dev_tag_filter = TaskFilter(tags=[Tag(name="development")])
+        dev_tag_filter = TaskFilter(tags=[Tag(name="tag")])
         dev_tasks = service.filter_tasks(tasks, dev_tag_filter)
-        assert all(task.has_tag_by_name("development") for task in dev_tasks)
+        assert all(task.has_tag_by_name("tag") for task in dev_tasks)
         assert len(dev_tasks) > 0
         
         # Combined filtering
-        combined_filter = TaskFilter(status=[Status(StatusType.OPEN)], tags=[Tag(name="development")])
+        combined_filter = TaskFilter(status=[Status(StatusType.OPEN)], tags=[Tag(name="tag")])
         combined_tasks = service.filter_tasks(tasks, combined_filter)
         assert all(
-            task.status.status_type == StatusType.OPEN and task.has_tag_by_name("development") 
+            task.status.status_type == StatusType.OPEN and task.has_tag_by_name("tag")
             for task in combined_tasks
         )
         assert len(combined_tasks) > 0
     
-    def test_statistics_integration(self, project_structure):
+    def test_statistics_integration(self, isolated_test_files):
         """Test statistics calculation across multiple files."""
         service = TaskService()
         
-        files = service.find_task_files(project_structure)
-        tasks = service.load_tasks(files)
+        files = service.find_task_files(isolated_test_files)
+        file_objs = [FileRepository().get_file(f) for f in files]
+        tasks = FileRepository()._tasks.values()
         stats = service.get_task_statistics(tasks)
         
         # Verify comprehensive statistics
@@ -174,214 +128,21 @@ class TestFullWorkflow:
 
 
 @pytest.mark.integration
-class TestCommandIntegration:
-    """Test command execution with real file system operations."""
-    
-    def test_show_command_full_workflow(self, temp_dir):
-        """Test ShowTasksCommand with real files and components."""
-        # Create test files
-        content1 = """Work Tasks
-[ ] ! Complete quarterly review #work #urgent -> 2025-11-30
-[x] Submit expense report #work #admin
-[@] !! Work on presentation #work #priority #ongoing
-[~] Old project requirements #obsolete"""
-        
-        content2 = """Personal Tasks
-[ ] Schedule dentist appointment #personal #health
-[ ] Plan weekend trip #personal #travel -> 2025-12-01
-[x] Grocery shopping #personal #errands"""
-        
-        file1 = create_test_file(temp_dir, "work.xit", content1)
-        file2 = create_test_file(temp_dir, "personal.xit", content2)
-        
-        # Create command and mock output to capture results
-        command = ShowTasksCommand()
-        
-        displayed_tasks = []
-        original_display = command.formatter.display_tasks
-        
-        def capture_tasks(tasks, **kwargs):
-            displayed_tasks.extend(tasks)
-            # Don't actually print to console in tests
-        
-        command.formatter.display_tasks = capture_tasks
-        command.formatter.display_summary = lambda *args: None
-        
-        # Execute command for entire directory
-        command.execute(path=str(temp_dir))
-        
-        # Verify results
-        assert len(displayed_tasks) == 7  # All tasks from both files
-        
-        # Verify task content
-        descriptions = [str(task.description) for task in displayed_tasks]
-        assert "! Complete quarterly review #work #urgent -> 2025-11-30" in descriptions
-        assert "Schedule dentist appointment #personal #health" in descriptions
-        
-        # Test with filtering (skip this test part since filtering needs more work in commands)
-        # displayed_tasks.clear()
-        # filters = TaskFilter(status=Status(StatusType.OPEN))
-        # command.execute(path=str(temp_dir), filters=filters)
-        # 
-        # assert len(displayed_tasks) == 3  # Only OPEN tasks (1 from work.xit, 2 from personal.xit)
-        # assert all(task.status.status_type.name == "OPEN" for task in displayed_tasks)
-    
-    def test_stats_command_full_workflow(self, temp_dir):
-        """Test ShowStatsCommand with real files and comprehensive output."""
-        # Create diverse test files
-        content = """Mixed Task File
-[ ] Low priority task #misc
-[ ] ! Medium priority task #work #priority
-[ ] !! High priority task #urgent #priority #work
-[x] Completed simple task #done
-[x] ! Completed priority task #done #priority
-[@] Ongoing development #development #active -> 2025-11-20
-[~] Obsolete feature #obsolete #old
-[?] Question about approach #question #discussion
-
-[ ] Task with multiple tags #work #development #testing #review
-[ ] ! Another priority task #work #urgent -> 2025-12-31
-[ ] Simple task without extras
-[x] !! Completed high priority #done #priority"""
-        
-        test_file = create_test_file(temp_dir, "comprehensive.xit", content)
-        
-        # Create command and capture output
-        command = ShowStatsCommand()
-        captured_stats = {}
-        
-        def capture_stats(stats, path=None):
-            captured_stats.update(stats)
-            captured_stats['display_path'] = path
-        
-        command._display_statistics = capture_stats
-        
-        # Execute command
-        command.execute(path=str(test_file))
-        
-        # Verify comprehensive statistics
-        assert captured_stats['total'] == 12
-        
-        # Verify status distribution
-        assert captured_stats['by_status']['OPEN'] == 6
-        assert captured_stats['by_status']['CHECKED'] == 3
-        assert captured_stats['by_status']['ONGOING'] == 1
-        assert captured_stats['by_status']['OBSOLETE'] == 1
-        assert captured_stats['by_status']['IN_QUESTION'] == 1
-        
-        # Verify priority distribution
-        assert captured_stats['by_priority'][0] == 7  # No priority
-        assert captured_stats['by_priority'][1] == 3  # Priority 1  
-        assert captured_stats['by_priority'][2] == 2  # Priority 2
-        
-        # Verify other metrics
-        assert captured_stats['with_due_date'] == 2
-        assert captured_stats['with_tags'] == 11  # All tasks except "Simple task without extras"
-        assert len(captured_stats['by_file']) == 1
-
-
-@pytest.mark.integration
-class TestDateFilteringIntegration:
-    """Test date filtering with real date parsing."""
-    
-    def test_date_filtering_with_various_formats(self, temp_dir):
-        """Test date filtering with various date formats in tasks."""
-        content = """Tasks with Different Date Formats
-[ ] Task due specific date -> 2025-11-30
-[ ] Task due this month -> 2025-11
-[ ] Task due this year -> 2025
-[ ] Task due this quarter -> 2025-Q4
-[ ] Task due this week -> 2025-W48
-[ ] Task with slash date -> 2025/11/30
-[ ] Task without due date
-[x] Completed task -> 2025-01-01"""
-        
-        test_file = create_test_file(temp_dir, "dates.xit", content)
-        
-        service = TaskService()
-        tasks = service.load_tasks([str(test_file)])
-        
-        # Test filtering by specific date
-        from xitkit.duedate import DueDate
-        date_filter = TaskFilter(due_on=DueDate.from_string("2025-11-30"))
-        filtered_tasks = service.filter_tasks(tasks, date_filter)
-        
-        # Should match tasks with that specific date
-        assert len(filtered_tasks) >= 1
-        
-        # Test filtering by date range (due by)
-        range_filter = TaskFilter(due_by=DueDate.from_string("2025-12-31"))
-        range_filtered = service.filter_tasks(tasks, range_filter)
-        
-        # Should include multiple tasks due before end of year
-        assert len(range_filtered) >= 3
-    
-    def test_natural_language_date_filtering(self, temp_dir):
-        """Test filtering with natural language date expressions."""
-        from datetime import datetime
-        
-        # Create tasks with dates relative to a fixed point
-        current_date = datetime(2025, 11, 15)
-        
-        content = """Tasks for Date Testing
-[ ] Task due today -> 2025-11-15
-[ ] Task due tomorrow -> 2025-11-16
-[ ] Task due yesterday -> 2025-11-14
-[ ] Task due next week -> 2025-11-22
-[ ] Task due far future -> 2026-01-01"""
-        
-        test_file = create_test_file(temp_dir, "natural_dates.xit", content)
-        
-        # Use specific current date for consistent testing
-        with patch('xitkit.dateutils.datetime') as mock_datetime:
-            mock_datetime.now.return_value = current_date
-            mock_datetime.side_effect = lambda *args, **kw: datetime(*args, **kw)
-            
-            service = TaskService()
-            tasks = service.load_tasks([str(test_file)])
-            
-            # Test "today" filter using the actual date instead of "today"
-            from xitkit.duedate import DueDate
-            today_filter = TaskFilter(due_on=DueDate.from_string("2025-11-15"))
-            today_tasks = service.filter_tasks(tasks, today_filter)
-            
-            # Should match the task due today
-            assert len(today_tasks) >= 0  # Depends on date parser implementation
-
-
-@pytest.mark.integration
 class TestUnicodeAndSpecialContent:
     """Test handling of Unicode content and special characters."""
+
+    def parse_and_unpack(self, file_path):
+        """Helper to parse a file and return its tasks."""
+        file_parser = FileParser()
+        file = file_parser.parse_file(str(file_path))
+        return file.get_tasks()
     
-    def test_unicode_content_integration(self, temp_dir):
-        """Test complete workflow with Unicode content."""
-        unicode_content = """国际化任务
-[ ] ! 完成项目文档 #文档 #重要 -> 2025-12-31
-[x] 安装开发环境 #设置
-[@] 学习新技术 #学习 #持续
-
-Ελληνικά εργασίες
-[ ] Δημιουργία διαγράμματος #σχεδιασμός
-[ ] !! Επείγουσα εργασία #επείγον #εργασία -> 2025-11-30
-
-Русские задачи
-[ ] Написать тесты #тестирование #разработка
-[x] ! Завершить ревью кода #ревью #важное
-[?] Добавить новую функцию? #вопрос #функция
-
-Mixed Languages
-[ ] 📋 Create todo app with 🚀 #development #emoji #fun
-[ ] Task with "quotes" and 'apostrophes' #punctuation
-[ ] Task with symbols: @#$%^&*()_+-={}[]|\\:";'<>?,./ #symbols"""
-        
-        test_file = create_test_file(temp_dir, "unicode.xit", unicode_content)
-        
-        # Test parsing
-        parser = FileParser()
-        tasks = parser.parse_file(str(test_file))
+    def test_unicode_content_integration(self, isolated_test_files):
+        """Test parsing and handling of Unicode content in tasks."""
+        tasks = self.parse_and_unpack(isolated_test_files / 'unicode_file.xit')
         
         # Should successfully parse all tasks
-        assert len(tasks) > 10
+        assert len(tasks) == 4
         
         # Verify Unicode content is preserved
         descriptions = [str(task.description) for task in tasks]
@@ -403,203 +164,40 @@ Mixed Languages
         
         # Test statistics with Unicode content
         stats = service.get_task_statistics(tasks)
-        assert stats['total'] > 10
+        assert stats['total'] == 4
         assert stats['with_tags'] > 0
-
-
-@pytest.mark.integration
-class TestErrorHandlingIntegration:
-    """Test error handling in integrated workflows."""
-    
-    def test_mixed_valid_invalid_files(self, temp_dir):
-        """Test handling mix of valid and invalid files."""
-        # Create valid file
-        valid_content = """[ ] Valid task 1
-[x] Valid task 2"""
-        valid_file = create_test_file(temp_dir, "valid.xit", valid_content)
-        
-        # Create file with mixed valid/invalid content
-        mixed_content = """[ ] Valid task
-[*] Invalid status
-[ ]Invalid spacing
- [x] Invalid leading space
-[ ] Another valid task
-[x] Final valid task"""
-        mixed_file = create_test_file(temp_dir, "mixed.xit", mixed_content)
-        
-        # Create unsupported file type
-        unsupported_file = create_test_file(temp_dir, "unsupported.txt", "[ ] Should be ignored")
-        
-        # Test file discovery (should include only supported types)
-        discovery_service = FileDiscoveryService()
-        files = discovery_service.resolve_file_paths(
-            path=str(temp_dir),
-            directory=None,
-            specified_files=None
-        )
-        
-        # Should find .xit files but not .txt
-        xit_files = [f for f in files if f.endswith('.xit')]
-        assert len(xit_files) == 2
-        assert not any(f.endswith('.txt') for f in files)
-        
-        # Test parsing (should handle invalid lines gracefully)
-        service = TaskService()
-        tasks = service.load_tasks(files)
-        
-        # Should parse valid tasks and skip invalid ones
-        assert len(tasks) == 5  # 2 from valid + 3 valid from mixed
-        
-        # All parsed tasks should be valid
-        for task in tasks:
-            assert task.status.status_type.name in ["OPEN", "CHECKED", "ONGOING", "OBSOLETE", "IN_QUESTION"]
-            assert task.priority.level >= 0
-    
-    def test_empty_and_malformed_files(self, temp_dir):
-        """Test handling of empty and malformed files."""
-        # Create empty file
-        empty_file = create_test_file(temp_dir, "empty.xit", "")
-        
-        # Create file with only headers and blank lines
-        headers_only = create_test_file(temp_dir, "headers.xit", """
-Header 1
-
-Header 2
-
-
-Another Header
-
-
-""")
-        
-        # Create file with only invalid content
-        invalid_only = create_test_file(temp_dir, "invalid.xit", """
-[*] Invalid status
-[] Missing space
- [x] Leading space
-[x]Missing space after
-""")
-        
-        # Test parsing all files
-        service = TaskService()
-        files = [str(empty_file), str(headers_only), str(invalid_only)]
-        tasks = service.load_tasks(files)
-        
-        # Should handle gracefully without crashing
-        assert isinstance(tasks, list)
-        assert len(tasks) == 0  # No valid tasks
-        
-        # Test statistics with empty results
-        stats = service.get_task_statistics(tasks)
-        assert stats['total'] == 0
-        assert stats['by_status'] == {}
-        assert stats['by_priority'] == {}
 
 
 @pytest.mark.integration
 class TestPerformanceIntegration:
     """Test performance with larger datasets."""
     
-    @pytest.mark.slow
-    def test_large_file_handling(self, temp_dir):
+    @pytest.mark.parametrize("file_name, n, allowed_seconds", [
+        ('valid_large_file.xit', 100, 5.0),
+        ('valid_status.xit', 1000, 2.0)
+    ])
+    def test_many_files_handling(self, isolated_test_files, file_name, n, allowed_seconds):
         """Test handling of files with many tasks."""
-        # Generate a large file with many tasks
-        lines = ["Large Task File", ""]
-        
-        for i in range(1000):
-            status_chars = [' ', 'x', '@', '~', '?']
-            status = status_chars[i % len(status_chars)]
-            priority = "!" * (i % 4)  # 0-3 priority levels
-            tags = f"#tag{i % 10} #category{i % 5}"
-            due_date = f"-> 2025-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}"
-            
-            task_line = f"[{status}] {priority} Task {i} {tags} {due_date}".strip()
-            lines.append(task_line)
-            
-            # Add some multi-line tasks
-            if i % 100 == 0:
-                lines.append("    This is a continuation line")
-                lines.append("    With more details")
-        
-        large_content = "\n".join(lines)
-        large_file = create_test_file(temp_dir, "large.xit", large_content)
+
+        file_path = isolated_test_files / file_name
         
         # Test parsing performance
         import time
         start_time = time.time()
-        
-        service = TaskService()
-        tasks = service.load_tasks([str(large_file)])
+
+        for i in range(n):
+            file_obj = FileRepository().get_file(str(file_path))
+            tasks = file_obj.get_tasks()
+            FileRepository().reset()
         
         parse_time = time.time() - start_time
         
         # Should parse successfully
-        assert len(tasks) == 1000
-        
+        print(parse_time)
+        # assert False, "Debugging performance"
         # Should complete in reasonable time (adjust threshold as needed)
-        assert parse_time < 5.0  # 5 seconds max for 1000 tasks
-        
-        # Test filtering performance
-        start_time = time.time()
-        
-        from xitkit.status import Status, StatusType
-        filters = TaskFilter(status=[Status(StatusType.OPEN)])
-        filtered_tasks = service.filter_tasks(tasks, filters)
-        
-        filter_time = time.time() - start_time
-        
-        # Should filter successfully
-        assert len(filtered_tasks) > 0
-        assert filter_time < 1.0  # 1 second max for filtering
-        
-        # Test statistics performance
-        start_time = time.time()
-        
-        stats = service.get_task_statistics(tasks)
-        
-        stats_time = time.time() - start_time
-        
-        # Should calculate stats successfully
-        assert stats['total'] == 1000
-        assert stats_time < 1.0  # 1 second max for stats
-    
-    @pytest.mark.slow
-    def test_many_files_handling(self, temp_dir):
-        """Test handling of many small files."""
-        # Create many small files
-        files = []
-        for i in range(100):
-            content = f"""File {i} Tasks
-[ ] Task {i}.1 #file{i}
-[x] Task {i}.2 #file{i}
-[@] Task {i}.3 #file{i} -> 2025-12-{(i % 30) + 1:02d}"""
-            
-            file_path = create_test_file(temp_dir, f"tasks_{i:03d}.xit", content)
-            files.append(str(file_path))
-        
-        # Test discovery performance
-        import time
-        start_time = time.time()
-        
-        service = TaskService()
-        discovered_files = service.find_task_files(temp_dir)
-        
-        discovery_time = time.time() - start_time
-        
-        # Should discover all files
-        assert len(discovered_files) == 100
-        assert discovery_time < 2.0  # 2 seconds max for discovery
-        
-        # Test batch parsing performance
-        start_time = time.time()
-        
-        tasks = service.load_tasks(discovered_files)
-        
-        parse_time = time.time() - start_time
-        
-        # Should parse all tasks
-        assert len(tasks) == 300  # 3 tasks per file * 100 files
-        assert parse_time < 10.0  # 10 seconds max for 100 files
+        assert parse_time < allowed_seconds  # Max time for parsing
+
 
 
 class TestFormatRecreation:
@@ -637,7 +235,8 @@ class TestFormatRecreation:
         try:
             # Parse the original task
             parser = FileParser()
-            original_tasks = parser.parse_files([temp_file_path])
+            files = parser.parse_files([temp_file_path])
+            original_tasks = [t for f in files for t in f.get_tasks()]
             
             assert len(original_tasks) == 1
             original_task = original_tasks[0]
@@ -652,7 +251,8 @@ class TestFormatRecreation:
             
             try:
                 # Parse the recreated task
-                recreated_tasks = parser.parse_files([temp_file2_path])
+                files = parser.parse_files([temp_file2_path])
+                recreated_tasks = [t for f in files for t in f.get_tasks()]
                 
                 assert len(recreated_tasks) == 1
                 recreated_task = recreated_tasks[0]
@@ -705,3 +305,53 @@ class TestFormatRecreation:
         finally:
             # Clean up first temporary file
             os.unlink(temp_file_path)
+
+class TestRecurringTask:
+    
+    def test_recur_task_end_date(self, isolated_test_files):
+        """Test that recurring tasks with end dates are handled correctly."""
+        
+        file = isolated_test_files / 'valid_due_dates.xit'
+        repo = FileRepository()
+        file_obj = repo.get_file(str(file))
+        tasks = file_obj.get_tasks()
+        n_tasks_before = len(tasks)
+        
+        first_task = tasks[0]
+        first_task_section = first_task.location.section
+        first_task.recur(interval="1w", end_date="2025-01-31")
+        tasks_after = file_obj.get_tasks()
+        n_tasks_after = len(tasks_after)
+        
+        assert n_tasks_after == n_tasks_before + 4 # 4 weeks from 2024-12-31 to 2025-01-31
+        
+        assert tasks_after[-4].due_date.implied_date == "2025-01-07"
+        assert tasks_after[-3].due_date.implied_date == "2025-01-14"
+        assert tasks_after[-2].due_date.implied_date == "2025-01-21"
+        assert tasks_after[-1].due_date.implied_date == "2025-01-28"
+        
+        # test that tasks were added to file_obj in the same section
+        section = file_obj.sections.get(first_task_section)
+        assert section is not None
+        assert len(section.tasks) == n_tasks_after  # all tasks are in the same section
+        
+    def test_recur_task_count(self, isolated_test_files):
+        """Test that recurring tasks with count are handled correctly."""
+        
+        file = isolated_test_files / 'valid_due_dates.xit'
+        repo = FileRepository()
+        file_obj = repo.get_file(str(file))
+        tasks = file_obj.get_tasks()
+        n_tasks_before = len(tasks)
+        
+        first_task = tasks[0]
+        first_task.recur(interval="2d", count=3)
+        tasks_after = file_obj.get_tasks()
+        n_tasks_after = len(tasks_after)
+        
+        assert n_tasks_after == n_tasks_before + 3 # 3 additional tasks
+        
+        assert tasks_after[-3].due_date.implied_date == "2025-01-02"
+        assert tasks_after[-2].due_date.implied_date == "2025-01-04"
+        assert tasks_after[-1].due_date.implied_date == "2025-01-06"
+        

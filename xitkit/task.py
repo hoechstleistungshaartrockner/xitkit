@@ -8,6 +8,9 @@ from .status import *
 from .duedate import *
 from .priority import *
 from .description import *
+from .location import Location
+from .file_repository import FileRepository
+from .dateutils import generate_recurring_dates
 
 
 class Task:
@@ -17,43 +20,31 @@ class Task:
     content, status, priority, tags, and due date. It provides methods for
     accessing and modifying task properties as well as string representations
     for display purposes.
-    
-    Attributes:
-        file: Path to the file containing this task
-        line_number: Line number where the task appears (1-based)
-        description: The task description text
-        status: Task status (OPEN, ONGOING, DONE, OBSOLETE, INQUESTION)
-        priority: Priority level (0 = no priority, 1+ = number of exclamation marks)
-        tags: List of tags associated with the task
-        due_date: Due date string if present, None otherwise
-        id: Unique sequential ID assigned when reading files
+
     """
 
     def __init__(self,
                  description: str,
-                 file=None,
-                 line_number=None,
+                 location=None,
                  status=None,
                  priority=None,
                  tags=None,
-                 due_date=None,
-                 id=None):
+                 due_date=None):
         """Initialize a Task instance.
 
         Args:
             description (str): Task description text.
-            file (Optional[str]): File path where the task is located.
-            line_number (Optional[int]): Line number of the task in the file.
+            location (Optional[Location]): Location object representing file and line numbers.
             status (Optional[Status]): status object, StatusType, or status string.
             priority (Optional[Priority]): Priority object or integer level.
             tags (Optional[List[Tag]]): List of Tag objects associated with the task.
             due_date (Optional[str]): Due date string if any.
-            id (Optional[int]): Unique ID for the task.
         """
         self.description = Description(description)
-        self.file = file
-        self.line_number = line_number
-        
+
+        # Handle location
+        self.set_location(location)
+
         # Handle status - can be Status object, StatusType, string, or None
         if isinstance(status, Status):
             self.status = status
@@ -97,7 +88,8 @@ class Task:
             raise ValueError(f"Invalid priority type: {type(priority)}")
         
         # Handle ID
-        self.id = id if id is not None else 0
+        self.id = FileRepository().assign_id()
+        FileRepository()._tasks[self.id] = self
         
         # Handle tags - can be Tag objects or strings
         # Keep a separate list for easier management
@@ -119,47 +111,23 @@ class Task:
                 # Unsupported type, ignore
                 pass
 
+    def set_location(self, location) -> None:
+        """Set the task's location.
 
-    @property
-    def location(self) -> Tuple[str, int]:
-        """Get the location of this task as a (filename, line_number) tuple.
-        
-        Returns:
-            Tuple containing the file path and line number
-        """
-        return (self.file, self.line_number)
-
-    @location.setter
-    def location(self, value: Tuple[str, int]) -> None:
-        """Set the location of this task.
-        
         Args:
-            value: Tuple containing (filename, line_number)
+            location: Location object or tuple (file_path, line_number, section) or None for default
         """
-        self.file, self.line_number = value
-
-    @property
-    def filename(self) -> str:
-        """Get just the filename without the full path.
-        
-        Returns:
-            The filename portion of the file path, or None if no file is set
-        """
-        if self.file is None:
-            return None
-        return Path(self.file).name
-
-    @property
-    def relative_path(self) -> str:
-        """Get the relative path from current working directory.
-        
-        Returns:
-            Relative path if possible, otherwise absolute path
-        """
-        try:
-            return str(Path(self.file).relative_to(Path.cwd()))
-        except ValueError:
-            return self.file
+        if isinstance(location, Location):
+            self.location = location
+        elif isinstance(location, tuple) and len(location) == 2:
+            file_path, line_number = location
+            self.location = Location(file_path=file_path, line_numbers=line_number)
+        elif isinstance(location, tuple) and len(location) == 3:
+            file_path, line_number, section = location
+            self.location = Location(file_path=file_path, line_numbers=line_number, section=section)
+        else:
+            # Default location
+            self.location = Location()
 
     @property
     def status_symbol(self) -> str:
@@ -287,20 +255,26 @@ class Task:
         
         Args:
             tag: Tag to add
+        
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
-        self.description.add_tag(tag)
+        return self.description.add_tag(tag)
+        
 
-    def add_tag_by_name(self, name: str, value: Optional[str] = None) -> None:
+    def add_tag_by_name(self, name: str, value: Optional[str] = None) -> bool:
         """Add a tag by name and optional value.
         
         Args:
             name: Tag name (without # prefix)
             value: Optional tag value
+        Returns:
+            bool: True if the tag was added, False if it was already present.
         """
         # Remove # prefix if present
         name = name.lstrip('#')
         tag = Tag(name=name, value=value)
-        self.add_tag(tag)
+        return self.add_tag(tag)
 
     def remove_tag(self, tag: Tag, soft: bool =False) -> bool:
         """Remove a tag from the task.
@@ -436,10 +410,10 @@ class Task:
         """
         desc_text = str(self.description)
         desc_preview = desc_text[:30] + "..." if len(desc_text) > 30 else desc_text
-        return (f"Task(file='{self.file}', line={self.line_number}, "
-                f"status='{self.status}', priority={self.priority}, "
+        return (f"Task(status='{self.status.status_type.name}', priority={self.priority.level}, "
                 f"description='{desc_preview}', "
-                f"tags={self.tags}, due_date='{self.due_date}')")
+                f"tags={[str(tag) for tag in self.tags]}, due_date='{self.due_date}', "
+                f"location={self.location})")
 
     def copy(self) -> 'Task':
         """Create a copy of this task.
@@ -447,7 +421,14 @@ class Task:
         Returns:
             New Task instance with the same properties
         """
-        return deepcopy(self)
+        return Task(
+            description=str(self.description),
+            location=deepcopy(self.location),
+            status=deepcopy(self.status),
+            priority=deepcopy(self.priority),
+            tags=deepcopy(self.tags),
+            due_date=deepcopy(self.due_date)
+        )
 
     def to_terminal_line(self, 
                          show_file: bool = True, 
@@ -478,21 +459,12 @@ class Task:
             result += '\n    ' + continuation_line
         
         # Add location info if requested
-        if (show_file or show_line) and (self.file is not None or self.line_number is not None):
-            location_parts = []
-            if show_file and self.file is not None:
-                try:
-                    relative_path = str(Path(self.file).relative_to(Path.cwd()))
-                except ValueError:
-                    relative_path = self.file
-                location_parts.append(relative_path)
-            
-            if show_line and self.line_number is not None:
-                location_parts.append(f"L{self.line_number}")
-            
-            if location_parts:
-                location_str = ':'.join(location_parts)
-                result += f" [{location_str}]"
+        if (show_file and not show_line):
+            result += f"    ({self.location.relative_path})"
+        elif (show_file and show_line):
+            result += f"    ({str(self.location)})"
+        elif (not show_file and show_line):
+            result += f"    ({self.location.resolve_line_numbers()})"
         
         return result
 
@@ -512,3 +484,96 @@ class Task:
         formatted_lines = [prefix.get(idx, "    ") + line for idx, line in enumerate(lines)]
         return '\n'.join(formatted_lines)
 
+    def save(self) -> bool:
+        """Save the task to its file using the FileRepository.
+        
+        Returns:
+            True if the task was saved successfully, False otherwise
+        """
+        if not self.location or not self.location.file_path:
+            return False
+        return FileRepository().update_task(self)
+
+    def recur(self, interval: str, count: int = None, end_date: str = None) -> list:
+        """Create recurring tasks based on this task.
+        
+        Args:
+            interval: Recurrence interval string (e.g., '1w' for one week)
+            count: Number of occurrences to create
+            end_date: Optional end date string in YYYY-MM-DD format
+            
+        Returns:
+            List of newly created Task instances
+        """
+        # throw error if both count and end_date are provided
+        if count is not None and end_date is not None:
+            raise ValueError("Specify either count or end_date, not both.")
+        
+        dates = generate_recurring_dates(
+            start_date=self.due_date.implied_date if self.due_date else None,
+            interval=interval,
+            count=count +1 if count is not None else None,
+            end_date=end_date
+        )
+        
+        # get the according file and rewrite
+        file = FileRepository().get_file(self.location.file_path)
+        
+        for date in dates[1:]:  # skip the first date as it's the original task
+            new_task = self.copy()
+            new_task.set_due_date(date)
+            file.add_task(new_task)
+        
+        # Save the file with new tasks
+        file.write()
+        return dates[1:]  # return only the newly created tasks
+    
+    def unlink(self) -> bool:
+        """Unlink the task from its file without deleting it.
+        
+        Returns:
+            True if the task was unlinked successfully, False otherwise
+        """
+        if not self.location or not self.location.file_path:
+            return False
+        return FileRepository().unlink_task(self)
+    
+    def delete(self) -> bool:
+        """Delete the task from its file.
+        
+        Returns:
+            True if the task was deleted successfully, False otherwise
+        """
+        if not self.location or not self.location.file_path:
+            return False
+        file = FileRepository().get_file(self.location.file_path)
+        if file:
+            file.remove_task(self)
+            file.write()
+            return True
+        return False
+    
+    def move(self, new_file_path: str, section_name: Optional[str] = None) -> bool:
+        """Move the task to a different file and optional section.
+        
+        Args:
+            new_file_path: Path of the target file
+            section_name: Optional section name in the target file
+            
+        Returns:
+            True if the task was moved successfully, False otherwise
+        """
+        # Unlink from current file
+        if not self.unlink():
+            return False
+        
+        # write old file
+        old_file = FileRepository().get_file(self.location.file_path)
+        old_file.write()
+        
+        # Update location
+        self.location.file_path = new_file_path
+        self.location.section = section_name
+        
+        # save to new file
+        return self.save()

@@ -36,6 +36,28 @@ class Tag:
         tags = []
         for match in TAG_PATTERN.finditer(line):
             tag_name = match.group(1)
+            start, end = match.span()
+            
+            # Check for malformed quotes by looking at what comes after the match
+            if '=' in match.group(0):
+                # Look at the character immediately after the match to see if it's an unmatched quote
+                if end < len(line):
+                    next_char = line[end] if end < len(line) else ''
+                    # If the match ended with '=' and the next character is a quote, it's malformed
+                    if match.group(0).endswith('=') and next_char in ["'", '"']:
+                        continue  # Skip this malformed tag
+                
+                # Also check if we have a partial quoted value (the regex matched empty for unquoted)
+                if match.group(4) == '' and match.group(2) is None and match.group(3) is None:
+                    # This means we matched #tag= but no valid value
+                    # Check if there's a quote right after the =
+                    equals_pos = match.group(0).rfind('=')
+                    if equals_pos >= 0 and end < len(line):
+                        after_equals = line[start + equals_pos + 1:end + 10]  # Look ahead a bit
+                        if after_equals.startswith(("'", '"')):
+                            continue  # Skip malformed quoted values
+            
+            # If we get here, the tag is valid
             # Check each group individually to preserve empty strings
             if match.group(2) is not None:  # Double-quoted value
                 tag_value = match.group(2)

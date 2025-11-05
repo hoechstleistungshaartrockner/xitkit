@@ -21,6 +21,9 @@ TAG_PATTERN = re.compile(r'#([a-zA-Z\u00C0-\u017F\u0400-\u04FF\u4e00-\u9fff\u10A
 # Matches continuation lines: exactly 4 spaces + content
 CONTINUATION_PATTERN = re.compile(r'^    (.*)$')
 
+# Matches section headers: lines do not start with a check box and contain at least one non-whitespace character
+SECTION_HEADER_PATTERN = re.compile(r'^[^\[\s].*$')
+
 # Matches blank lines (empty or whitespace only)
 BLANK_LINE_PATTERN = re.compile(r'^\s*$')
 

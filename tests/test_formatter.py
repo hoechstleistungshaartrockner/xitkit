@@ -111,7 +111,7 @@ class TestTaskFormatting:
     
     def test_format_simple_task(self, task_formatter):
         """Test formatting a simple task."""
-        task = Task("Simple task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task("Simple task", location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task, no_id=True)
         
@@ -122,12 +122,12 @@ class TestTaskFormatting:
     
     def test_format_task_with_priority(self, task_formatter):
         """Test formatting a task with priority."""
-        task = Task("Important task", file="/test.xit", line_number=1, status="OPEN", priority=2, tags=[], due_date=None)
+        task = Task("Important task", location=("/test.xit", 1), status="OPEN", priority=2, tags=[], due_date=None)
 
         result = task_formatter.format_task(task)
         
         text_content = str(result)
-        assert text_content == "#000 [ ] !! Important task"
+        assert text_content == "#001 [ ] !! Important task"
     
     def test_format_task_different_statuses(self, task_formatter):
         """Test formatting tasks with different statuses."""
@@ -135,7 +135,7 @@ class TestTaskFormatting:
         expected_symbols = ["[ ]", "[x]", "[@]", "[~]", "[?]"]
         
         for status, expected_symbol in zip(statuses, expected_symbols):
-            task = Task("Test task", file="/test.xit", line_number=1, status=status, priority=0, tags=[], due_date=None)
+            task = Task("Test task", location=("/test.xit", 1), status=status, priority=0, tags=[], due_date=None)
             result = task_formatter.format_task(task, no_id=True)
             
             text_content = str(result)
@@ -144,7 +144,7 @@ class TestTaskFormatting:
     def test_format_multiline_task(self, task_formatter):
         """Test formatting a task with multiline description."""
         description = "First line\nSecond line\nThird line"
-        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task(description, location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task, no_id=True)
         
@@ -159,20 +159,20 @@ class TestTaskFormatting:
     def test_format_multiline_task_with_id(self, task_formatter):
         """Test formatting a multiline task with ID included."""
         description = "Line one\nLine two"
-        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task(description, location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task, no_id=False)
         
         lines = str(result).split('\n')
         print(lines)
         assert len(lines) == 2
-        assert lines[0] == "#000 [ ] Line one"
+        assert lines[0] == "#001 [ ] Line one"
         assert lines[1] == "         Line two"
 
     def test_format_task_with_trailing_whitespace(self, task_formatter):
         """Test formatting a task with trailing whitespace in description. (Should be preserved)"""
         description = "Task with trailing spaces    \n Next line with spaces     "
-        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task(description, location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task, no_id=True)
         
@@ -180,25 +180,25 @@ class TestTaskFormatting:
         assert lines[0] == "[ ] Task with trailing spaces    "
         assert lines[1] == "     Next line with spaces     "
     
-    def test_format_task_with_line_number(self, task_formatter):
-        """Test formatting a task with line number display."""
-        task = Task("Test task", file="/test.xit", line_number=42, status="OPEN", priority=0, tags=[], due_date=None)
+    def test_format_task_with_location(self, task_formatter):
+        """Test formatting a task with location display."""
+        task = Task("Test task", location=("/test.xit", 42), status="OPEN", priority=0, tags=[], due_date=None)
         
-        result = task_formatter.format_task(task, show_line=True)
+        result = task_formatter.format_task(task, show_location=True)
         
         text_content = str(result)
-        assert "L42" in text_content
+        assert text_content == "#001 [ ] Test task    (/test.xit:42)"
     
     def test_format_task_with_tags_and_dates(self, task_formatter):
         """Test formatting a task with tags and due dates."""
         description = "Task with #tag and -> 2025-12-31"
-        task = Task(description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=["#tag"], due_date="2025-12-31")
+        task = Task(description, location=("/test.xit", 1), status="OPEN", priority=0, tags=["#tag"], due_date="2025-12-31")
         
         result = task_formatter.format_task(task)
         
         # The formatter should highlight syntax in the description
         text_content = str(result)
-        assert text_content == "#000 [ ] Task with #tag and -> 2025-12-31"
+        assert text_content == "#001 [ ] Task with #tag and -> 2025-12-31"
 
 
 class TestDisplayMethods:
@@ -217,8 +217,8 @@ class TestDisplayMethods:
     def test_display_tasks_with_tasks(self, task_formatter):
         """Test displaying tasks."""
         tasks = [
-            Task("Task 1", file="/file1.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None),
-            Task("Task 2", file="/file1.xit", line_number=2, status="CHECKED", priority=0, tags=[], due_date=None),
+            Task("Task 1", location=("/file1.xit", 1), status="OPEN", priority=0, tags=[], due_date=None),
+            Task("Task 2", location=("/file1.xit", 2), status="CHECKED", priority=0, tags=[], due_date=None),
         ]
         
         with patch.object(task_formatter.console, 'print') as mock_print:
@@ -229,10 +229,10 @@ class TestDisplayMethods:
     
     def test_display_tasks_with_line_numbers(self, task_formatter):
         """Test displaying tasks with line numbers."""
-        tasks = [Task("Task 1", file="/file1.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)]
+        tasks = [Task("Task 1", location=("/file1.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)]
         
         with patch.object(task_formatter.console, 'print') as mock_print:
-            task_formatter.display_tasks(tasks, show_line=True)
+            task_formatter.display_tasks(tasks, show_location=True)
             
             assert mock_print.call_count > 0
     
@@ -295,7 +295,7 @@ class TestConvenienceFunction:
     
     def test_format_task_rich_function(self):
         """Test the global format_task_rich function."""
-        task = Task("Test task", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task("Test task", location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = format_task_rich(task)
         
@@ -306,12 +306,12 @@ class TestConvenienceFunction:
     
     def test_format_task_rich_with_line_number(self):
         """Test the global format_task_rich function with line numbers."""
-        task = Task("Test task", file="/test.xit", line_number=42, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task("Test task", location=("/test.xit", 42), status="OPEN", priority=0, tags=[], due_date=None)
         
-        result = format_task_rich(task, show_line=True)
+        result = format_task_rich(task, show_location=True)
         
         text_content = str(result)
-        assert "L42" in text_content
+        assert text_content == "#001 [ ] Test task    (/test.xit:42)"
 
 
 class TestFormatterEdgeCases:
@@ -319,7 +319,7 @@ class TestFormatterEdgeCases:
     
     def test_format_task_empty_description(self, task_formatter):
         """Test formatting task with empty description."""
-        task = Task("", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task("", location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task)
         
@@ -328,7 +328,7 @@ class TestFormatterEdgeCases:
     
     def test_format_task_unicode_description(self, task_formatter):
         """Test formatting task with Unicode characters."""
-        task = Task("📋 Unicode task 🚀", file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task("📋 Unicode task 🚀", location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         result = task_formatter.format_task(task)
         
@@ -339,7 +339,7 @@ class TestFormatterEdgeCases:
     def test_format_task_very_long_description(self, task_formatter):
         """Test formatting task with very long description."""
         long_description = "Very " * 100 + "long task description"
-        task = Task(long_description, file="/test.xit", line_number=1, status="OPEN", priority=0, tags=[], due_date=None)
+        task = Task(long_description, location=("/test.xit", 1), status="OPEN", priority=0, tags=[], due_date=None)
         
         # Should not crash
         result = task_formatter.format_task(task)
@@ -367,39 +367,39 @@ class TestFormatterWithRealContent:
     
     def test_format_complex_task(self, task_formatter):
         """Test formatting a complex task with all features."""
-        description = """Complex multi-line task ...
-    with continuation lines
-    containing #tags and #priority=high
-    and due date -> 2025-12-31"""
+        description = "Complex multi-line task\nwith continuation lines\ncontaining #tags and #priority=high\nand due date -> 2025-12-31"
         
         task = Task(
             description,
-            file="/project/tasks.xit",
-            line_number=15,
+            location=("/project/tasks.xit", 15),
             status="ONGOING",
             priority=3,
             tags=["#work", "#project", "#priority=high"],
             due_date="2025-12-31"
         )
+        print(task.description.text)
         
-        result = task_formatter.format_task(task, show_line=True)
+        result = task_formatter.format_task(task, show_location=True)
+        print(str(result))
         
-        text_content = str(result)
-        assert "[@]" in text_content  # ONGOING status
-        assert "!!!" in text_content  # Priority 3
-        assert "Complex multi-line task" in text_content
-        assert "L15" in text_content  # Line number
+        result_lines = str(result).split('\n')
+        print(result_lines)
+        assert len(result_lines) == 4 
+        assert result_lines[0] == "#001 [@] !!! Complex multi-line task"
+        assert result_lines[1] == "         with continuation lines"
+        assert result_lines[2] == "         containing #tags and #priority=high"
+        assert result_lines[3] == "         and due date #work #project -> 2025-12-31    (/project/tasks.xit:15)"
     
     def test_format_tasks_mixed_files(self, task_formatter):
         """Test formatting tasks from multiple files."""
         tasks = [
-            Task("Work task", file="/work/tasks.xit", line_number=1, status="OPEN", priority=1, tags=["#work"], due_date=None),
-            Task("Another work task", file="/work/tasks.xit", line_number=5, status="CHECKED", priority=0, tags=[], due_date=None),
-            Task("Personal task", file="/personal/todo.md", line_number=3, status="ONGOING", priority=2, tags=["#personal"], due_date="2025-12-31"),
+            Task("Work task", location=("/work/tasks.xit", 1), status="OPEN", priority=1, tags=["#work"], due_date=None),
+            Task("Another work task", location=("/work/tasks.xit", 5), status="CHECKED", priority=0, tags=[], due_date=None),
+            Task("Personal task", location=("/personal/todo.md", 3), status="ONGOING", priority=2, tags=["#personal"], due_date="2025-12-31"),
         ]
         
         with patch.object(task_formatter.console, 'print') as mock_print:
-            task_formatter.display_tasks(tasks, show_line=True)
+            task_formatter.display_tasks(tasks, show_location=True)
             
             # Should have printed multiple times (headers + tasks)
             assert mock_print.call_count > 3
@@ -416,7 +416,7 @@ class TestFormatterIntegration:
     
     def test_formatter_preserves_task_data(self, task_formatter):
         """Test that formatting doesn't modify original task data."""
-        original_task = Task("Original task", file="/test.xit", line_number=1, status="OPEN", priority=1, tags=["#tag"], due_date="2025-12-31")
+        original_task = Task("Original task", location=("/test.xit", 1), status="OPEN", priority=1, tags=["#tag"], due_date="2025-12-31")
         
         # Store original values
         original_desc = original_task.description
